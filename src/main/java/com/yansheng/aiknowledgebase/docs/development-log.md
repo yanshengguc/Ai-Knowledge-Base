@@ -23,3 +23,31 @@
 
 ## 今日总结
 完成第一个 Spring Boot REST API，从请求到 JSON 返回流程跑通。
+# Day2
+
+## 完成
+- Service层
+- ServiceImpl
+- Controller调用Service
+- Spring依赖注入
+
+
+## 核心理解
+
+Controller：
+接收请求
+
+Service：
+处理业务
+
+Impl：
+实现业务
+
+
+## 记住
+
+interface → implements
+
+@Service → 交给Spring管理
+
+不用new → Spring自动注入

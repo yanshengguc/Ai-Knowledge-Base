@@ -51,3 +51,18 @@ interface → implements
 @Service → 交给Spring管理
 
 不用new → Spring自动注入
+Day3
+
+完成：
+- 创建统一返回 Result
+- success/error 方法封装
+- Controller统一返回格式
+
+理解：
+- common 放公共组件
+- Result 是返回外壳
+- data 放不同业务对象
+
+核心：
+Day2解决代码分层
+Day3解决接口返回规范

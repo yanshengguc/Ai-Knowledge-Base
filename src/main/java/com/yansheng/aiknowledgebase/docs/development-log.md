@@ -66,3 +66,245 @@ Day3
 核心：
 Day2解决代码分层
 Day3解决接口返回规范
+# Day4：统一异常处理（Global Exception Handler）
+
+## 今日目标
+
+实现项目统一异常处理，让 Service 只负责业务，异常统一交给 Handler 处理。
+
+---
+
+## 今天新增
+
+### 1. BusinessException（业务异常）
+
+位置：
+
+common/BusinessException.java
+
+作用：
+
+用于表示业务异常。
+
+例如：
+
+- 用户不存在
+- 密码错误
+- 库存不足
+
+业务出错时：
+
+```java
+throw new BusinessException("用户不存在");
+```
+
+为什么继承 RuntimeException？
+
+- 属于运行时异常
+- 可以直接 throw
+- 可以保存 message（super(message)）
+
+---
+
+### 2. GlobalExceptionHandler（全局异常处理器）
+
+位置：
+
+handler/GlobalExceptionHandler.java
+
+作用：
+
+统一处理所有 BusinessException。
+
+使用：
+
+```java
+@RestControllerAdvice
+```
+
+表示：
+
+Spring 自动扫描，这是全局异常处理器。
+
+处理方法：
+
+```java
+@ExceptionHandler(BusinessException.class)
+public Result businessException(BusinessException e){
+    return Result.error(e.getMessage());
+}
+```
+
+作用：
+
+收到 BusinessException 后：
+
+```text
+BusinessException
+        ↓
+e.getMessage()
+        ↓
+Result.error(...)
+```
+
+最终返回：
+
+```json
+{
+    "code":500,
+    "message":"用户不存在",
+    "data":null
+}
+```
+
+---
+
+## 为什么不用
+
+```java
+return Result.error(...)
+```
+
+而要：
+
+```java
+throw new BusinessException(...)
+```
+
+原因：
+
+Service 负责业务。
+
+Handler 负责返回。
+
+实现职责分离（分层）。
+
+---
+
+## Day4 请求流程
+
+正常：
+
+浏览器
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+Result.success(...)
+
+↓
+
+浏览器
+
+异常：
+
+浏览器
+
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+throw BusinessException(...)
+
+↓
+
+GlobalExceptionHandler
+
+↓
+
+Result.error(...)
+
+↓
+
+浏览器
+
+---
+
+## 今天理解的核心
+
+BusinessException
+
+负责：
+
+抛异常。
+
+GlobalExceptionHandler
+
+负责：
+
+处理异常。
+
+Result.error()
+
+负责：
+
+统一返回异常信息。
+
+---
+
+## Day4 验收
+
+能够回答：
+
+✓ 为什么不用 return Result.error()？
+
+Service 只负责业务，异常统一交给 Handler。
+
+✓ 为什么继承 RuntimeException？
+
+保存异常信息，并作为运行时异常抛出。
+
+✓ 为什么需要 GlobalExceptionHandler？
+
+统一处理异常，避免每个 Controller 重复写 try-catch。
+
+✓ Spring 为什么知道调用 Handler？
+
+因为：
+
+@RestControllerAdvice
+
+和：
+
+@ExceptionHandler
+
+两个注解。
+
+---
+
+## 今日收获
+
+完成了 Spring Boot 企业项目的基础异常处理框架：
+
+Controller
+↓
+
+Service
+
+↓
+
+BusinessException
+
+↓
+
+GlobalExceptionHandler
+
+↓
+
+Result
+
+↓
+
+JSON

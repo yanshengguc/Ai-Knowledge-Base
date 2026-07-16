@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class HelloServiceImpl implements HelloService {
     @Override
-     public Result hello(String name) {
+     public Result<K> hello(String name) {
      //return   Result.success(name);
 throw new BusinessException("异常");
 }}

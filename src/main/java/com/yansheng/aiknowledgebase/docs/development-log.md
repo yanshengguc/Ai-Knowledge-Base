@@ -308,3 +308,237 @@ Result
 ↓
 
 JSON
+Day5 总结：数据库分层 + MyBatis链路
+
+1. 新增项目结构
+
+现在项目结构：
+
+aiknowledgebase
+├── controller
+│   └── UserController
+│
+├── service
+│   ├── UserService
+│   └── impl
+│       └── UserServiceImpl
+│
+├── mapper
+│   └── UserMapper
+│
+├── entity
+│   └── UserEntity
+│
+├── vo
+│   └── UserVO
+│
+├── common
+│   └── Result
+│
+└── handler
+└── GlobalExceptionHandler
+
+
+---
+
+核心知识
+
+1. Entity
+
+数据库对应对象：
+
+数据库表
+↓
+UserEntity
+
+例如：
+
+id
+username
+password
+
+负责保存数据库数据。
+
+
+---
+
+2. VO
+
+返回给前端的数据：
+
+UserEntity
+↓ 转换
+UserVO
+↓
+前端
+
+例如：
+
+username
+
+不返回：
+
+password
+
+避免泄露。
+
+
+---
+
+3. Mapper
+
+负责数据库操作：
+
+UserEntity findById(Long id);
+
+Mapper 是接口。
+
+原因：
+
+> 定义数据库访问能力，具体实现由 MyBatis 生成。
+
+
+
+
+---
+
+4. Service
+
+负责业务逻辑：
+
+Controller
+↓
+Service
+↓
+Mapper
+
+不要让 Controller 直接操作数据库。
+
+
+---
+
+5. 完整请求流程
+
+访问：
+
+/api/user/1
+
+流程：
+
+Controller
+↓
+UserService
+↓
+UserServiceImpl
+↓
+UserMapper
+↓
+MyBatis
+↓
+MySQL
+↓
+UserEntity
+↓
+UserVO
+↓
+Result
+
+
+---
+
+今天遇到的问题
+
+1. UserMapper 找不到
+
+错误：
+
+No qualifying bean of type UserMapper
+
+原因：
+
+Spring 不知道 Mapper。
+
+解决：
+
+@MapperScan("com.yansheng.aiknowledgebase.mapper")
+
+
+---
+
+2. sqlSessionFactory 不存在
+
+错误：
+
+Property 'sqlSessionFactory' or 'sqlSessionTemplate' are required
+
+原因：
+
+MyBatis 环境没有正确启动。
+
+解决：
+
+MyBatis starter版本调整
+
+数据库配置
+
+MySQL驱动
+# Day5
+
+## 完成内容
+
+- 设计 Knowledge 业务模型
+- 创建 KnowledgeEntity
+- 创建 KnowledgeVO（列表展示）
+- 创建 KnowledgeDetailVO（详情展示）
+
+- 创建 KnowledgeMapper
+- 学习 Mapper 负责数据库查询
+
+- 创建 KnowledgeService
+- 创建 KnowledgeServiceImpl
+- 完成 Entity → VO 转换
+
+- 创建 KnowledgeController
+- 完成列表查询接口
+- 完成详情查询接口
+
+
+## 掌握
+
+- Entity 对应数据库数据
+- VO 用于返回给前端的数据
+- 列表查询：
+  List<Entity> → List<VO>
+
+- 详情查询：
+  Entity → DetailVO
+
+- Service 负责业务处理和数据转换
+- Controller 负责接收请求并返回结果
+
+## 请求链路
+
+Controller
+↓
+Service
+↓
+Mapper
+↓
+MySQL
+↓
+Entity
+↓
+VO
+↓
+Result
+
+
+## 遇到问题
+
+- 理解 Mapper 返回 Entity，而不是直接返回 VO
+- 理解 Service 为什么需要 Entity 转 VO
+- 区分接口和实现类调用
+- 修正 Controller 返回类型
+- 理解 List 和单对象转换区别
+
+

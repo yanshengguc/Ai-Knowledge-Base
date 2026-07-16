@@ -1,4 +1,7 @@
 package com.yansheng.aiknowledgebase.service;
 
-public class UserService {
+import com.yansheng.aiknowledgebase.vo.UserVO;
+
+public interface UserService {
+    UserVO getUserById(long id);
 }

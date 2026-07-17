@@ -16,7 +16,7 @@ public class UserController {
         this.userService = userService;
     }
     @GetMapping("/{id}")
-    public Result<K> getUserById(@PathVariable long id){
+    public Result getUserById(@PathVariable long id){
         UserVO userVO=userService.getUserById(id);
         return Result.success(userVO);
 

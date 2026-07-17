@@ -19,7 +19,7 @@ private final HelloService helloService;
 
 
     @GetMapping("/hello")
-    public Result<K> hello(@RequestParam String name){
+    public Result hello(@RequestParam String name){
     return helloService.hello(name);
 }
 }

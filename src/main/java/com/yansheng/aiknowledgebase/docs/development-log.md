@@ -542,3 +542,26 @@ Result
 - 理解 List 和单对象转换区别
 
 
+Day6: integrate MySQL with MyBatis knowledge query
+
+完成知识库模块数据库接入：
+
+- 配置 MySQL 数据源
+- 配置 MyBatis Mapper XML 扫描
+- 创建 knowledge 数据表测试数据
+- 完成 KnowledgeMapper XML SQL 映射
+- 接入真实数据库查询
+- 完善知识库列表查询接口
+- 完善知识库详情查询接口
+- 完成 Entity → VO 数据转换流程
+
+解决问题：
+- Invalid bound statement (not found)
+- 理解 Mapper 接口与 XML 映射关系
+- 理解 MyBatis 数据查询流程
+
+接口测试：
+- GET /api/knowledge
+- GET /api/knowledge/{id}
+
+完成 Controller → Service → Mapper → MySQL 完整查询链路

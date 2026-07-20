@@ -37,4 +37,22 @@
 
     </select>
 
+    <!--新增-->
+    <insert id="insert">
+        insert into knowledge(
+        title,
+        content,
+        category,
+        author,
+        create_time,
+        update_time
+        )
+        values(
+        #{title},
+        #{content},
+        #{category},
+        #{author},
+        #{createTime},
+        #{updateTime})
+    </insert>
 </mapper>

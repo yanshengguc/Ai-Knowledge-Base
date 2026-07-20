@@ -11,7 +11,9 @@ public class Result<T> {
         this.message = message;
         this.data = data;
     }
-
+    public static <T> Result<T> success(){
+        return new Result<>( 200, "success", null);
+    }
     public static <T> Result<T> success(Object data) {
         return new Result<>(200, "success", data);
     }

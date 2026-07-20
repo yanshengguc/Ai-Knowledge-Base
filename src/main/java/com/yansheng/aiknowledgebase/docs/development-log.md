@@ -565,3 +565,142 @@ Day6: integrate MySQL with MyBatis knowledge query
 - GET /api/knowledge/{id}
 
 完成 Controller → Service → Mapper → MySQL 完整查询链路
+---
+
+Day7：新增（Create）
+
+完成内容
+
+新建 KnowledgeAddDTO，用于接收前端新增数据。
+
+Controller 新增 POST /api/knowledge 接口。
+
+Service 新增 addKnowledge(KnowledgeAddDTO dto)。
+
+ServiceImpl 完成 DTO → Entity 转换。
+
+新增 KnowledgeMapper.insert(KnowledgeEntity entity)。
+
+编写 MyBatis insert SQL。
+
+使用 LocalDateTime.now() 设置 createTime、updateTime。
+
+使用 Apifox 完成 POST 请求测试。
+
+数据成功写入 MySQL。
+
+配置 MyBatis 驼峰映射，解决 create_time、update_time 返回 null 的问题。
+
+
+
+---
+
+学习内容
+
+DTO
+
+用于接收前端请求数据，不直接使用 Entity。
+
+流程：
+
+前端
+↓
+DTO
+↓
+Entity
+
+
+---
+
+新增接口流程
+
+Apifox(JSON)
+↓
+Controller
+↓
+Service
+↓
+Entity
+↓
+Mapper
+↓
+Mapper.xml
+↓
+MySQL
+
+
+---
+
+MyBatis Insert
+
+掌握：
+
+insert into ... values(...)
+
+理解：
+
+insert 不需要 where。
+
+values 中只写 #{}。
+
+id 由数据库自增。
+
+
+
+---
+
+时间处理
+
+新增时：
+
+LocalDateTime now = LocalDateTime.now();
+
+同时赋值：
+
+createTime
+
+updateTime
+
+
+
+---
+
+Apifox
+
+第一次使用 POST + JSON 请求测试接口。
+
+浏览器主要用于 GET，请求新增、修改、删除统一使用 Apifox。
+
+
+---
+
+驼峰映射
+
+数据库：
+
+create_time
+
+Java：
+
+createTime
+
+配置：
+
+mybatis.configuration.map-underscore-to-camel-case=true
+
+
+---
+
+今日踩坑
+
+insert 与 select 写法混淆。
+
+insert 不使用 where。
+
+values 中不能写 title=。
+
+Result.success() 需要改为 Result.success(null)。
+
+浏览器不能方便测试 POST。
+
+未开启驼峰映射导致时间字段返回 null。

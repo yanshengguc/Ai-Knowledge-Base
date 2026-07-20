@@ -1,5 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
@@ -7,6 +8,7 @@ import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,8 +55,19 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     }
 
+    @Override
+    public void addKnowledge(KnowledgeAddDTO dto) {
+        KnowledgeEntity knowledgeEntity = new KnowledgeEntity();
+        knowledgeEntity.setTitle(dto.getTitle());
+        knowledgeEntity.setCategory(dto.getCategory());
+        knowledgeEntity.setAuthor(dto.getAuthor());
+        knowledgeEntity.setContent(dto.getContent());
+        LocalDateTime now = LocalDateTime.now();
+        knowledgeEntity.setCreateTime(now);
+        knowledgeEntity.setUpdateTime(now);
+        knowledgeMapper.insert(knowledgeEntity);
 
-
+    }
 
 
 }

@@ -12,4 +12,5 @@ public interface KnowledgeMapper {
     List<KnowledgeEntity> selectAll();
     KnowledgeEntity selectById(Long id);
 
+    int insert(KnowledgeEntity knowledgeEntity);
 }

@@ -1,13 +1,11 @@
 package com.yansheng.aiknowledgebase.controller;
 
 import com.yansheng.aiknowledgebase.common.Result;
+import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -28,5 +26,13 @@ public class KnowledgeController {
     public Result<KnowledgeDetailVO> getKnowledgeDetail(@PathVariable Long id){
         return  Result.success(knowledgeService.getKnowledgeById(id));
 }
+    @PostMapping("/knowledge")
+    public Result<Void> addKnowledge(@RequestBody KnowledgeAddDTO dto){
+        System.out.println(dto.getTitle());
+        knowledgeService.addKnowledge(dto);
+        return Result.success();
+    }
+
+
 }
 

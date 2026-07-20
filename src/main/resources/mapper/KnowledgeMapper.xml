@@ -55,4 +55,15 @@
         #{createTime},
         #{updateTime})
     </insert>
+
+    <update id="update">
+update  knowledge
+        set
+        title=#{title},
+        content =#{content},
+        category   =   #{category},
+        author= #{author},
+        update_time= #{updateTime}
+        where id=#{id}
+    </update>
 </mapper>

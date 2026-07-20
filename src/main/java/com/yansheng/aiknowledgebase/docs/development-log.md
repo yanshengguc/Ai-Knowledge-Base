@@ -704,3 +704,146 @@ Result.success() 需要改为 Result.success(null)。
 浏览器不能方便测试 POST。
 
 未开启驼峰映射导致时间字段返回 null。
+---
+
+Day8：Knowledge Update 修改接口 ✅
+
+目标
+
+完成 Knowledge 修改接口。
+
+接口：
+
+PUT /api/knowledge/{id}
+
+
+---
+
+完成内容
+
+DTO
+
+新增：
+
+KnowledgeUpdateDTO
+
+字段：
+
+title
+
+content
+
+category
+
+author
+
+
+理解：
+
+不用 Entity 接收前端数据：
+
+防止暴露数据库字段
+
+控制可修改内容
+
+
+
+---
+
+Controller
+
+完成：
+
+@PutMapping("/knowledge/{id}")
+
+接收：
+
+@PathVariable id
+
+@RequestBody DTO
+
+
+流程：
+
+请求
+↓
+Controller
+↓
+Service
+
+
+---
+
+Service
+
+新增：
+
+void updateKnowledge(Long id, KnowledgeUpdateDTO dto);
+
+
+---
+
+ServiceImpl
+
+完成：
+
+id查询旧数据
+↓
+判断是否存在
+↓
+DTO → Entity修改
+↓
+更新updateTime
+↓
+Mapper.update()
+
+掌握：
+
+Update需要先查id，不是直接新增。
+
+
+---
+
+Mapper
+
+新增：
+
+int update(KnowledgeEntity entity);
+
+理解：
+
+Mapper只负责数据库操作，不处理业务。
+
+
+---
+
+XML
+
+完成：
+
+<update id="update">
+
+SQL：
+
+update knowledge
+set ...
+where id=#{id}
+
+掌握：
+
+where防止全表更新
+
+#{}参数绑定
+
+
+
+---
+
+测试
+
+Apifox PUT测试成功。
+
+数据库修改成功。
+
+
+---

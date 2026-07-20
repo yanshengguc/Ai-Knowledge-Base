@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase.controller;
 
 import com.yansheng.aiknowledgebase.common.Result;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
+import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
@@ -28,8 +29,13 @@ public class KnowledgeController {
 }
     @PostMapping("/knowledge")
     public Result<Void> addKnowledge(@RequestBody KnowledgeAddDTO dto){
-        System.out.println(dto.getTitle());
+
         knowledgeService.addKnowledge(dto);
+        return Result.success();
+    }
+    @PutMapping("/knowledge/{id}")
+    public Result<Void> updateKnowledge(@PathVariable Long id, @RequestBody KnowledgeUpdateDTO dto){
+        knowledgeService.updateKnowledge(id,dto);
         return Result.success();
     }
 

@@ -1,6 +1,8 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import com.yansheng.aiknowledgebase.common.BusinessException;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
+import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
@@ -68,6 +70,30 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         knowledgeMapper.insert(knowledgeEntity);
 
     }
+
+    @Override
+    public void updateKnowledge(Long id, KnowledgeUpdateDTO dto) {
+KnowledgeEntity knowledgeEntity = knowledgeMapper.selectById(id);
+if(knowledgeEntity ==null){
+    throw new BusinessException("不存在");
+    }
+    else {
+
+    knowledgeEntity.setTitle(dto.getTitle());
+    knowledgeEntity.setCategory(dto.getCategory());
+    knowledgeEntity.setAuthor(dto.getAuthor());
+    knowledgeEntity.setContent(dto.getContent());
+    LocalDateTime now = LocalDateTime.now();
+    knowledgeEntity.setUpdateTime(now);
+
+    }
+    int rows=knowledgeMapper.update(knowledgeEntity);
+    if(rows<=0){
+        throw new BusinessException("修改失败");
+    }
+    }
+
+
 
 
 }

@@ -66,4 +66,9 @@ update  knowledge
         update_time= #{updateTime}
         where id=#{id}
     </update>
+    <delete id="delete"
+            parameterType="java.lang.Long">
+DELETE FROM  knowledge
+        where id=#{id}
+    </delete>
 </mapper>

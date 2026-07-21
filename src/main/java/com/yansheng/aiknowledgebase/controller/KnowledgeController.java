@@ -38,7 +38,11 @@ public class KnowledgeController {
         knowledgeService.updateKnowledge(id,dto);
         return Result.success();
     }
-
+@DeleteMapping("/knowledge/{id}")
+    public Result<Void> deleteKnowledge(@PathVariable Long id){
+        knowledgeService.deleteKnowledge(id);
+        return Result.success();
+}
 
 }
 

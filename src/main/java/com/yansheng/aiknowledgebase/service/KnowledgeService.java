@@ -13,4 +13,5 @@ public interface KnowledgeService {
  KnowledgeDetailVO getKnowledgeById(Long id);
   void addKnowledge(KnowledgeAddDTO dto);
   void  updateKnowledge(Long id, KnowledgeUpdateDTO dto);
+  void deleteKnowledge(Long id);
 }

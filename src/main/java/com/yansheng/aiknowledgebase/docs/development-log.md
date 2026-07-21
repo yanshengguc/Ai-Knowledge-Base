@@ -847,3 +847,85 @@ Apifox PUT测试成功。
 
 
 ---
+Day9 总结
+
+今天完成内容
+
+1. Controller
+
+新增删除接口
+
+使用 @DeleteMapping
+
+路径：/api/knowledge/{id}
+
+使用 @PathVariable Long id
+
+调用 knowledgeService.deleteKnowledge(id)
+
+返回 Result.success(null)（根据你的 Result 实现）
+
+
+2. Service
+
+新增：
+
+
+void deleteKnowledge(Long id);
+
+3. ServiceImpl
+
+根据 id 查询数据
+
+数据不存在，抛出 BusinessException
+
+调用 knowledgeMapper.delete(id)
+
+判断影响行数
+
+删除失败继续抛出异常
+
+
+4. Mapper
+
+新增：
+
+
+int delete(Long id);
+
+5. Mapper XML
+
+<delete id="delete" parameterType="java.lang.Long">
+    DELETE FROM knowledge
+    WHERE id = #{id}
+</delete>
+
+6. 测试
+
+删除接口完成（如果还没用 Apifox 测试，记得补测一次）
+
+
+
+---
+
+今天掌握的知识
+
+DELETE 请求的使用
+
+RESTful 删除接口设计
+
+@PathVariable 的作用
+
+为什么删除接口不需要 DTO
+
+删除前先查询数据是否存在
+
+Mapper 返回 int 表示影响行数
+
+MyBatis <delete> 标签
+
+parameterType="java.lang.Long"
+
+
+
+---

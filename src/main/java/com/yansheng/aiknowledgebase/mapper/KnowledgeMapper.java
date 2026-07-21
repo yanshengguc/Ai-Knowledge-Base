@@ -14,4 +14,6 @@ public interface KnowledgeMapper {
 
     int insert(KnowledgeEntity knowledgeEntity);
     int update(KnowledgeEntity knowledgeEntity);
+    int delete(Long id);
+
 }

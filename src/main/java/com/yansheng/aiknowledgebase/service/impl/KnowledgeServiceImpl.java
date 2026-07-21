@@ -93,7 +93,17 @@ if(knowledgeEntity ==null){
     }
     }
 
-
+    @Override
+    public void deleteKnowledge(Long id) {
+        KnowledgeEntity knowledgeEntity = knowledgeMapper.selectById(id);
+        if(knowledgeEntity ==null){
+            throw new BusinessException("不存在");
+        }
+        int rows=knowledgeMapper.delete(id);
+        if(rows<=0){
+            throw new BusinessException("删除失败");
+        }
+    }
 
 
 }

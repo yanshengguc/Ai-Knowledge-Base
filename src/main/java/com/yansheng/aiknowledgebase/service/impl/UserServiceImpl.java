@@ -1,5 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.UserMapper;
 import com.yansheng.aiknowledgebase.service.UserService;
@@ -18,12 +20,28 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserVO getUserById(long id) {
-        userMapper.findByid(id);
-        UserEntity userEntity=userMapper.findByid(id);
+        UserEntity userEntity=userMapper.findById(id);
+        if(userEntity==null){
+            throw new BusinessException("用户不存在");
+        }
         UserVO userVO=new UserVO();
 userVO.setUsername(userEntity.getUsername());
 
         return userVO;
+    }
+
+    @Override
+    public void register(UserRegisterDTO dto) {
+UserEntity userEntity=userMapper.getUserByName(dto.getUsername());
+if(userEntity!=null){
+    throw new BusinessException("用户已经存在");
+}
+UserEntity  user=new UserEntity();
+user.setUsername(dto.getUsername());
+user.setPassword(dto.getPassword());
+user.setNickname(dto.getNickname());
+userMapper.insert(user);
+
     }
 
 }

@@ -1,13 +1,12 @@
 package com.yansheng.aiknowledgebase.vo;
 
+import lombok.Getter;
+import lombok.Setter;
+
 public class UserVO {
     private long id;
+    @Setter
+    @Getter
     private String username;
-    public String getUsername() {
-        return username;
-    }
-    public void setUsername(String username) {
-        this.username = username;
-    }
 
 }

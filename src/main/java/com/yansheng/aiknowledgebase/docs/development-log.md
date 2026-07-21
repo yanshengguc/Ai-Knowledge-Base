@@ -929,3 +929,169 @@ parameterType="java.lang.Long"
 
 
 ---
+Day10 总结 —— 用户注册模块
+
+一、完成内容
+
+1. 用户注册接口
+
+接口：
+
+POST /api/user/register
+
+流程：
+
+Controller
+↓
+UserRegisterDTO
+↓
+Service
+↓
+用户名查重
+↓
+DTO转Entity
+↓
+Mapper.insert
+↓
+MySQL
+
+
+---
+
+2. 新增 UserRegisterDTO
+
+字段：
+
+username
+password
+nickname
+
+作用：
+
+接收前端注册数据。
+
+
+---
+
+3. 注册业务逻辑
+
+核心：
+
+查询username
+
+如果存在：
+抛异常
+
+如果不存在：
+DTO → Entity
+插入数据库
+
+
+---
+
+4. Mapper
+
+新增：
+
+UserEntity getUserByName(String username);
+
+int insert(UserEntity userEntity);
+
+完成：
+
+根据用户名查询
+
+插入用户数据
+
+
+
+---
+
+二、遇到的问题
+
+1. DTO字段大小写问题
+
+问题：
+
+userName
+nickName
+
+导致：
+
+username=null
+nickname=null
+
+解决：
+
+统一：
+
+username
+nickname
+
+
+---
+
+2. DTO → Entity赋值错误
+
+错误：
+
+user.setUsername(user.getUsername());
+
+原因：
+
+新创建Entity为空。
+
+正确：
+
+user.setUsername(dto.getUsername());
+
+
+---
+
+3. 注册逻辑错误
+
+错误：
+
+register(dto);
+
+导致递归调用。
+
+正确：
+
+DTO → Entity → insert
+
+
+---
+
+三、今日知识点
+
+DTO作用
+
+接收前端参数
+
+隔离数据库结构
+
+避免前端直接操作Entity
+
+
+注册判断
+
+查询业务：
+
+null = 不存在
+
+注册业务：
+
+!= null = 已存在
+
+
+---
+
+四、测试结果
+
+✅ 注册成功
+✅ 重复用户名拦截
+✅ 数据正常保存MySQL
+
+
+---

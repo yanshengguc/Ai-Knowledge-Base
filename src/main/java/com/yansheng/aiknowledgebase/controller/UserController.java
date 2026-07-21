@@ -1,12 +1,10 @@
 package com.yansheng.aiknowledgebase.controller;
 
 import com.yansheng.aiknowledgebase.common.Result;
+import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.service.UserService;
 import com.yansheng.aiknowledgebase.vo.UserVO;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/user")
@@ -20,5 +18,11 @@ public class UserController {
         UserVO userVO=userService.getUserById(id);
         return Result.success(userVO);
 
+    }
+    @PostMapping("/register")
+    public Result<Void> register(@RequestBody UserRegisterDTO dto){
+
+        userService.register(dto);
+        return Result.success();
     }
 }

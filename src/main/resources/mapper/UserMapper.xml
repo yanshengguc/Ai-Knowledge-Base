@@ -14,7 +14,31 @@
 
     </select>
 
-    <select id="findByid" resultType="com.yansheng.aiknowledgebase.entity.UserEntity">
 
+
+    <select id="getUserByName" resultType="com.yansheng.aiknowledgebase.entity.UserEntity">
+select
+        id,
+        username,
+        password,
+        nickname
+        FROM user
+        where username=#{username}
     </select>
+
+    <insert id="insert">
+        insert into user(
+        username,
+        password,
+        nickname
+        )
+        values(
+        #{username},
+        #{password},
+        #{nickname}
+        )
+
+    </insert>
+
+
 </mapper>

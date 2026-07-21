@@ -46,6 +46,9 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     public KnowledgeDetailVO getKnowledgeById(Long id) {
 
         KnowledgeEntity entity = knowledgeMapper.selectById(id);
+        if(entity ==null){
+            throw new BusinessException("不存在");
+        }
         KnowledgeDetailVO VO = new KnowledgeDetailVO();
         VO.setId(entity.getId());
         VO.setTitle(entity.getTitle());
@@ -54,6 +57,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         VO.setCreateTime(entity.getCreateTime());
         VO.setUpdateTime(entity.getUpdateTime());
         return VO;
+
 
     }
 

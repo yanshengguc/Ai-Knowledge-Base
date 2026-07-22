@@ -1,7 +1,9 @@
 package com.yansheng.aiknowledgebase.controller;
 
 import com.yansheng.aiknowledgebase.common.Result;
+import com.yansheng.aiknowledgebase.dto.LoginDTO;
 import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
+import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.service.UserService;
 import com.yansheng.aiknowledgebase.vo.UserVO;
 import org.springframework.web.bind.annotation.*;
@@ -24,5 +26,11 @@ public class UserController {
 
         userService.register(dto);
         return Result.success();
+    }
+    @PostMapping("/login")
+    public Result<String> login(@RequestBody LoginDTO dto){
+
+        userService.login(dto);
+        return Result.success("success");
     }
 }

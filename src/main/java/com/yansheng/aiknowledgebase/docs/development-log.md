@@ -1095,3 +1095,156 @@ null = 不存在
 
 
 ---
+
+---
+
+Day11（完成）
+
+User 登录模块
+
+完成：
+
+LoginDTO
+
+login 接口
+
+Controller → Service → Mapper 登录流程
+
+复用 getUserByName()
+
+用户不存在判断
+
+密码校验
+
+登录成功
+
+Apifox 测试通过
+
+
+
+---
+
+
+Day11：User Login Module
+
+内容：
+
+LoginDTO
+
+登录接口
+
+登录业务
+
+密码校验
+
+登录测试成功
+
+
+
+---
+
+今日 Bug
+
+Bug1
+
+错误：
+
+登录再次查询密码
+
+userMapper.getUserByPassword(...)
+
+正确：
+
+只根据用户名查询一次：
+
+userMapper.getUserByName(username)
+
+密码在 Service 中比较。
+
+
+---
+
+Bug2
+
+Controller 返回 UserEntity
+
+容易把密码返回前端。
+
+当前：
+
+返回 "登录成功"。
+
+后续：
+
+返回 LoginVO + JWT。
+
+
+---
+
+今日重点
+
+① Mapper 只负责数据库操作，不负责业务。
+
+② 登录流程：
+
+Controller
+
+↓
+
+LoginDTO
+
+↓
+
+Service
+
+↓
+
+Mapper
+
+↓
+
+UserEntity
+
+↓
+
+判断用户是否存在
+
+↓
+
+判断密码
+
+↓
+
+登录成功
+
+③ 登录只查询一次数据库。
+
+
+---
+
+当前项目完成度
+
+SpringBoot ✅
+
+Controller ✅
+
+Service ✅
+
+MyBatis ✅
+
+MySQL ✅
+
+CRUD ✅
+
+统一返回 ✅
+
+统一异常 ✅
+
+Knowledge模块 ✅
+
+User注册 ✅
+
+User登录 ✅
+
+
+---

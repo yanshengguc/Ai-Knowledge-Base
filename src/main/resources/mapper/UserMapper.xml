@@ -40,5 +40,13 @@ select
 
     </insert>
 
-
+    <select id="getUserByPassword" resultType="com.yansheng.aiknowledgebase.entity.UserEntity">
+        select
+        id,
+        username,
+        password,
+        nickname
+        FROM user
+        where password=#{password}
+    </select>
 </mapper>

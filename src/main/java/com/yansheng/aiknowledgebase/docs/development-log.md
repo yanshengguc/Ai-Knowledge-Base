@@ -1248,3 +1248,134 @@ User登录 ✅
 
 
 ---
+Day12 JWT认证总结
+
+1. 登录流程
+
+用户名+密码
+↓
+校验数据库
+↓
+生成JWT Token
+↓
+返回客户端
+
+Token保存：
+
+id
+username
+过期时间
+
+不保存：
+
+password
+
+
+---
+
+2. JWT作用
+
+JWT = 用户身份凭证。
+
+请求时：
+
+客户端带Token
+↓
+服务器解析Token
+↓
+确认是谁
+
+不用像Session一样保存登录状态。
+
+
+---
+
+3. JwtUtil
+
+两个方法：
+
+生成Token
+
+用户信息
+↓
+加密签名
+↓
+返回Token
+
+解析Token
+
+Token
+↓
+验证签名和过期时间
+↓
+得到Claims
+
+
+---
+
+4. Filter流程（重点）
+
+请求
+↓
+读取Authorization
+↓
+去掉Bearer
+↓
+解析JWT
+↓
+获取用户id、username
+↓
+UserContext保存用户
+↓
+Controller执行
+↓
+remove清理
+
+
+---
+
+5. UserContext + ThreadLocal
+
+作用：
+
+保存当前请求用户。
+
+不用：
+
+static UserEntity user;
+
+因为多个用户会互相覆盖。
+
+ThreadLocal：
+
+线程A → 用户A
+线程B → 用户B
+
+互不影响。
+
+
+---
+
+6. 401和403
+
+401：
+
+没有身份
+(Token错误/过期)
+
+403：
+
+有身份
+但是没权限
+
+
+---
+
+今天完成
+
+✅ JWT生成
+✅ JWT解析
+✅ Filter拦截
+✅ ThreadLocal保存用户
+✅ Token错误返回401
+✅ 完成认证链路

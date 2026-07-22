@@ -8,5 +8,5 @@ import com.yansheng.aiknowledgebase.vo.UserVO;
 public interface UserService {
     UserVO getUserById(long id);
     void register(UserRegisterDTO dto);
-    UserEntity login(LoginDTO dto);
+    String login(LoginDTO dto);
 }

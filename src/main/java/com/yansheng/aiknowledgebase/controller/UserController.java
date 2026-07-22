@@ -30,7 +30,7 @@ public class UserController {
     @PostMapping("/login")
     public Result<String> login(@RequestBody LoginDTO dto){
 
-        userService.login(dto);
-        return Result.success("success");
+       String token = userService.login(dto);
+        return Result.success(token);
     }
 }

@@ -6,6 +6,7 @@ import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.UserMapper;
 import com.yansheng.aiknowledgebase.service.UserService;
+import com.yansheng.aiknowledgebase.utils.JwtUtil;
 import com.yansheng.aiknowledgebase.vo.UserVO;
 import org.apache.catalina.User;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,7 +48,7 @@ userMapper.insert(user);
     }
 
     @Override
-    public UserEntity login(LoginDTO dto) {
+    public String login(LoginDTO dto) {
         UserEntity userEntity = userMapper.getUserByName(dto.getUsername());
         if (userEntity == null) {
             throw new BusinessException("用户不存在");
@@ -55,7 +56,11 @@ userMapper.insert(user);
         if (!dto.getPassword().equals(userEntity.getPassword())) {
             throw new BusinessException("密码错误");
         }
-return  userEntity;
+        String token= JwtUtil.generateToken(
+                userEntity.getId(),
+                userEntity.getUsername()
+        );
+return  token;
     }
 
 

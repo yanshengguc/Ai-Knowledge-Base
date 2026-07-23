@@ -4,8 +4,10 @@ import com.yansheng.aiknowledgebase.common.BusinessException;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
+import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
+import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import org.springframework.stereotype.Service;
@@ -64,9 +66,10 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public void addKnowledge(KnowledgeAddDTO dto) {
         KnowledgeEntity knowledgeEntity = new KnowledgeEntity();
+        UserEntity userEntity = UserContext.get();
         knowledgeEntity.setTitle(dto.getTitle());
         knowledgeEntity.setCategory(dto.getCategory());
-        knowledgeEntity.setAuthor(dto.getAuthor());
+        knowledgeEntity.setAuthor(userEntity.getUsername());
         knowledgeEntity.setContent(dto.getContent());
         LocalDateTime now = LocalDateTime.now();
         knowledgeEntity.setCreateTime(now);
@@ -78,14 +81,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public void updateKnowledge(Long id, KnowledgeUpdateDTO dto) {
 KnowledgeEntity knowledgeEntity = knowledgeMapper.selectById(id);
+        UserEntity userEntity = UserContext.get();
 if(knowledgeEntity ==null){
+
     throw new BusinessException("不存在");
     }
+else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
+    throw new BusinessException("权限不足");
+        }
     else {
 
     knowledgeEntity.setTitle(dto.getTitle());
     knowledgeEntity.setCategory(dto.getCategory());
-    knowledgeEntity.setAuthor(dto.getAuthor());
     knowledgeEntity.setContent(dto.getContent());
     LocalDateTime now = LocalDateTime.now();
     knowledgeEntity.setUpdateTime(now);
@@ -100,8 +107,11 @@ if(knowledgeEntity ==null){
     @Override
     public void deleteKnowledge(Long id) {
         KnowledgeEntity knowledgeEntity = knowledgeMapper.selectById(id);
+        UserEntity userEntity = UserContext.get();
         if(knowledgeEntity ==null){
             throw new BusinessException("不存在");
+        }else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
+            throw new BusinessException("权限不足");
         }
         int rows=knowledgeMapper.delete(id);
         if(rows<=0){

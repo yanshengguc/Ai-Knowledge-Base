@@ -1527,3 +1527,275 @@ login/register 放行
 
 
 ---
+Day14 总结（JWT认证完善）✅
+
+今日目标
+
+完善 JWT Filter，让接口真正具备登录保护能力。
+
+
+---
+
+1. 白名单放行
+
+问题：
+
+之前：
+
+没有Token
+↓
+直接放行
+
+导致所有接口都能访问。
+
+修改：
+
+请求
+↓
+获取uri
+↓
+判断白名单
+↓
+是
+↓
+直接放行
+
+代码：
+
+if (WHITE_LIST.contains(uri)) {
+filterChain.doFilter(request,response);
+return;
+}
+
+作用：
+
+登录、注册不需要Token
+
+其他接口需要认证
+
+
+
+---
+
+2. Token格式校验
+
+检查：
+
+if(token == null || !token.startsWith("Bearer "))
+
+防止：
+
+没有Token
+
+Token格式错误
+
+
+错误：
+
+返回：
+
+401 Unauthorized
+
+
+---
+
+3. JWT解析优化
+
+解析：
+
+Token
+↓
+Claims
+↓
+id
+↓
+username
+↓
+UserContext
+
+增加校验：
+
+if(id == null || username == null)
+
+防止：
+
+JWT字段缺失
+
+后续业务空指针
+
+
+
+---
+
+4. Filter完整流程
+
+现在：
+
+请求
+↓
+获取URI
+↓
+白名单？
+↓
+是 → 放行
+
+否
+↓
+获取Authorization
+↓
+Token不存在/格式错误
+↓
+401
+
+Token正确
+↓
+解析JWT
+↓
+获取用户信息
+↓
+UserContext.set()
+
+↓
+Controller执行
+
+↓
+UserContext.remove()
+
+
+---
+
+Day12-Day14整体总结
+
+Day12 JWT基础
+
+完成：
+
+JWT生成
+
+JWT解析
+
+Claims获取用户信息
+
+Filter解析Token
+
+ThreadLocal保存当前用户
+
+
+
+---
+
+Day13 JWT业务权限
+
+完成：
+
+新增：
+
+JWT
+↓
+UserContext
+↓
+author自动设置
+
+修改：
+
+判断资源是否存在
+
+判断当前用户是否作者
+
+
+删除：
+
+判断资源存在
+
+判断当前用户是否作者
+
+
+
+---
+
+Day14 JWT认证完善
+
+完成：
+
+白名单机制
+
+Token格式校验
+
+未登录401
+
+JWT字段校验
+
+完整Filter流程
+
+
+
+---
+
+当前项目能力提升
+
+现在项目已经具备：
+
+✅ 用户身份识别
+✅ 登录状态保持
+✅ 当前用户获取
+✅ 数据归属控制
+✅ 基础权限保护
+
+
+---
+
+后续优化记录（暂不做）
+
+1. AntPathMatcher
+
+
+
+用途：
+
+支持：
+
+/api/user/**
+/swagger/**
+
+通配路径。
+
+
+---
+
+2. 日志系统
+
+
+
+用途：
+
+记录：
+
+Token过期
+
+Token伪造
+
+认证失败原因
+
+
+
+---
+
+3. RBAC管理员权限
+
+
+
+后续阶段加入：
+
+USER
+ADMIN
+
+实现管理员管理所有数据。
+
+
+---
+
+状态：
+
+Day14 ✅ 完成
+
+Day12-Day14 JWT认证授权阶段结束。

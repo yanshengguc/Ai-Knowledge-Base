@@ -1799,3 +1799,427 @@ ADMIN
 Day14 ✅ 完成
 
 Day12-Day14 JWT认证授权阶段结束。
+
+56天 Java后端 + AI应用冲刺计划
+
+Day15 总结 —— Docker环境搭建完成
+
+日期：
+
+阶段：
+
+Phase 2 —— Redis与工程能力
+
+目标：
+
+完成后续 Redis、Docker部署、RAG环境所需的基础环境搭建。
+
+---
+
+一、今日Boss任务
+
+Docker环境搭建
+
+完成：
+
+- WSL2环境准备
+- Ubuntu初始化
+- Docker Desktop安装
+- WSL Integration配置
+- Docker运行测试
+
+最终目标：
+
+能够在Windows + WSL2环境下正常运行Docker容器。
+
+---
+
+二、今日完成内容
+
+1. WSL2环境
+
+完成：
+
+- Windows Subsystem for Linux安装
+- Ubuntu-24.04安装
+- WSL默认版本设置为2
+
+验证：
+
+wsl --status
+
+结果：
+
+默认版本：
+
+2
+
+---
+
+2. Ubuntu初始化
+
+完成：
+
+更新软件源：
+
+sudo apt update
+
+升级系统：
+
+sudo apt upgrade -y
+
+安装基础工具：
+
+sudo apt install curl wget git vim -y
+
+验证：
+
+git --version
+
+成功返回Git版本。
+
+---
+
+3. Docker Desktop安装
+
+完成：
+
+- Docker Desktop安装
+- WSL2后端启用
+- Ubuntu-24.04 WSL Integration开启
+
+Windows：
+
+Docker Desktop
+
+↓
+
+Settings
+
+↓
+
+Resources
+
+↓
+
+WSL Integration
+
+↓
+
+开启 Ubuntu-24.04
+
+---
+
+三、遇到的问题
+
+问题1：Docker权限不足
+
+错误：
+
+permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+
+原因：
+
+当前Linux用户没有访问Docker服务的权限。
+
+解决：
+
+加入docker用户组：
+
+sudo usermod -aG docker $USER
+
+刷新权限：
+
+newgrp docker
+
+重新执行Docker命令成功。
+
+---
+
+四、Docker测试
+
+执行：
+
+docker --version
+
+结果：
+
+Docker version 29.6.2
+
+运行测试：
+
+docker run hello-world
+
+成功输出：
+
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+
+证明：
+
+Docker环境完整可用。
+
+---
+
+五、今日核心知识
+
+1. Docker运行流程
+
+Docker Client
+|
+↓
+Docker Daemon
+|
+↓
+Docker Hub拉取Image
+|
+↓
+创建Container
+|
+↓
+运行程序
+
+---
+
+2. Image和Container区别
+
+Image：
+
+Docker镜像。
+
+理解：
+
+«应用运行所需要的模板。»
+
+包含：
+
+- 程序
+- 依赖
+- 环境配置
+
+例如：
+
+redis image
+
+Container：
+
+Docker容器。
+
+理解：
+
+«镜像启动后的运行实例。»
+
+例如：
+
+redis image
+
+↓
+
+redis container
+
+---
+
+3. 当前Docker架构
+
+Windows
+
+↓
+
+WSL2
+
+↓
+
+Ubuntu
+
+↓
+
+Docker Client
+
+↓
+
+Docker Desktop
+
+↓
+
+Docker Engine
+
+↓
+
+Container
+
+Ubuntu中的docker命令负责发送请求。
+
+真正运行容器的是Docker Engine。
+
+---
+
+六、今日Bug记录
+
+Bug
+
+docker运行hello-world失败：
+
+permission denied
+
+原因：
+
+Linux用户权限不足。
+
+解决：
+
+加入docker用户组。
+
+掌握：
+
+Linux权限管理：
+
+用户
+
+↓
+
+用户组
+
+↓
+
+权限
+
+---
+
+七、Git记录
+
+今日：
+
+无代码提交。
+
+原因：
+
+主要完成开发环境搭建。
+
+---
+
+八、面试知识
+
+Q1：Docker Image和Container有什么区别？
+
+回答：
+
+Image是Docker镜像，是一个只读模板，包含应用运行所需的环境和文件。
+
+Container是镜像启动后的实例，是实际运行的程序。
+
+---
+
+Q2：Docker为什么需要Image？
+
+回答：
+
+因为不同环境可能存在依赖差异。
+
+Image可以将程序、环境、依赖统一打包，实现一次构建，多处运行。
+
+---
+
+九、Day15完成状态
+
+环境：
+
+✅ WSL2
+
+✅ Ubuntu
+
+✅ Git
+
+✅ Docker Desktop
+
+✅ Docker运行测试
+
+Phase 2准备：
+
+✅ 完成
+
+下一阶段：
+
+Day16 Redis基础
+
+Boss：
+
+使用Docker启动Redis，并让Spring Boot连接Redis。
+
+目标：
+
+Spring Boot
+
++
+
+Redis
+
++
+
+Docker
+
+形成企业后端常见技术组合。
+
+# Day16 —— Redis基础与Docker运行Redis
+
+## 今日目标
+
+使用Docker启动Redis，了解Redis基本使用，为Spring Boot整合Redis做准备。
+
+
+## 完成内容
+
+- Docker启动Redis容器
+- 使用redis-cli连接Redis
+- 完成Redis基本操作测试
+
+命令：
+
+```bash
+docker run -d --name redis -p 6379:6379 redis
+
+测试：
+
+ping
+set name yansheng
+get name
+
+核心知识
+
+Redis
+
+Redis是基于内存的Key-Value数据库。
+
+特点：
+
+速度快
+
+适合作为缓存
+
+减少MySQL压力
+
+
+Redis缓存流程
+
+请求：
+
+Service
+  |
+Redis
+  |
+命中 -> 返回
+
+未命中
+  |
+MySQL
+  |
+写入Redis
+
+缓存一致性
+
+更新数据：
+
+修改MySQL
+   |
+删除Redis缓存
+   |
+下次查询重新加载

@@ -36,6 +36,7 @@ if (token==null || !token.startsWith("Bearer ")) {
 }
             String jwt = token.substring(7);
             try {
+                System.out.println(jwt);
                 Claims claims = JwtUtil.parseToken(jwt);
                 Long id = claims.get("id", Long.class);
                 String username = claims.get("username", String.class);
@@ -51,6 +52,7 @@ if(id==null||username==null){
                 // 放行请求
                 filterChain.doFilter(request, response);
             } catch (Exception e) {
+                e.printStackTrace();
                 // 令牌无效，返回401
                 //log.warn();
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

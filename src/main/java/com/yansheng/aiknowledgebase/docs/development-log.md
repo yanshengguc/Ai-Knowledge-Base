@@ -2223,3 +2223,202 @@ MySQL
 删除Redis缓存
    |
 下次查询重新加载
+---
+
+Day17 完成记录：Redis缓存整合
+
+项目：
+
+Ai-Knowledge-Base
+
+完成内容：
+
+1. Redis环境
+
+Docker启动Redis
+
+Spring Boot连接Redis
+
+
+配置：
+
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+
+
+---
+
+2. RedisTemplate配置
+
+解决：
+
+No qualifying bean of type 'RedisTemplate'
+
+原因：
+
+Spring容器没有RedisTemplate Bean。
+
+解决：
+
+创建：
+
+@Configuration
+@Bean
+RedisTemplate<String,Object>
+
+
+---
+
+3. Service层接入Redis
+
+实现缓存旁路模式：
+
+查询详情
+
+ ↓
+
+Redis查询
+
+ ↓
+
+有缓存
+    ↓
+    返回缓存
+
+没有缓存
+    ↓
+    查询MySQL
+    ↓
+    转VO
+    ↓
+    写入Redis
+    ↓
+    返回
+
+代码核心：
+
+String key = "knowledge:" + id;
+
+Object obj = redisTemplate.opsForValue().get(key);
+
+if(obj != null){
+    return (KnowledgeDetailVO)obj;
+}
+
+查询数据库后：
+
+redisTemplate.opsForValue().set(key, vo);
+
+
+---
+
+4. Redis序列化问题解决
+
+遇到：
+
+Java 8 date/time type LocalDateTime not supported
+
+原因：
+
+Redis使用Jackson序列化VO时：
+
+KnowledgeDetailVO
+
+包含：
+
+LocalDateTime createTime;
+LocalDateTime updateTime;
+
+默认Jackson无法处理。
+
+解决：
+
+加入：
+
+objectMapper.registerModule(new JavaTimeModule());
+
+
+---
+
+Day17遇到的问题记录
+
+问题1
+
+RedisTemplate无法注入
+
+原因： 没有配置Bean。
+
+解决： RedisConfig。
+
+
+---
+
+问题2
+
+登录400
+
+原因：
+
+请求：
+
+GET /api/user/login
+
+应该：
+
+POST /api/user/login
+
+
+---
+
+问题3
+
+详情接口401排查
+
+最终发现不是JWT权限问题。
+
+真实原因：
+
+Redis写缓存时序列化异常。
+
+
+---
+
+问题4
+
+LocalDateTime无法序列化
+
+解决：
+
+JavaTimeModule。
+
+
+---
+
+当前项目能力
+
+现在项目已经从：
+
+Controller
+ ↓
+Service
+ ↓
+Mapper
+ ↓
+MySQL
+
+升级为：
+
+Controller
+ ↓
+Service
+ ↓
+Redis
+ ↓
+(MySQL)
+ ↓
+Redis缓存
+
+已经具备真实后端项目里的缓存设计。
+
+
+---

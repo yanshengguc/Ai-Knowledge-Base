@@ -10,19 +10,24 @@ import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
     private final KnowledgeMapper knowledgeMapper;
-    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper) {
+    private final RedisTemplate<String, Object> redisTemplate;
+    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper,RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
+        this.redisTemplate = redisTemplate;
     }
+
 
 
     @Override
@@ -46,7 +51,11 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public KnowledgeDetailVO getKnowledgeById(Long id) {
-
+String key="knowledge:"+id;
+Object obj=redisTemplate.opsForValue().get(key);
+if(obj!=null){
+    return  (KnowledgeDetailVO)obj;
+}
         KnowledgeEntity entity = knowledgeMapper.selectById(id);
         if(entity ==null){
             throw new BusinessException("不存在");
@@ -58,6 +67,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         VO.setAuthor(entity.getAuthor());
         VO.setCreateTime(entity.getCreateTime());
         VO.setUpdateTime(entity.getUpdateTime());
+        redisTemplate.opsForValue().set(key,VO,30, TimeUnit.MINUTES);
         return VO;
 
 
@@ -120,4 +130,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
     }
 
 
+    public RedisTemplate<String, Object> getRedisTemplate() {
+        return redisTemplate;
+    }
 }

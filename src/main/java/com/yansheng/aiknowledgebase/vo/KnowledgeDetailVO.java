@@ -12,6 +12,7 @@ public class KnowledgeDetailVO {
     private String title;
     private String content;
     private String author;
+    private String nickname;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 

@@ -10,6 +10,7 @@ import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
+import lombok.Getter;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -17,10 +18,12 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.Random;
 
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
     private final KnowledgeMapper knowledgeMapper;
+    @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper,RedisTemplate<String, Object> redisTemplate) {
 
@@ -51,13 +54,21 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public KnowledgeDetailVO getKnowledgeById(Long id) {
+
 String key="knowledge:"+id;
 Object obj=redisTemplate.opsForValue().get(key);
-if(obj!=null){
-    return  (KnowledgeDetailVO)obj;
-}
+
+Random random=new Random();
+        if( "NULL".equals(obj)){
+            throw new BusinessException("不存在");
+        }
+        if (obj != null) {
+            return (KnowledgeDetailVO) obj;
+        }
         KnowledgeEntity entity = knowledgeMapper.selectById(id);
+
         if(entity ==null){
+         redisTemplate.opsForValue().set(key,"NULL");
             throw new BusinessException("不存在");
         }
         KnowledgeDetailVO VO = new KnowledgeDetailVO();
@@ -67,7 +78,7 @@ if(obj!=null){
         VO.setAuthor(entity.getAuthor());
         VO.setCreateTime(entity.getCreateTime());
         VO.setUpdateTime(entity.getUpdateTime());
-        redisTemplate.opsForValue().set(key,VO,30, TimeUnit.MINUTES);
+        redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
         return VO;
 
 
@@ -91,6 +102,7 @@ if(obj!=null){
     @Override
     public void updateKnowledge(Long id, KnowledgeUpdateDTO dto) {
 KnowledgeEntity knowledgeEntity = knowledgeMapper.selectById(id);
+
         UserEntity userEntity = UserContext.get();
 if(knowledgeEntity ==null){
 
@@ -112,6 +124,8 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
     if(rows<=0){
         throw new BusinessException("修改失败");
     }
+    String key="knowledge:"+id;
+        redisTemplate.delete(key);
     }
 
     @Override
@@ -127,10 +141,9 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         if(rows<=0){
             throw new BusinessException("删除失败");
         }
+        String key="knowledge:"+id;
+        redisTemplate.delete(key);
     }
 
 
-    public RedisTemplate<String, Object> getRedisTemplate() {
-        return redisTemplate;
-    }
 }

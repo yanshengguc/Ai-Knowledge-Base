@@ -1,6 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.common.RedisKey;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
@@ -22,9 +23,11 @@ import java.util.Random;
 
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
+
     private final KnowledgeMapper knowledgeMapper;
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
+    private final Random random = new Random();
     public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper,RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
@@ -55,20 +58,31 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public KnowledgeDetailVO getKnowledgeById(Long id) {
 
-String key="knowledge:"+id;
-Object obj=redisTemplate.opsForValue().get(key);
+        String key= RedisKey.knowledge(id);
+Object obj=null;
+try {
+    obj=redisTemplate.opsForValue().get(key);
+    System.out.println("Redis查询："+obj);
+}catch (Exception e){
+    System.out.println("Redis异常:"+e.getMessage());
+}
 
-Random random=new Random();
         if( "NULL".equals(obj)){
             throw new BusinessException("不存在");
         }
         if (obj != null) {
+            System.out.println("走缓存");
             return (KnowledgeDetailVO) obj;
         }
+        System.out.println("走MYSQL");
         KnowledgeEntity entity = knowledgeMapper.selectById(id);
 
-        if(entity ==null){
-         redisTemplate.opsForValue().set(key,"NULL");
+        if(entity ==null){try {
+            redisTemplate.opsForValue().set(key,"NULL",5,TimeUnit.MINUTES);
+        }catch (Exception e){
+            System.out.println("Redis写入异常");
+        }
+
             throw new BusinessException("不存在");
         }
         KnowledgeDetailVO VO = new KnowledgeDetailVO();
@@ -78,7 +92,12 @@ Random random=new Random();
         VO.setAuthor(entity.getAuthor());
         VO.setCreateTime(entity.getCreateTime());
         VO.setUpdateTime(entity.getUpdateTime());
-        redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
+        try {
+            redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
+        }catch (Exception e){
+            System.out.println("Redis写入异常");
+        }
+
         return VO;
 
 
@@ -124,7 +143,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
     if(rows<=0){
         throw new BusinessException("修改失败");
     }
-    String key="knowledge:"+id;
+        String key= RedisKey.knowledge(id);
         redisTemplate.delete(key);
     }
 
@@ -141,7 +160,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         if(rows<=0){
             throw new BusinessException("删除失败");
         }
-        String key="knowledge:"+id;
+        String key= RedisKey.knowledge(id);
         redisTemplate.delete(key);
     }
 

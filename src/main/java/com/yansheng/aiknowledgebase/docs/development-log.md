@@ -2808,3 +2808,274 @@ Redis命中
 
 
 ---
+Day20 快照
+
+【学习内容】
+
+1. Redis缓存基础
+
+学习 Spring Boot 整合 Redis
+
+理解 Cache Aside（旁路缓存）模式：
+
+
+查询数据
+ ↓
+查Redis
+ ↓
+命中返回
+ ↓
+未命中查MySQL
+ ↓
+写入Redis
+
+
+---
+
+2. 缓存三大问题
+
+✅ 缓存穿透
+
+问题：
+
+请求不存在数据
+ ↓
+Redis没有
+ ↓
+一直查MySQL
+
+解决：
+
+缓存空值 NULL
+
+设置过期时间
+
+
+
+---
+
+✅ 缓存雪崩
+
+问题：
+
+大量key同时过期
+ ↓
+大量请求打MySQL
+
+解决：
+
+TTL随机化
+
+
+
+---
+
+✅ 缓存一致性
+
+理解：
+
+更新数据：
+
+修改MySQL
+ ↓
+删除Redis缓存
+
+避免读取旧数据。
+
+
+---
+
+3. Redis序列化
+
+学习：
+
+Redis存储的是JSON
+
+Java对象需要序列化/反序列化
+
+GenericJackson2JsonRedisSerializer解决对象类型恢复问题
+
+
+
+---
+
+【写的代码】
+
+1. Redis配置
+
+新增：
+
+RedisConfig
+
+实现：
+
+RedisTemplate配置
+
+Key使用String序列化
+
+Value使用JSON序列化
+
+支持LocalDateTime
+
+
+核心：
+
+objectMapper.registerModule(
+    new JavaTimeModule()
+);
+
+
+---
+
+2. 知识详情缓存
+
+修改：
+
+KnowledgeServiceImpl.getKnowledgeById()
+
+实现：
+
+Redis查询
+
+redisTemplate.opsForValue().get(key)
+
+缓存命中
+
+return (KnowledgeDetailVO)obj;
+
+未命中查询MySQL
+
+Redis
+ ↓
+MySQL
+ ↓
+写Redis
+
+
+---
+
+3. 缓存穿透处理
+
+新增：
+
+不存在数据缓存：
+
+redisTemplate.opsForValue()
+.set(key,"NULL",5,TimeUnit.MINUTES);
+
+读取：
+
+if("NULL".equals(obj)){
+    throw new BusinessException("不存在");
+}
+
+
+---
+
+4. 随机TTL防雪崩
+
+新增：
+
+private final Random random = new Random();
+
+缓存时间：
+
+31 + random.nextInt(5)
+
+
+---
+
+5. 修改缓存一致性
+
+修改接口：
+
+updateKnowledge()
+
+新增：
+
+redisTemplate.delete(key);
+
+流程：
+
+更新MySQL
+ ↓
+删除Redis
+
+
+---
+
+6. 删除缓存一致性
+
+删除接口：
+
+deleteKnowledge()
+
+新增：
+
+redisTemplate.delete(key);
+
+流程：
+
+删除MySQL
+ ↓
+删除Redis
+
+
+---
+
+【Bug记录】
+
+1. LinkedHashMap转换异常
+
+错误：
+
+LinkedHashMap cannot cast KnowledgeDetailVO
+
+原因：
+
+Redis反序列化不知道对象类型。
+
+解决：
+
+使用：
+
+GenericJackson2JsonRedisSerializer
+
+并开启类型信息。
+
+
+---
+
+2. LocalDateTime序列化失败
+
+原因：
+
+Jackson默认不支持LocalDateTime。
+
+解决：
+
+加入：
+
+jackson-datatype-jsr310
+
+并注册：
+
+JavaTimeModule
+
+
+---
+
+3. 测试误判
+
+JWT一直打印：
+
+eyJhbGciOiJIUzI1...
+
+原因：
+
+Jwt过滤器打印请求头。
+
+不是Redis返回。
+
+
+---

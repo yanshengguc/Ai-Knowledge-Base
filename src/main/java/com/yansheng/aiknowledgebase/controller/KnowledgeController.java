@@ -24,7 +24,7 @@ public class KnowledgeController {
         return  Result.success(knowledgeService.getKnowledgeList());
 }
 @GetMapping("/knowledge/{id}")
-    public Result<KnowledgeDetailVO> getKnowledgeDetail(@PathVariable Long id){
+    public Result<KnowledgeDetailVO> getKnowledgeDetail(@PathVariable Long id) throws InterruptedException {
         return  Result.success(knowledgeService.getKnowledgeById(id));
 }
     @PostMapping("/knowledge")

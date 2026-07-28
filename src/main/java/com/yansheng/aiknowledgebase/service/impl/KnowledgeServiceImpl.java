@@ -13,13 +13,12 @@ import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import lombok.Getter;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.Random;
 
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
@@ -28,10 +27,18 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     private final Random random = new Random();
+    private final String lockValue = UUID.randomUUID().toString();
+    private static final String UNLOCK_SCRIPT = "if redis.call('get', KEYS[1]) == ARGV[1] " +
+            "then " +
+            "return redis.call('del', KEYS[1]) " +
+            "else " +
+            "return 0 " +
+            "end";
     public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper,RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
         this.redisTemplate = redisTemplate;
+
     }
 
 
@@ -56,17 +63,16 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     }
 
     @Override
-    public KnowledgeDetailVO getKnowledgeById(Long id) {
+    public KnowledgeDetailVO getKnowledgeById(Long id) throws InterruptedException {
 
         String key= RedisKey.knowledge(id);
 Object obj=null;
-try {
-    obj=redisTemplate.opsForValue().get(key);
-    System.out.println("Redis查询："+obj);
-}catch (Exception e){
-    System.out.println("Redis异常:"+e.getMessage());
-}
-
+        try {
+            obj=redisTemplate.opsForValue().get(key);
+            System.out.println("Redis查询："+obj);
+        }catch (Exception e){
+            System.out.println("Redis异常:"+e.getMessage());
+        }
         if( "NULL".equals(obj)){
             throw new BusinessException("不存在");
         }
@@ -74,34 +80,83 @@ try {
             System.out.println("走缓存");
             return (KnowledgeDetailVO) obj;
         }
-        System.out.println("走MYSQL");
-        KnowledgeEntity entity = knowledgeMapper.selectById(id);
+        String lockKey = "lock:"+key;
+        String lockValue = UUID.randomUUID().toString();
+        Boolean success = redisTemplate.opsForValue().setIfAbsent(
+                lockKey,
+                lockValue,
+                10,
+                TimeUnit.SECONDS
+        );
 
-        if(entity ==null){try {
-            redisTemplate.opsForValue().set(key,"NULL",5,TimeUnit.MINUTES);
-        }catch (Exception e){
-            System.out.println("Redis写入异常");
+        if (Boolean.TRUE.equals(success)) {
+            try {
+                obj=redisTemplate.opsForValue().get(key);
+                if( "NULL".equals(obj)){
+                    throw new BusinessException("不存在");
+                }
+                if (obj != null) {
+                    System.out.println("走缓存");
+                    return (KnowledgeDetailVO) obj;
+                }
+                System.out.println("走MYSQL");
+                KnowledgeEntity entity = knowledgeMapper.selectById(id);
+
+                if(entity ==null){try {
+                    redisTemplate.opsForValue().set(key,"NULL",5,TimeUnit.MINUTES);
+                }catch (Exception e){
+                    System.out.println("Redis写入异常");
+                }
+
+                    throw new BusinessException("不存在");
+                }
+                KnowledgeDetailVO VO = new KnowledgeDetailVO();
+                VO.setId(entity.getId());
+                VO.setTitle(entity.getTitle());
+                VO.setContent(entity.getContent());
+                VO.setAuthor(entity.getAuthor());
+                VO.setCreateTime(entity.getCreateTime());
+                VO.setUpdateTime(entity.getUpdateTime());
+                try {
+                    redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
+                }catch (Exception e){
+                    System.out.println("Redis写入异常");
+                }
+
+                return VO;
+
+            }finally {
+                redisTemplate.execute(
+                        new
+                                DefaultRedisScript<>(UNLOCK_SCRIPT,
+                                Long.class
+                        ),
+                        Collections.singletonList(lockKey),
+                        lockValue
+                );
+}
+            }else{
+            System.out.println("等待锁");
+            try {
+Thread.sleep(100);
+            }catch (InterruptedException e){
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+            for(int i=0;i<3;i++){
+
+                Thread.sleep(100);
+
+                obj = redisTemplate.opsForValue().get(key);
+
+                if(obj != null){
+                    return (KnowledgeDetailVO)obj;
+                }
+
+            }
+            throw new BusinessException("系统繁忙");
         }
-
-            throw new BusinessException("不存在");
         }
-        KnowledgeDetailVO VO = new KnowledgeDetailVO();
-        VO.setId(entity.getId());
-        VO.setTitle(entity.getTitle());
-        VO.setContent(entity.getContent());
-        VO.setAuthor(entity.getAuthor());
-        VO.setCreateTime(entity.getCreateTime());
-        VO.setUpdateTime(entity.getUpdateTime());
-        try {
-            redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
-        }catch (Exception e){
-            System.out.println("Redis写入异常");
-        }
-
-        return VO;
-
-
-    }
 
     @Override
     public void addKnowledge(KnowledgeAddDTO dto) {

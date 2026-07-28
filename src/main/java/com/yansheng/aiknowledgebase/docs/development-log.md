@@ -3079,3 +3079,444 @@ Jwt过滤器打印请求头。
 
 
 ---
+Day21 总结：Redis缓存问题治理（缓存穿透 / 雪崩 / 击穿）
+
+一、今天学习内容
+
+1. 缓存穿透
+
+问题：
+
+大量请求查询不存在的数据：
+
+请求不存在id
+      ↓
+Redis没有
+      ↓
+查询MySQL
+      ↓
+MySQL也没有
+
+如果攻击大量不存在的id：
+
+大量请求 → MySQL压力巨大
+
+
+---
+
+解决方案：空值缓存
+
+实现：
+
+redisTemplate.opsForValue()
+.set(key,"NULL",5,TimeUnit.MINUTES);
+
+流程：
+
+第一次请求
+ ↓
+查MySQL
+ ↓
+不存在
+ ↓
+Redis保存NULL
+
+
+之后请求
+ ↓
+Redis发现NULL
+ ↓
+直接返回不存在
+
+
+---
+
+2. 缓存雪崩
+
+问题：
+
+大量缓存同时过期：
+
+100万个key
+30分钟同时过期
+
+        ↓
+
+大量请求进入MySQL
+
+
+---
+
+解决方案：随机过期时间
+
+代码：
+
+31 + random.nextInt(5)
+
+实际：
+
+31~35分钟随机过期
+
+效果：
+
+key1 31分钟过期
+key2 33分钟过期
+key3 35分钟过期
+
+避免同一时间大量失效。
+
+
+---
+
+3. 缓存击穿（重点）
+
+问题：
+
+热点数据突然过期：
+
+热门文章缓存失效
+
+       ↓
+
+大量请求同时查询
+
+       ↓
+
+全部访问MySQL
+
+
+---
+
+解决方案：Redis分布式锁
+
+核心：
+
+setIfAbsent()
+
+作用：
+
+只有一个线程可以查询数据库。
+
+流程：
+
+请求1
+ ↓
+Redis无缓存
+ ↓
+获取锁成功
+ ↓
+查MySQL
+ ↓
+写Redis
+ ↓
+释放锁
+
+
+请求2~N
+ ↓
+获取锁失败
+ ↓
+等待
+ ↓
+重新查Redis
+ ↓
+返回缓存
+
+
+---
+
+二、今天写的代码
+
+1. Redis缓存查询优化
+
+原：
+
+查询MySQL
+返回
+
+改：
+
+查询Redis
+
+有：
+返回缓存
+
+无：
+查询MySQL
+写入Redis
+
+
+---
+
+2. 空值缓存
+
+新增：
+
+if(entity == null){
+
+    redisTemplate.opsForValue()
+    .set(key,"NULL",5,TimeUnit.MINUTES);
+
+}
+
+
+---
+
+3. 随机过期时间
+
+新增：
+
+private final Random random = new Random();
+
+缓存：
+
+redisTemplate.opsForValue()
+.set(
+ key,
+ VO,
+ 31+random.nextInt(5),
+ TimeUnit.MINUTES
+);
+
+
+---
+
+4. Redis分布式锁
+
+新增：
+
+String lockKey = "lock:" + key;
+
+String lockValue =
+UUID.randomUUID().toString();
+
+获取锁：
+
+redisTemplate.opsForValue()
+.setIfAbsent(
+ lockKey,
+ lockValue,
+ 10,
+ TimeUnit.SECONDS
+);
+
+
+---
+
+5. 双重检查缓存
+
+为什么？
+
+防止：
+
+线程A拿锁查询数据库
+
+线程B等待
+
+A写入Redis释放锁
+
+B拿锁后再次查缓存
+
+所以锁里面再次：
+
+obj = redisTemplate.opsForValue()
+.get(key);
+
+
+---
+
+三、今天遇到的问题
+
+1. InterruptedException
+
+原因：
+
+测试锁等待加入：
+
+Thread.sleep(100);
+
+导致：
+
+InterruptedException
+
+
+---
+
+临时解决：
+
+Controller：
+
+throws InterruptedException
+
+可以启动。
+
+
+---
+
+最终正确方案：
+
+Service处理：
+
+try{
+    Thread.sleep(100);
+}catch(InterruptedException e){
+
+    Thread.currentThread().interrupt();
+
+}
+
+原因：
+
+Controller不应该处理业务内部异常。
+
+
+---
+
+2. Controller启动异常
+
+问题：
+
+修改Controller方法名后恢复。
+
+原因：
+
+可能存在：
+
+方法重复
+
+Spring MVC映射冲突
+
+
+记录：
+
+Controller看的是：
+
+请求方式 + 路径
+
+不是方法名。
+
+
+---
+
+四、测试结果
+
+已验证：
+
+Redis缓存命中
+
+第一次：
+
+Redis查询:null
+走MYSQL
+
+第二次：
+
+Redis查询:KnowledgeDetailVO
+走缓存
+
+✅成功
+
+
+---
+
+修改缓存同步
+
+流程：
+
+修改数据
+ ↓
+MySQL update
+ ↓
+删除Redis
+ ↓
+再次查询
+ ↓
+重新加载缓存
+
+测试成功。
+
+
+---
+
+删除缓存同步
+
+流程：
+
+删除数据
+ ↓
+MySQL delete
+ ↓
+删除Redis
+ ↓
+再次查询
+ ↓
+返回不存在
+
+测试成功。
+
+
+---
+
+五、还未优化（后续补）
+
+1. Lua安全释放锁
+
+目前：
+
+redisTemplate.delete(lockKey);
+
+问题：
+
+可能误删其他线程锁。
+
+后续：
+
+判断lockValue
+      ↓
+属于自己
+      ↓
+删除
+
+
+---
+
+2. 重试机制优化
+
+目前：
+
+return getKnowledgeById(id);
+
+递归等待。
+
+后续：
+
+改：
+
+while循环
++
+最大重试次数
+
+
+---
+
+3. Redisson
+
+后面会学习。
+
+替代：
+
+手写Redis分布式锁
+
+提供：
+
+自动续期
+
+可重入锁
+
+Lua释放
+
+更完善的锁管理
+
+
+
+---

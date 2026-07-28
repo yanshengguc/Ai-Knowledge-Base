@@ -10,7 +10,7 @@ import java.util.List;
 public interface KnowledgeService {
     List<KnowledgeVO> getKnowledgeList();
 
- KnowledgeDetailVO getKnowledgeById(Long id);
+ KnowledgeDetailVO getKnowledgeById(Long id) throws InterruptedException;
   void addKnowledge(KnowledgeAddDTO dto);
   void  updateKnowledge(Long id, KnowledgeUpdateDTO dto);
   void deleteKnowledge(Long id);

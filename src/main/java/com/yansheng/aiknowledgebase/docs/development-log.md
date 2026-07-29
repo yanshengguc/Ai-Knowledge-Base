@@ -3520,3 +3520,441 @@ Lua释放
 
 
 ---
+Day22 总结：文件上传接口 + 本地存储（AI智能图书馆「电子档案室」）
+
+一、今天解决了什么问题？
+
+今天给 AI 智能图书馆增加了一个能力：
+
+> 用户可以上传资料，后端接收文件，并保存到服务器指定位置。
+
+
+
+相当于：
+
+以前：
+
+用户
+ ↓
+输入知识内容
+ ↓
+MySQL保存
+
+现在：
+
+用户
+ ↓
+上传PDF/图片/文档
+ ↓
+服务器保存文件
+ ↓
+后续解析文件内容
+ ↓
+进入RAG流程
+
+今天搭建的是 AI 知识库的「资料入口」。
+
+
+---
+
+二、核心流程（图书馆模型）
+
+用户
+ ↓
+JWT访客证
+ ↓
+FileController（前台）
+ ↓
+FileService（管理员）
+ ↓
+FileServiceImpl（具体工作）
+ ↓
+生成唯一文件名
+ ↓
+D:/upload（电子档案室）
+
+对应：
+
+模块	图书馆角色	作用
+
+MultipartFile	快递包裹	接收用户上传的文件
+Controller	前台	接收请求
+Service	管理员	负责业务逻辑
+UUID	编号系统	防止文件重名
+本地目录	电子档案室	保存文件
+
+
+
+---
+
+三、今天完成代码
+
+1. FileService接口
+
+作用：
+
+定义上传能力。
+
+String uploadFile(MultipartFile file);
+
+为什么需要接口？
+
+因为：
+
+Controller 不应该依赖具体实现。
+
+结构：
+
+Controller
+    ↓
+FileService接口
+    ↓
+FileServiceImpl
+
+方便以后替换：
+
+本地存储
+      ↓
+阿里云OSS
+
+Controller 不需要改。
+
+
+---
+
+2. FileServiceImpl实现上传
+
+核心代码：
+
+String originalName = file.getOriginalFilename();
+
+String uuid = UUID.randomUUID().toString();
+
+String newName = uuid + "_" + originalName;
+
+作用：
+
+解决文件重名问题。
+
+例如：
+
+两个用户上传：
+
+Java学习.pdf
+
+如果直接保存：
+
+Java学习.pdf
+
+第二个会覆盖第一个。
+
+现在：
+
+uuid_Java学习.pdf
+
+每个文件唯一。
+
+
+---
+
+创建目录
+
+File dir = new File(uploadPath);
+
+if(!dir.exists()){
+    dir.mkdirs();
+}
+
+作用：
+
+如果上传目录不存在：
+
+自动创建。
+
+
+---
+
+保存文件
+
+file.transferTo(new File(dir,newName));
+
+作用：
+
+把 MultipartFile 写入磁盘。
+
+
+---
+
+四、异常处理
+
+遇到：
+
+file.transferTo()
+
+需要处理：
+
+IOException
+
+原因：
+
+文件保存可能失败：
+
+路径不存在
+
+权限不足
+
+磁盘错误
+
+
+处理：
+
+try {
+
+} catch(IOException e){
+
+    throw new BusinessException("文件上传失败");
+
+}
+
+流程：
+
+IOException
+ ↓
+Service捕获
+ ↓
+转换业务异常
+ ↓
+GlobalExceptionHandler统一处理
+
+符合项目已有异常体系。
+
+
+---
+
+五、FileController上传接口
+
+代码逻辑：
+
+@PostMapping("/upload")
+public Result<String> upload(MultipartFile file){
+
+    String url=fileService.uploadFile(file);
+
+    return Result.success(url);
+}
+
+作用：
+
+提供HTTP入口。
+
+请求：
+
+POST /api/file/upload
+
+参数：
+
+file
+
+
+---
+
+六、测试过程
+
+使用 Apifox：
+
+请求：
+
+POST
+/api/file/upload
+
+Headers:
+
+Authorization: Bearer token
+
+Body：
+
+form-data
+
+file → 选择文件
+
+测试结果：
+
+✅ 返回成功
+
+✅ D:/upload目录生成文件
+
+说明：
+
+完整链路成功。
+
+
+---
+
+七、静态资源访问问题
+
+发现：
+
+上传成功：
+
+D:/upload/test.jpg
+
+但是浏览器访问：
+
+/files/test.jpg
+
+失败。
+
+原因：
+
+1. 路径写错
+
+原：
+
+/file/**
+
+访问：
+
+/files/**
+
+修改：
+
+registry.addResourceHandler("/files/**")
+        .addResourceLocations("file:D:/upload/");
+
+
+---
+
+2. JWT拦截问题
+
+理解：
+
+Filter会拦截所有请求：
+
+浏览器访问图片
+
+↓
+
+JwtAuthenticationFilter
+
+↓
+
+没有Token
+
+↓
+
+401
+
+
+---
+
+今天讨论了一个重要设计：
+
+公开资源：
+
+例如：
+
+logo
+首页图片
+
+可以：
+
+/images/**
+
+放白名单。
+
+私有资源：
+
+例如：
+
+用户上传PDF
+学习资料
+
+不应该直接公开。
+
+以后应该：
+
+GET /api/file/download/{id}
+
+↓
+
+JWT
+
+↓
+
+权限检查
+
+↓
+
+返回文件
+
+
+---
+
+八、今天踩坑记录（Bug日志）
+
+Bug1：Service接口忘记定义
+
+现象：
+
+调用 FileService 报错。
+
+原因：
+
+Controller依赖接口，但是没有创建接口。
+
+解决：
+
+创建：
+
+FileService
+
+经验：
+
+三层架构：
+
+Controller
+ ↓
+Service接口
+ ↓
+ServiceImpl
+
+
+---
+
+Bug2：transferTo要求异常
+
+现象：
+
+IDE要求：
+
+throws IOException
+
+原因：
+
+文件操作属于可能失败的IO操作。
+
+解决：
+
+Service内部捕获，转换：
+
+BusinessException
+
+
+---
+
+Bug3：静态资源访问401
+
+现象：
+
+Apifox上传成功，但是浏览器访问图片失败。
+
+原因：
+
+上传请求带JWT，浏览器直接访问没有Token。
+
+经验：
+
+JWT Filter影响的不只是Controller，也会影响资源请求。
+
+
+---

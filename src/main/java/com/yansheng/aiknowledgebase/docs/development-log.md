@@ -3958,3 +3958,93 @@ JWT Filter影响的不只是Controller，也会影响资源请求。
 
 
 ---
+Day23: integrate Aliyun OSS for file upload
+
+完成内容：
+1. 接入阿里云 OSS 对象存储
+- 创建 OSS Bucket
+- 配置 Endpoint
+- 创建 RAM 用户并获取 AccessKey
+- Spring Boot 集成 aliyun-sdk-oss
+
+2. 完成 OSS 配置
+- 创建 OssConfig 配置类
+- 使用 @Value 读取 OSS 配置
+- 通过 OSSClientBuilder 创建 OSSClient Bean
+- 交由 Spring 容器管理
+
+3. 完成文件上传重构
+原流程：
+MultipartFile
+    ↓
+file.transferTo()
+    ↓
+本地磁盘存储
+
+新流程：
+MultipartFile
+    ↓
+FileService
+    ↓
+OssService
+    ↓
+ossClient.putObject()
+    ↓
+阿里云 OSS
+    ↓
+返回文件访问 URL
+
+4. 完善分层设计
+新增：
+service
+ └── OssService.java
+
+service.impl
+ └── OssServiceImpl.java
+
+职责：
+- FileService：处理文件业务流程
+- OssService：负责具体 OSS 存储实现
+
+5. 文件上传逻辑
+- 获取原文件名
+- UUID 重命名，避免文件覆盖
+- 调用 OSS putObject 上传
+- 拼接并返回文件访问地址
+
+6. 测试验证
+- 登录获取 JWT Token
+- 携带 Token 调用上传接口
+- Apifox 测试上传成功
+- OSS 控制台确认文件存在
+
+
+项目模型整理：
+
+新增：
+云端档案室（OSS）
+
+完整链路：
+
+用户
+ ↓
+JWT认证
+ ↓
+FileController
+ ↓
+FileService
+ ↓
+OssService
+ ↓
+阿里云 OSS
+ ↓
+返回文件 URL
+
+
+今日知识点：
+- OSS 是什么
+- OSS vs 本地存储
+- 为什么文件不存 MySQL
+- AccessKey 安全管理
+- Service 分层设计
+- MultipartFile 上传流程

@@ -14,6 +14,7 @@
         content,
         category,
         author,
+        user_id,
         create_time,
         update_time
         from knowledge
@@ -29,6 +30,7 @@
         title,
         content,
         category,
+        user_id,
         author,
         create_time,
         update_time
@@ -44,6 +46,7 @@
         content,
         category,
         author,
+        user_id,
         create_time,
         update_time
         )
@@ -52,6 +55,7 @@
         #{content},
         #{category},
         #{author},
+        #{userId},
         #{createTime},
         #{updateTime})
     </insert>

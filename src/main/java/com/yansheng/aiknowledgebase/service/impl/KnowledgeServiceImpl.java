@@ -169,6 +169,7 @@ Thread.sleep(100);
         LocalDateTime now = LocalDateTime.now();
         knowledgeEntity.setCreateTime(now);
         knowledgeEntity.setUpdateTime(now);
+        knowledgeEntity.setUserId(UserContext.getUserId());
         knowledgeMapper.insert(knowledgeEntity);
 
     }

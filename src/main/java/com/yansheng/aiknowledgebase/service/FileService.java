@@ -1,8 +1,9 @@
 package com.yansheng.aiknowledgebase.service;
 
+import com.yansheng.aiknowledgebase.entity.FileEntity;
 import org.springframework.web.multipart.MultipartFile;
 
 public interface FileService
 {
-    String uploadFile(MultipartFile file);
+    FileEntity uploadFile(MultipartFile file, Long knowledgeId);
 }

@@ -4048,3 +4048,305 @@ OssService
 - AccessKey 安全管理
 - Service 分层设计
 - MultipartFile 上传流程
+Day24 总结：文件信息入库 + Knowledge 关联（完成）
+
+一、今日目标
+
+实现：
+
+OSS 上传文件
+        ↓
+获得文件 URL
+        ↓
+保存文件元信息到 MySQL
+        ↓
+文件关联 Knowledge
+        ↓
+绑定当前用户权限
+
+最终让 AI 图书馆拥有：
+
+> 「知识 → 文件」的关联关系。
+
+
+
+
+---
+
+二、今天新增模块
+
+1. FileEntity 文件实体
+
+负责保存文件信息：
+
+private Long id;
+private Long userId;
+private String fileName;
+private String fileType;
+private Long fileSize;
+private String fileUrl;
+private Long knowledgeId;
+private LocalDateTime createTime;
+private LocalDateTime updateTime;
+
+对应数据库：
+
+knowledge_file
+
+
+---
+
+三、数据库设计
+
+新增文件表：
+
+CREATE TABLE knowledge_file (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    file_name VARCHAR(255),
+    file_type VARCHAR(50),
+    file_size BIGINT,
+    file_url VARCHAR(500),
+    knowledge_id BIGINT NOT NULL,
+    create_time DATETIME,
+    update_time DATETIME,
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge(id)
+);
+
+关系：
+
+user
+ |
+ | 1
+ |
+ N
+knowledge
+ |
+ | 1
+ |
+ N
+knowledge_file
+
+含义：
+
+一个用户：
+
+可以创建多个知识
+
+
+一个知识：
+
+可以上传多个文件
+
+
+
+---
+
+四、重要设计理解
+
+1. knowledge.id 和 user_id 区别
+
+之前容易混淆：
+
+knowledge.id
+
+表示：
+
+> 这条知识自己的编号
+
+
+
+例如：
+
+knowledge
+
+id=12
+title=Redis
+
+
+---
+
+user_id
+
+表示：
+
+> 谁创建了这条知识
+
+
+
+例如：
+
+user
+
+id=1
+username=yan
+
+
+knowledge
+
+id=12
+user_id=1
+
+表示：
+
+用户 yan 创建了知识 Redis。
+
+
+---
+
+五、上传流程
+
+现在完整链路：
+
+用户
+ ↓
+JWT
+ ↓
+Filter
+ ↓
+UserContext 获取 userId
+ ↓
+Controller
+ ↓
+FileService
+ ↓
+查询 Knowledge
+ ↓
+判断是否属于当前用户
+ ↓
+OssService
+ ↓
+OSS上传
+ ↓
+返回URL
+ ↓
+保存knowledge_file
+
+
+---
+
+六、权限设计
+
+上传文件不能只靠前端传：
+
+knowledgeId
+
+因为用户可能恶意修改。
+
+正确：
+
+JWT
+ ↓
+UserContext
+ ↓
+得到当前用户id
+
+然后：
+
+KnowledgeEntity knowledge =
+        knowledgeMapper.selectById(knowledgeId);
+
+
+if(!userId.equals(knowledge.getUserId())){
+    throw new BusinessException("无权上传");
+}
+
+保证：
+
+> 只有知识拥有者才能上传文件。
+
+
+
+
+---
+
+七、今天遇到的问题
+
+问题1：knowledgeId 为 null
+
+错误：
+
+Parameters: null
+
+原因：
+
+Controller：
+
+Long knowledgeId
+
+没有绑定路径参数。
+
+解决：
+
+@PathVariable Long knowledgeId
+
+并修改：
+
+@PostMapping("/upload/{knowledgeId}")
+
+
+---
+
+问题2：404
+
+原因：
+
+请求路径错误。
+
+Controller：
+
+@RequestMapping("/api/file")
+@PostMapping("/upload/{knowledgeId}")
+
+完整路径：
+
+/api/file/upload/12
+
+
+---
+
+问题3：数据库不存在 knowledge_file
+
+错误：
+
+Table 'knowledge_file' doesn't exist
+
+原因：
+
+MyBatis：
+
+insert into knowledge_file
+
+但是数据库没有创建。
+
+解决：
+
+创建：
+
+knowledge_file
+
+
+---
+
+问题4：返回 id=null
+
+现象：
+
+{
+"id":null
+}
+
+原因：
+
+MyBatis 没有回填自增主键。
+
+优化：
+
+<insert
+ useGeneratedKeys="true"
+ keyProperty="id">
+
+让数据库生成的 id 自动回到 Entity。
+
+
+---

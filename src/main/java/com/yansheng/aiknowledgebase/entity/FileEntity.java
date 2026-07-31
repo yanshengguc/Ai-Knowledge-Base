@@ -7,15 +7,14 @@ import java.time.LocalDateTime;
 
 @Setter
 @Getter
-public class KnowledgeEntity {
+public class FileEntity {
     private Long id;
-    private String title;
-    private String content;
-    private String category;
     private Long userId;
-    private String author;
+    private String fileName;
+    private String fileType;
+    private Long fileSize;
+    private String fileUrl;
+    private Long knowledgeId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
-
-
 }

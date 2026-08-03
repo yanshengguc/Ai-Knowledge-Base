@@ -4350,3 +4350,346 @@ MyBatis 没有回填自增主键。
 
 
 ---
+Day25 总结：文档解析
+
+一、完成内容
+
+✅ 设计文档解析接口
+
+DocumentParser
+        |
+ ┌──────┴──────┐
+PdfParser   WordParser
+
+统一：
+
+String parse(MultipartFile file);
+
+返回解析后的文本。
+
+
+---
+
+二、实现功能
+
+✅ PDF解析
+
+流程：
+
+MultipartFile
+ ↓
+InputStream
+ ↓
+PDFBox
+ ↓
+String文本
+
+核心：
+
+file.getInputStream()
+
+Loader.loadPDF()
+
+PDFTextStripper
+
+
+
+---
+
+✅ Word解析
+
+流程：
+
+MultipartFile
+ ↓
+InputStream
+ ↓
+Apache POI
+ ↓
+String文本
+
+核心：
+
+XWPFDocument
+
+getParagraphs()
+
+StringBuilder拼接
+
+
+
+---
+
+三、设计思想
+
+使用：
+
+接口 + 实现类 + 工厂
+
+原因：
+
+不让 Service 负责判断文件类型
+
+符合开闭原则
+
+新增格式只增加 Parser
+
+
+例如：
+
+MarkdownParser
+ExcelParser
+
+不用修改已有代码。
+
+
+---
+
+四、重要 Bug
+
+Bug1：PDF解析失败
+
+错误：
+
+Loader.loadPDF(file.getOriginalFilename())
+
+原因：
+
+传入的是文件名，不是文件内容。
+
+解决：
+
+file.getInputStream()
+
+
+---
+
+五、RAG链路位置
+
+完成：
+
+文件上传
+ ↓
+OSS
+ ↓
+文档解析
+ ↓
+String文本
+
+下一步：
+
+String
+ ↓
+Chunk切片
+ ↓
+Embedding
+ ↓
+向量库
+
+
+---
+
+Day25 状态
+
+✅ PDF解析
+✅ Word解析
+✅ Parser接口设计
+✅ 为RAG切片准备数据
+Day26 总结：文档切片（Chunk）重点版
+
+一、完成内容
+
+✅ 实现文本切片器 SimpleTextSplitter
+
+流程：
+
+String文本
+    ↓
+切片
+    ↓
+List<String> chunks
+
+
+---
+
+二、核心设计
+
+接口：
+
+public interface DocumentSplitter {
+
+    List<String> split(String text);
+
+}
+
+实现：
+
+DocumentSplitter
+        |
+SimpleTextSplitter
+
+
+---
+
+三、切片核心逻辑
+
+核心参数：
+
+chunkSize = 每个片段长度
+
+overlap = 重叠长度
+
+step = chunkSize - overlap
+
+例如：
+
+chunkSize = 500
+overlap = 100
+
+step = 400
+
+每次移动 400，保留 100 个字符上下文。
+
+
+---
+
+四、核心代码思想
+
+流程：
+
+start开始位置
+
+↓
+
+计算end
+
+↓
+
+substring截取
+
+↓
+
+保存chunk
+
+↓
+
+start向前移动
+
+核心：
+
+int end = Math.min(start + chunkSize, text.length());
+
+String chunk = text.substring(start,end);
+
+chunks.add(chunk);
+
+start += chunkSize - overlap;
+
+
+---
+
+五、重要 Bug
+
+Bug1：尾部重复切片
+
+测试：
+
+输入：
+
+ABCDEFGHIJK
+
+输出：
+
+ABCDE
+DEFGH
+GHIJK
+JK
+
+原因：
+
+最后一个 chunk 已经包含结尾内容，但循环继续执行。
+
+解决：
+
+if(end == text.length()){
+    break;
+}
+
+
+---
+
+六、工程设计
+
+加入参数校验：
+
+防止：
+
+overlap >= chunkSize
+
+导致：
+
+step <= 0
+
+循环异常。
+
+
+---
+
+七、AI智能图书馆类比
+
+Parser：
+
+📖 阅读员
+
+负责：
+
+文件 → 文本
+
+Splitter：
+
+✂️ 切书员
+
+负责：
+
+文本 → 知识卡片
+
+后续：
+
+知识卡片 → 向量 → 检索
+
+
+---
+
+八、RAG链路进度
+
+目前：
+
+文件上传
+ ↓
+OSS
+ ↓
+PDF/Word解析
+ ↓
+String文本
+ ↓
+Chunk切片
+
+下一步：
+
+Chunk
+ ↓
+数据库保存
+ ↓
+Embedding
+ ↓
+向量库
+
+
+---
+
+Day26 状态
+
+✅ 完成切片器设计
+✅ 掌握 chunk_size / overlap / step
+✅ 完成滑动窗口迁移
+✅ 发现并修复边界问题

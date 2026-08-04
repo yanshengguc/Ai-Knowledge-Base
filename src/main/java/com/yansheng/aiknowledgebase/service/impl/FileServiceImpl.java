@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
+import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.HelloService;
 import com.yansheng.aiknowledgebase.service.OssService;
@@ -19,11 +20,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 @Service
 public class FileServiceImpl implements FileService {
-
+private final DocumentService documentService;
    private final OssService ossService;
 private  final  KnowledgeMapper knowledgeMapper;
 private   final  FileMapper fileMapper;
-    public FileServiceImpl(OssService ossService, KnowledgeMapper knowledgeMapper, FileMapper fileMapper) {
+    public FileServiceImpl(DocumentService documentService, OssService ossService, KnowledgeMapper knowledgeMapper, FileMapper fileMapper) {
+        this.documentService = documentService;
         this.ossService = ossService;
         this.knowledgeMapper = knowledgeMapper;
         this.fileMapper = fileMapper;
@@ -68,7 +70,7 @@ private   final  FileMapper fileMapper;
 
 
         fileMapper.saveFile(entity);
-
+documentService.handleDocument(file,entity.getId());
         return entity;
     }
 }

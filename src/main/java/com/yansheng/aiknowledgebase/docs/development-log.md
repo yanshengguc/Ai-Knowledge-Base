@@ -4693,3 +4693,294 @@ Day26 状态
 ✅ 掌握 chunk_size / overlap / step
 ✅ 完成滑动窗口迁移
 ✅ 发现并修复边界问题
+Day27 总结（2026-08-04）
+
+项目完成 ✅
+
+1. Chunk 数据库存储
+
+完成 knowledge_chunk 表设计：
+
+knowledge_file
+       |
+       | 1:N
+       ↓
+knowledge_chunk
+
+字段：
+
+id
+
+fileId
+
+chunkIndex
+
+content
+
+contentLength
+
+createTime
+
+updateTime
+
+
+原因：
+
+一个文件会被切成多个 Chunk
+
+Chunk 后续需要单独做 Embedding 和向量检索
+
+不能直接把所有内容存一个字段，否则失去切片意义
+
+
+
+---
+
+2. Chunk 批量入库 ✅
+
+完成：
+
+List<String>
+      ↓
+ChunkEntity
+      ↓
+MyBatis foreach
+      ↓
+knowledge_chunk
+
+实现：
+
+设置 fileId
+
+设置 chunkIndex
+
+保存切片内容
+
+计算内容长度
+
+批量插入
+
+
+使用：
+
+@Transactional
+
+保证批量保存失败可以回滚。
+
+
+---
+
+3. 文档处理流程打通 ✅
+
+完成：
+
+FileService
+      ↓
+DocumentService
+      ↓
+ParserFactory
+      ↓
+DocumentParser
+      ↓
+DocumentSplitter
+      ↓
+ChunkService
+
+完整 RAG 预处理链路：
+
+上传文件
+ ↓
+OSS
+ ↓
+knowledge_file
+ ↓
+PDF/Word解析
+ ↓
+文本切片
+ ↓
+knowledge_chunk
+
+
+---
+
+测试结果 ✅
+
+PDF 测试
+
+成功：
+
+PDF 上传 ✅
+
+PDFBox 解析 ✅
+
+切片生成 ✅
+
+Chunk 入库 ✅
+
+
+数据库验证：
+
+file_id = 2
+
+chunk_index:
+0
+1
+2
+
+
+---
+
+Word 测试
+
+第一次失败：
+
+错误：
+
+Data too long for column 'file_type'
+
+原因：
+
+Word MIME 类型过长：
+
+application/vnd.openxmlformats-officedocument.wordprocessingml.document
+
+数据库字段长度不足。
+
+解决：
+
+ALTER TABLE knowledge_file
+MODIFY file_type VARCHAR(255);
+
+修改后：
+
+Word 上传成功 ✅
+
+
+---
+
+今日 Bug 记录
+
+1. Spring Bean 未注册
+
+错误：
+
+No qualifying bean of type PdfParser
+
+原因：
+
+实现类没有加入 IOC。
+
+解决：
+
+@Component
+
+添加到：
+
+PdfParser
+
+WordParser
+
+SimpleTextSplitter
+
+
+
+---
+
+2. 变量名错误
+
+错误：
+
+chunksService.saveChunks()
+
+实际：
+
+chunkService.saveChunks()
+
+
+---
+
+3. 空文档异常
+
+问题：
+
+空文档解析失败。
+
+优化：
+
+在解析后、切片前增加：
+
+if (text == null || text.isBlank()) {
+    throw new BusinessException("文档内容为空");
+}
+
+避免无效 Chunk 入库。
+
+
+---
+
+4. Apifox 响应校验
+
+现象：
+
+异常测试提示：
+
+Expected 200
+Actual 500
+
+原因：
+
+Apifox 默认校验成功场景。
+
+解决：
+
+异常接口单独设置：
+
+正常上传 → 200
+
+空文档/解析失败 → 500（或后续优化为400）
+
+
+
+---
+
+今日核心理解
+
+RAG 第一阶段已经完成：
+
+文档
+ ↓
+解析 Parser
+ ↓
+文本 String
+ ↓
+切片 Splitter
+ ↓
+Chunk
+ ↓
+数据库
+
+下一阶段：
+
+Chunk
+ ↓
+Embedding
+ ↓
+向量库
+ ↓
+相似度检索
+ ↓
+LLM回答
+
+
+
+
+---
+
+
+当前进度：
+
+Day25 文档解析 ✅
+Day26 文档切片 ✅
+Day27 Chunk 入库 + 联调 ✅
+
+RAG 数据预处理阶段完成。

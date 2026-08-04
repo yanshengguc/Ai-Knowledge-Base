@@ -6,32 +6,32 @@
 <mapper namespace="com.yansheng.aiknowledgebase.mapper.FileMapper">
 
 
-    <insert id="saveFile">
-        insert into knowledge_file(
+    <insert id="saveFile"
+            useGeneratedKeys="true"
+            keyProperty="id">
 
-       user_id,
-         file_name,
+        insert into knowledge_file(
+        user_id,
+        file_name,
         file_type,
         file_size,
         file_url,
-         knowledge_id,
-       create_time,
-         update_time
-
+        knowledge_id,
+        create_time,
+        update_time
         )
         values(
-
         #{userId},
-          #{fileName},
-          #{fileType},
-          #{fileSize},
-          #{fileUrl},
-           #{knowledgeId},
-         #{createTime},
-           #{updateTime}
-          )
+        #{fileName},
+        #{fileType},
+        #{fileSize},
+        #{fileUrl},
+        #{knowledgeId},
+        #{createTime},
+        #{updateTime}
+        )
 
-</insert>
+    </insert>
 
     <select id="selectFileByKnowledgeId" resultType="com.yansheng.aiknowledgebase.entity.FileEntity">
         select

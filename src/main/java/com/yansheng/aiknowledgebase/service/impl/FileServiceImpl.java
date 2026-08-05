@@ -45,7 +45,13 @@ public class FileServiceImpl implements FileService {
     ) {
 
         Long userId = UserContext.getUserId();
-
+if (file.isEmpty()) {
+    throw new BusinessException("文件不能为空");
+}
+long maxSize = 20*1024*1024;
+if (file.getSize() > maxSize) {
+    throw new BusinessException("文件大小不能超过20MB");
+}
         log.info("开始上传文件,userId={},knowledgeId={},fileName={}",
                 userId,
                 knowledgeId,
@@ -76,7 +82,7 @@ public class FileServiceImpl implements FileService {
 
 
         FileEntity entity = new FileEntity();
-
+entity.setStatus("PROCESSING");
         entity.setUserId(userId);
         entity.setKnowledgeId(knowledgeId);
 
@@ -93,17 +99,19 @@ public class FileServiceImpl implements FileService {
 
         fileMapper.saveFile(entity);
 
-        log.info("文件信息保存成功,fileId={},knowledgeId={}",
-                entity.getId(),
-                knowledgeId);
+        try {
+            documentService.handleDocument(file, entity.getId());
 
+            fileMapper.updateStatus(entity.getId(), "SUCCESS");
 
-        documentService.handleDocument(file, entity.getId());
+            log.info("文件解析切片完成,fileId={}", entity.getId());
 
+        } catch (Exception e) {
 
-        log.info("文件解析切片完成,fileId={}",
-                entity.getId());
+            fileMapper.updateStatus(entity.getId(), "FAILED");
 
+            throw e;
+        }
 
         return entity;
     }

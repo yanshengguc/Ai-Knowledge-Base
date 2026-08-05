@@ -5309,3 +5309,308 @@ Day28 日志优化
 
 
 Day28 完成 ✅
+Day29 总结（2026-08-05）
+
+阶段：
+
+> OSS + 文档处理优化阶段
+
+
+
+目标：
+
+> 完善文件处理链路的工程化能力，让上传、解析、切片失败时可追踪、可恢复。
+
+
+
+
+---
+
+今日完成内容
+
+1. 文件上传参数校验 ✅
+
+在 FileServiceImpl.uploadFile() 增加：
+
+空文件校验
+
+if (file.isEmpty()) {
+    throw new BusinessException("文件不能为空");
+}
+
+作用：
+
+避免：
+
+空文件上传 OSS
+
+无效解析
+
+生成空 Chunk
+
+
+
+---
+
+文件大小限制
+
+long maxSize = 20 * 1024 * 1024;
+
+if (file.getSize() > maxSize) {
+    throw new BusinessException("文件大小不能超过20MB");
+}
+
+作用：
+
+防止：
+
+大文件占用过多内存
+
+PDF/Word解析失败
+
+OOM风险
+
+
+面试回答：
+
+> 文件大小限制应该放在业务入口处提前校验，避免无效文件进入后续 OSS 上传和解析流程。
+
+
+
+
+---
+
+2. 文件处理状态管理（重点）⭐⭐⭐⭐⭐
+
+新增：
+
+knowledge_file.status
+
+字段：
+
+status VARCHAR(20)
+
+状态：
+
+PROCESSING
+    |
+    |
+ SUCCESS
+
+ FAILED
+
+
+---
+
+为什么增加状态？
+
+之前：
+
+上传
+ ↓
+解析
+ ↓
+结束
+
+问题：
+
+如果解析失败：
+
+数据库不知道当前状态。
+
+现在：
+
+上传成功
+ ↓
+PROCESSING
+ ↓
+解析切片
+ ↓
+SUCCESS / FAILED
+
+用户可以知道文件当前状态。
+
+
+---
+
+3. 增加 updateStatus 方法
+
+Mapper：
+
+int updateStatus(
+    @Param("id") Long id,
+    @Param("status") String status
+);
+
+XML：
+
+<update id="updateStatus">
+    UPDATE knowledge_file
+    SET
+        status = #{status},
+        update_time = NOW()
+    WHERE id = #{id}
+</update>
+
+
+---
+
+4. 异常状态处理优化
+
+修改：
+
+documentService.handleDocument(file, entity.getId());
+
+增加：
+
+try-catch
+
+流程：
+
+成功：
+
+PROCESSING
+      ↓
+解析成功
+      ↓
+SUCCESS
+
+失败：
+
+PROCESSING
+      ↓
+解析异常
+      ↓
+FAILED
+      ↓
+抛异常
+      ↓
+GlobalExceptionHandler
+
+
+---
+
+5. GlobalExceptionHandler完善
+
+增加：
+
+@ExceptionHandler(Exception.class)
+
+处理：
+
+系统异常
+
+未预期异常
+
+
+业务异常：
+
+@ExceptionHandler(BusinessException.class)
+
+统一返回：
+
+{
+ "code":500,
+ "message":"文件不能为空"
+}
+
+
+---
+
+6. 测试结果 ✅
+
+空文件测试
+
+结果：
+
+{
+ "code":500,
+ "message":"文件不能为空"
+}
+
+说明：
+
+业务异常链路正常。
+
+
+---
+
+空PDF测试
+
+结果：
+
+PDFBox解析失败：
+
+Error: End-of-File
+
+状态：
+
+FAILED
+
+说明：
+
+异常捕获和状态更新正常。
+
+
+---
+
+PDF测试
+
+成功：
+
+textLength=1153
+chunkCount=3
+status=SUCCESS
+
+
+---
+
+Word测试
+
+成功：
+
+课程设计说明.docx
+
+textLength=644
+chunkCount=2
+status=SUCCESS
+
+
+---
+
+今日Bug记录
+
+Bug1：8080端口占用
+
+原因：
+
+旧SpringBoot进程未关闭。
+
+解决：
+
+关闭占用8080的进程。
+
+
+---
+
+Bug2：空PDF上传返回500
+
+原因：
+
+文件存在，但是内容不是合法PDF。
+
+PDFBox解析失败。
+
+解决：
+
+异常统一交给：
+
+GlobalExceptionHandler
+
+
+---
+
+
+Day29 完成。✅
+
+

@@ -17,4 +17,5 @@ public class FileEntity {
     private Long knowledgeId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+    private String status;
 }

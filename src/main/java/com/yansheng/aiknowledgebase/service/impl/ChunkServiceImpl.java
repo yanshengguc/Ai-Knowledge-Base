@@ -1,5 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import com.yansheng.aiknowledgebase.common.BusinessException;
 import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.service.ChunkService;
@@ -21,12 +22,24 @@ public class ChunkServiceImpl implements ChunkService {
     @Override
     public int saveChunks(Long fileId, List<String> chunks) {
         List<ChunkEntity> chunkList = new ArrayList<>();
-        for (int i = 0; i < chunks.size(); i++) {
-            String chunk = chunks.get(i);
+        if (fileId == null) {
+            throw new BusinessException("文件ID不能为空");
+        }
+
+        if (chunks == null || chunks.isEmpty()) {
+            throw new BusinessException("切片内容不能为空");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int index=0;
+        for (String chunk : chunks) {
+            if(chunk == null || chunk.isBlank()) {
+                continue;
+            }
             ChunkEntity entity = new ChunkEntity();
             entity.setFileId(fileId);
             // 切片顺序
-            entity.setChunkIndex(i);
+            entity.setChunkIndex(index++);
             // 内容
             entity.setContent(chunk);
             // UTF-8字节长度
@@ -34,7 +47,7 @@ public class ChunkServiceImpl implements ChunkService {
                     chunk.getBytes(StandardCharsets.UTF_8).length
             );
 
-            LocalDateTime now = LocalDateTime.now();
+
             entity.setCreateTime(now);
             entity.setUpdateTime(now);
             chunkList.add(entity);

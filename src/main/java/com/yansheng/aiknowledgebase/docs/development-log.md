@@ -4984,3 +4984,328 @@ Day26 文档切片 ✅
 Day27 Chunk 入库 + 联调 ✅
 
 RAG 数据预处理阶段完成。
+---
+
+Day28 总结（2026-08-05）
+
+今日目标
+
+优化：
+
+> 上传文件 → 解析 → 切片 → Chunk入库
+
+
+
+完整链路的可维护性。
+
+
+---
+
+一、完成内容
+
+1. 增加业务日志 ✅
+
+新增：
+
+FileServiceImpl
+
+记录：
+
+开始上传文件
+
+权限校验成功
+
+OSS上传成功
+
+文件信息保存成功
+
+文档处理完成
+
+
+DocumentServiceImpl
+
+记录：
+
+开始处理文档
+
+文档解析完成
+
+文档切片完成
+
+Chunk保存完成
+
+
+形成完整链路：
+
+上传开始
+ ↓
+OSS成功
+ ↓
+knowledge_file保存成功
+ ↓
+开始解析
+ ↓
+解析完成
+ ↓
+切片完成
+ ↓
+Chunk入库完成
+
+
+---
+
+二、日志设计原则（面试）
+
+不要：
+
+log.info("text={}", text);
+
+原因：
+
+1. 文档内容可能巨大，导致日志膨胀
+
+
+2. 可能泄露用户敏感文件内容
+
+
+3. 不方便日志检索
+
+
+
+应该记录：
+
+fileId
+userId
+文件名
+文本长度
+Chunk数量
+状态
+
+例如：
+
+log.info(
+"文档解析完成,fileId={},textLength={}",
+fileId,
+text.length()
+);
+
+
+---
+
+三、测试结果 ✅
+
+测试文件：
+
+PDF
+
+结果：
+
+文件保存
+
+成功：
+
+fileId=7
+knowledgeId=12
+
+
+---
+
+文档解析
+
+成功：
+
+textLength=1153
+
+
+---
+
+文档切片
+
+成功：
+
+chunkCount=3
+
+切片策略：
+
+chunkSize=500
+overlap=100
+
+
+---
+
+Chunk批量入库
+
+SQL：
+
+INSERT INTO knowledge_chunk
+VALUES
+(...),
+(...),
+(...)
+
+说明：
+
+不是循环 insert。
+
+使用：
+
+MyBatis foreach批量插入
+
+
+---
+
+事务
+
+日志：
+
+Transaction synchronization committing SqlSession
+
+说明：
+
+@Transactional
+
+生效。
+
+
+---
+
+四、今日面试知识点
+
+1. overlap 为什么存在？
+
+错误：
+
+> 为了减少检索时间
+
+
+
+修正：
+
+> overlap 用于保留相邻 Chunk 的上下文，避免语义被切断，提高向量检索召回效果。
+
+
+
+
+---
+
+2. 为什么记录 contentLength 而不是 length？
+
+因为：
+
+字符数量 ≠ 存储大小
+
+例如：
+
+英文:
+abc
+
+中文:
+你好
+
+UTF-8：
+
+英文：
+
+3 bytes
+
+中文：
+
+6 bytes
+
+所以：
+
+chunk.getBytes(StandardCharsets.UTF_8).length
+
+更符合存储统计。
+
+
+---
+
+3. OSS 和数据库事务问题
+
+问题：
+
+OSS成功
+
+↓
+
+数据库失败
+
+无法靠 MySQL 回滚 OSS。
+
+原因：
+
+OSS 是外部系统，不参与数据库事务。
+
+解决：
+
+补偿删除
+
+定时清理
+
+状态管理
+
+
+
+---
+
+五、发现的小问题
+
+MyBatis SQL日志打印了 Chunk 内容：
+
+原因：
+
+开发环境开启：
+
+StdOutImpl
+
+生产环境需要关闭。
+
+否则：
+
+文档泄露
+
+日志过大
+
+
+
+---
+
+六、项目模型整理（15分钟）
+
+今天 AI 智能图书馆新增：
+
+文档处理流水线监控系统
+
+新增能力：
+
+上传文件
+ ↓
+OSS保存
+ ↓
+文件记录
+ ↓
+解析
+ ↓
+切片
+ ↓
+Chunk库存储
+
+今天连接：
+
+Day22 文件上传
+       +
+Day25 文档解析
+       +
+Day26 切片
+       +
+Day27 Chunk入库
+       +
+Day28 日志优化
+
+完整形成：
+
+> RAG 数据预处理阶段。
+
+
+Day28 完成 ✅

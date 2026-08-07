@@ -90,7 +90,11 @@
             <version>7.1.0</version>
             <scope>compile</scope>
         </dependency>
-
+        <dependency>
+            <groupId>com.alibaba.cloud.ai</groupId>
+            <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
+            <version>1.1.2.1</version>
+        </dependency>
     <dependency>
         <groupId>org.apache.pdfbox</groupId>
         <artifactId>pdfbox</artifactId>
@@ -102,6 +106,13 @@
             <version>5.2.5</version>
         </dependency>
     </dependencies>
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+        </repository>
+    </repositories>
     <build>
         <plugins>
             <plugin>

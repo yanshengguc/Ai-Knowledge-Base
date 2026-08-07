@@ -5661,3 +5661,53 @@ Day29 完成。✅
 今天没有安排新题,438(双数组固定窗口)继续留在明天早上默写巩固,不要碰差分数组写法。
 
 ---
+# 今日总结(2026-08-07,Day32+33合并推进)
+
+## 一、项目进度
+
+**目标**:向量数据库选型+搭建+存储链路打通(手册Day33选型提前合并进Day32存储)
+
+**完成情况**:
+- ✅ 选型:阿里云**DashVector**(生态统一、全托管、Serverless、Cosine相似度)
+- ✅ Cluster + Collection创建(dimension=1024,匹配Day31的text-embedding-v3)
+- ✅ Schema设计:`document_id`(long)、`content`(string)
+- ✅ 密钥外置:DashVector的api-key/endpoint同样走`application-local.properties`,延续Day31的安全习惯
+- ✅ `VectorStoreService`接口+实现类,`@PostConstruct`初始化连接复用
+- ✅ 端到端测试:文本→Embedding→存入DashVector,控制台确认真实落库
+
+**接口设计的一个好决定**:一开始`chunkId`/`documentId`用了`String`,后来主动纠正为`Long`(跟MySQL实体类型保持一致),没有用运行时转换去兜底掩盖类型问题——这是今天体现出的架构判断力的加分项。
+
+---
+
+## 二、今天排查的三个真实Bug(比顺利跑通更有价值,记进错题库)
+
+1. **Endpoint复制不全**:只复制了实例ID前半段,少了`.dashvector.cn-shenzhen.aliyuncs.com`这一截,报`Invalid endpoint`
+2. **Maven依赖冲突**:TestNG间接引入guava 19.0旧版本,和DashVector SDK底层gRPC所需的guava新方法冲突,报`NoSuchMethodError`。解决:`pom.xml`里显式声明guava 32.1.3-jre高版本覆盖
+3. **字段类型不匹配**:Schema定义`document_id`为long,插入时传了String,报"field value must be long"——顺带触发了刚才那个接口类型设计的修正
+
+---
+
+## 三、八股(选型题,已练熟)
+
+**DashVector vs Milvus的权衡**:
+- 优势:生态统一(复用OSS/DashScope账号体系)、全托管省运维、适合冲刺阶段快速开发
+- 代价:数据主权/合规风险(第三方托管)、索引算法参数不可控(被框架锁定)、持续云服务成本、大规模生产环境企业更倾向自建开源方案获得更高可控性
+
+**顺带巩固了Day31的知识**:余弦相似度作为默认度量方式,和向量语义检索的场景直接对应上了。
+
+---
+
+## 四、今天的答题模式
+
+延续了之前的规律——第一次接触新概念/新报错时容易第一层作答就停(比如最初"选DashVector"只说了优势没提代价),经过追问后能补全完整链路,而且已经开始出现主动纠正的情况(接口类型设计那次)。这是进步的信号,继续在后续复习里巩固。
+
+---
+
+## 五、算法与Prompt
+
+- 算法(438双数组)按计划挪到下午做
+- Prompt Engineering进度在第四章节,慢慢推进,不强求对齐当天章节
+
+---
+
+已经把Day32+33的完整产出、三个Bug、选型权衡都更新进长期记忆。development-log里的Git提交、面经、Prompt总结栏目你自己补完即可。今天这两天量合并起来完成得很扎实,尤其是主动发现类型设计问题这一点,继续保持。

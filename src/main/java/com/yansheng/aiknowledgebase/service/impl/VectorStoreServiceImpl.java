@@ -1,0 +1,199 @@
+package com.yansheng.aiknowledgebase.service.impl;
+
+
+import com.aliyun.dashvector.DashVectorClient;
+import com.aliyun.dashvector.DashVectorCollection;
+import com.aliyun.dashvector.models.Doc;
+import com.aliyun.dashvector.models.DocOpResult;
+import com.aliyun.dashvector.models.Vector;
+import com.aliyun.dashvector.models.requests.InsertDocRequest;
+import com.aliyun.dashvector.models.requests.QueryDocRequest;
+import com.aliyun.dashvector.models.responses.Response;
+import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.service.VectorStoreService;
+import jakarta.annotation.PostConstruct;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+@Service
+public class VectorStoreServiceImpl implements VectorStoreService {
+
+    @Value("${dashvector.api-key}")
+    private String apiKey;
+
+    @Value("${dashvector.endpoint}")
+    private String endpoint;
+
+    private static final String COLLECTION_NAME = "knowledge_chunk_vector";
+
+    private DashVectorClient client;
+    private DashVectorCollection collection;
+
+    @PostConstruct
+    public void init() {
+        client = new DashVectorClient(apiKey, endpoint);
+        collection = client.get(COLLECTION_NAME);
+    }
+
+    @Override
+    public void insert(Long chunkId, Long documentId, String content, float[] vector) {
+        if (chunkId == null) {
+            throw new IllegalArgumentException("chunkId不能为空");
+        }
+        if (documentId == null) {
+            throw new IllegalArgumentException("documentId不能为空");
+        }
+        if (vector == null || vector.length == 0) {
+            throw new IllegalArgumentException("向量不能为空");
+        }
+
+        List<Float> vectorList = new ArrayList<>();
+        for (float v : vector) {
+            vectorList.add(v);
+        }
+
+        Doc doc = Doc.builder()
+                .id(String.valueOf(chunkId))  // DashVector的id字段本身是String类型,这里要转
+                .vector(Vector.builder().value(vectorList).build())
+                .field("document_id", documentId)
+                .field("content", content)
+                .build();
+
+        Response<List<DocOpResult>> response = collection.insert(InsertDocRequest.builder().doc(doc).build());
+
+        if (!response.isSuccess()) {
+            throw new RuntimeException("向量插入失败: " + response.getMessage());
+        }
+    }
+
+    @Override
+    public List<SearchResult> search(float[] vector, int topK) {
+
+        // 1. 参数校验
+        if (vector == null || vector.length == 0) {
+            throw new IllegalArgumentException("向量不能为空");
+        }
+
+        if (topK <= 0) {
+            throw new IllegalArgumentException("topK需要大于0");
+        }
+
+        log.info("开始向量检索，vectorDimension={}, topK={}",
+                vector.length, topK);
+
+        // 2. float[] 转 List<Float>
+        List<Float> vectorList = new ArrayList<>();
+
+        for (float v : vector) {
+            vectorList.add(v);
+        }
+
+        // 3. 构造查询向量
+        Vector queryVector = Vector.builder()
+                .value(vectorList)
+                .build();
+
+        // 4. 构造 Top-K 查询请求
+        QueryDocRequest request = QueryDocRequest.builder()
+                .vector(queryVector)
+                .topk(topK)
+                .build();
+
+        // 5. 调用 DashVector
+        Response<List<Doc>> response = collection.query(request);
+
+        // 6. 查询失败
+        if (!response.isSuccess()) {
+
+            log.error(
+                    "DashVector查询失败，code={}, message={}, requestId={}, response={}",
+                    response.getCode(),
+                    response.getMessage(),
+                    response.getRequestId(),
+                    response
+            );
+
+            throw new RuntimeException(
+                    "向量检索失败: code="
+                            + response.getCode()
+                            + ", message="
+                            + response.getMessage()
+                            + ", requestId="
+                            + response.getRequestId()
+            );
+        }
+
+        // 7. 获取查询结果
+        List<Doc> docs = response.getOutput();
+
+        if (docs == null || docs.isEmpty()) {
+            log.info("DashVector查询成功，但没有检索到结果");
+            return new ArrayList<>();
+        }
+
+        log.info("DashVector查询成功，返回{}条结果", docs.size());
+
+        // 8. Doc → SearchResult
+        List<SearchResult> results = new ArrayList<>();
+
+        for (Doc doc : docs) {
+
+            // DashVector id 是 String
+            // 插入时使用的是 String.valueOf(chunkId)
+            Long chunkId = Long.valueOf(doc.getId());
+
+            // 获取字段
+            Map<String, Object> fields = doc.getFields();
+
+            if (fields == null) {
+                log.warn("Doc字段为空，chunkId={}", chunkId);
+                continue;
+            }
+
+            // document_id
+            Object documentIdObject = fields.get("document_id");
+
+            if (documentIdObject == null) {
+                log.warn("Doc缺少document_id，chunkId={}", chunkId);
+                continue;
+            }
+
+            Long documentId = ((Number) documentIdObject).longValue();
+
+            // content
+            Object contentObject = fields.get("content");
+
+            if (contentObject == null) {
+                log.warn("Doc缺少content，chunkId={}", chunkId);
+                continue;
+            }
+
+            String content = contentObject.toString();
+
+            // 相似度
+            Double score = (double) doc.getScore();
+
+            // 构造检索结果
+            SearchResult result = new SearchResult(
+                    documentId,
+                    chunkId,
+                    content,
+                    score
+            );
+
+            results.add(result);
+        }
+
+        log.info("向量检索完成，最终返回{}条SearchResult", results.size());
+
+        return results;
+    }
+}

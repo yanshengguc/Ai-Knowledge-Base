@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.yansheng.aiknowledgebase.mapper.KnowledgeMapper">
+
+    <select id="selectAll"
+            resultType="com.yansheng.aiknowledgebase.entity.KnowledgeEntity">
+
+        select
+        id,
+        title,
+        content,
+        category,
+        author,
+        user_id,
+        create_time,
+        update_time
+        from knowledge
+
+    </select>
+
+
+    <select id="selectById"
+            resultType="com.yansheng.aiknowledgebase.entity.KnowledgeEntity">
+
+        select
+        id,
+        title,
+        content,
+        category,
+        user_id,
+        author,
+        create_time,
+        update_time
+        from knowledge
+        where id = #{id}
+
+    </select>
+
+    <!--新增-->
+    <insert id="insert">
+        insert into knowledge(
+        title,
+        content,
+        category,
+        author,
+        user_id,
+        create_time,
+        update_time
+        )
+        values(
+        #{title},
+        #{content},
+        #{category},
+        #{author},
+        #{userId},
+        #{createTime},
+        #{updateTime})
+    </insert>
+
+    <update id="update">
+update  knowledge
+        set
+        title=#{title},
+        content =#{content},
+        category   =   #{category},
+        author= #{author},
+        update_time= #{updateTime}
+        where id=#{id}
+    </update>
+    <delete id="delete"
+            parameterType="java.lang.Long">
+DELETE FROM  knowledge
+        where id=#{id}
+    </delete>
+</mapper>

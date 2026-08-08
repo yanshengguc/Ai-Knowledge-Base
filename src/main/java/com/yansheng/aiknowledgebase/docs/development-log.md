@@ -5711,3 +5711,34 @@ Day29 完成。✅
 ---
 
 已经把Day32+33的完整产出、三个Bug、选型权衡都更新进长期记忆。development-log里的Git提交、面经、Prompt总结栏目你自己补完即可。今天这两天量合并起来完成得很扎实,尤其是主动发现类型设计问题这一点,继续保持。
+# 今天总结
+
+## Day34：RAG向量检索链路 —— 已完整跑通并收尾
+
+**核心链路打通：**
+```
+MySQL真实Chunk（回填id）→ Embedding → DashVector insert → VectorSearchService.search() → 语义检索排序正确
+```
+
+**关键修复：** `ChunkMapper.xml` 的 `insertBatch` 原本没有配置回填机制，导致批量插入后 `ChunkEntity.id` 全为null，无法关联向量库。加上 `useGeneratedKeys="true" keyProperty="id"` 后解决。原理：MyBatis通过反射**原地**回写传入List里的对象——这是今天最有价值的一条工程理解，可作为面试话术。
+
+**新增：** `IndexingService`，串联Embedding+DashVector insert，刻意不加`@Transactional`（外部网络调用不能绑定MySQL事务，与OSS那次教训同源）。
+
+**排查记录：** 测试环境数据库密码读取失败（`Access denied...using password: NO`），根因是`${DB_PASSWORD:}`依赖环境变量，而IDEA的JUnit Run Configuration不会继承应用启动配置的环境变量。最终绕过环境变量，直接在`application-local.properties`写死密码解决。
+
+**验证结果：** chunkId正确回填（14/15/16/17），DashVector控制台数据量核对无误，语义检索排序正确（DashVector score是距离非相似度，越小越相关，实测符合预期）。
+
+**Day34 Bug总结文档**：已整理完整版9条（含原7条+id回填根因分析+测试环境密码问题），含可直接用的面试话术两段。
+
+## 求职规划
+
+新增了一份完整的"项目完成后求职计划"文档，理清了项目完成前（持续积累）与完成后（复盘→简历→自我介绍→项目介绍→八股→100问→模拟面试→试投→迭代→9月上旬正式投递）的分工，已存入记忆，后续涉及求职时间线按此为准。
+
+## 待办（不紧急）
+
+- 清理MySQL/DashVector里的重复测试数据（chunkId 14/15/16/17）
+- 之前对话中贴出过明文密钥（数据库密码、阿里云AccessKey、DashScope/DashVector API Key），建议找时间重置
+
+## 下一步
+
+Rerank模块，把"问题 + 高相关chunk"接入LLM。

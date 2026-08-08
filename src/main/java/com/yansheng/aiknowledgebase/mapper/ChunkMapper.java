@@ -6,5 +6,5 @@ import java.util.List;
 
 public interface ChunkMapper {
     int insertBatch(List<ChunkEntity> chunks);
-   // int insertOrUpdateBatch(List<ChunkEntity> chunks);
+    List<ChunkEntity> selectByFileId(Long fileId);
 }

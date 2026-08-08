@@ -5,7 +5,7 @@
 
 <mapper namespace="com.yansheng.aiknowledgebase.mapper.ChunkMapper">
 
-    <insert id="insertBatch">
+    <insert id="insertBatch" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO knowledge_chunk
         (
         file_id,
@@ -34,5 +34,20 @@
 
     </insert>
 
+    <select id="selectByFileId"
+            resultType="com.yansheng.aiknowledgebase.entity.ChunkEntity">
 
+        SELECT
+        id,
+        file_id,
+        chunk_index,
+        content,
+        content_length,
+        create_time,
+        update_time
+        FROM knowledge_chunk
+        WHERE file_id = #{fileId}
+        ORDER BY chunk_index
+
+    </select>
 </mapper>

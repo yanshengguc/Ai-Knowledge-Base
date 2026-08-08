@@ -1,9 +1,12 @@
 package com.yansheng.aiknowledgebase.service;
 
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
+
+
 public interface ChunkService {
-    int saveChunks(Long fileId, List<String> chunks);
+    List<ChunkEntity> saveChunks(Long fileId, List<String> chunks);
 }

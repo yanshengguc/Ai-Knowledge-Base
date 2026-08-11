@@ -9,16 +9,14 @@ import com.aliyun.dashvector.models.Vector;
 import com.aliyun.dashvector.models.requests.InsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
-import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

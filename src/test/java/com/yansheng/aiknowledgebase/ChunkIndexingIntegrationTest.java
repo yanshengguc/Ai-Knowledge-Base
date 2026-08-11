@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase;
 
-import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import com.yansheng.aiknowledgebase.service.IndexingService;

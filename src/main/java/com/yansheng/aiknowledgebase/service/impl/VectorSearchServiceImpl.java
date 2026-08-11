@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
-import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;

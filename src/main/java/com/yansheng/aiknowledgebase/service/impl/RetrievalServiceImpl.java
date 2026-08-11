@@ -1,10 +1,8 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
-import com.aliyun.dashvector.models.Doc;
-import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
-import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -29,8 +27,8 @@ public class RetrievalServiceImpl implements RetrievalService {
     }
 
     @Override
-    public List<SearchResult> retrieveTopK(String queryVector) {
-        List<SearchResult> rawResults = vectorSearchService.search(queryVector, topK * 3);
+    public List<SearchResult> retrieveTopK(String queryText) {
+        List<SearchResult> rawResults = vectorSearchService.search(queryText, topK * 3);
         return rawResults.stream()
                 .filter(r -> r.getScore() <= similarityThreshold)
                 .sorted(Comparator.comparingDouble(SearchResult::getScore))

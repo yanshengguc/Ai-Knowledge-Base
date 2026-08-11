@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase.service;
 
-import com.yansheng.aiknowledgebase.common.SearchResult;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 
 import java.util.List;
 

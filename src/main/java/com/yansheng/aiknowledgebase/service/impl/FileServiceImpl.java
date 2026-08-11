@@ -1,24 +1,20 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
-import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
-import com.yansheng.aiknowledgebase.service.HelloService;
 import com.yansheng.aiknowledgebase.service.OssService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.UUID;
+
 @Slf4j
 @Service
 public class FileServiceImpl implements FileService {

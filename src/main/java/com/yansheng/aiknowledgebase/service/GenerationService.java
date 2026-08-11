@@ -1,4 +1,5 @@
 package com.yansheng.aiknowledgebase.service;
 
-public class GenerationService {
+public interface GenerationService {
+     String generate(String prompt);
 }

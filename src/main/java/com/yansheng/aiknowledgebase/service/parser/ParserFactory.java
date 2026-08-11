@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase.service.parser;
 
-import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 

@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
-import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.parser.DocumentParser;

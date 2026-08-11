@@ -1,6 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
-import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.common.RedisKey;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;

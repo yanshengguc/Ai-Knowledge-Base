@@ -1,7 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.entity.ChunkEntity;
-import com.yansheng.aiknowledgebase.common.BusinessException;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import org.springframework.stereotype.Service;

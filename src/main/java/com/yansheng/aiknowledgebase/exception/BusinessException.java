@@ -1,4 +1,4 @@
-package com.yansheng.aiknowledgebase.common;
+package com.yansheng.aiknowledgebase.exception;
 
 
 public class BusinessException extends RuntimeException{

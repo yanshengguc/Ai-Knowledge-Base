@@ -55,4 +55,19 @@
         update_time = NOW()
         WHERE id = #{id}
     </update>
+
+    <select id="selectById" resultType="com.yansheng.aiknowledgebase.entity.FileEntity">
+        select
+        id,
+        user_id,
+        file_name,
+        file_type,
+        file_size,
+        file_url,
+        knowledge_id,
+        create_time,
+        update_time
+        FROM knowledge_file
+        where id = #{id}
+    </select>
 </mapper>

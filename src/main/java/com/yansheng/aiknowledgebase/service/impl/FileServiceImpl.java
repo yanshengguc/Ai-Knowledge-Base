@@ -9,6 +9,7 @@ import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.OssService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
+import com.yansheng.aiknowledgebase.vo.FileVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +35,24 @@ public class FileServiceImpl implements FileService {
         this.fileMapper = fileMapper;
     }
 
+    @Override
+    public FileVO getFileById(Long id) {
+        FileEntity entity = fileMapper.selectById(id);
+
+        if (entity == null) {
+            throw new BusinessException("文件不存在");
+        }
+
+        FileVO vo = new FileVO();
+        vo.setId(entity.getId());
+        vo.setFileName(entity.getFileName());
+        vo.setFileUrl(entity.getFileUrl());
+        vo.setFileSize(entity.getFileSize());
+        vo.setKnowledgeId(entity.getKnowledgeId());
+        vo.setUpdateTime(entity.getUpdateTime());
+
+        return vo;
+    }
     @Override
     public FileEntity uploadFile(
             MultipartFile file,

@@ -12,4 +12,5 @@ public interface FileMapper {
 void saveFile(FileEntity file);
 List<FileEntity> selectFileByKnowledgeId(Long knowledgeId);
 int updateStatus(@Param("id") Long id,@Param("status") String status);
+    FileEntity selectById(@Param("id") Long id);
 }

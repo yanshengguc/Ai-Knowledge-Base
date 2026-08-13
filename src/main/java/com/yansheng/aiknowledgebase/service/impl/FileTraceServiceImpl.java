@@ -6,12 +6,13 @@ import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.FileTraceService;
 import com.yansheng.aiknowledgebase.vo.FileVO;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-
+@Slf4j
 @Service
 public class FileTraceServiceImpl implements FileTraceService {
 
@@ -35,6 +36,7 @@ public class FileTraceServiceImpl implements FileTraceService {
 
     @Override
     public String execute(Map<String, Object> params) {
+        log.info(">>> file_trace被调用,参数: {}", params);
         Object rawId = params.get("fileId");
         if (rawId == null) {
             throw new BusinessException("缺少参数fileId");

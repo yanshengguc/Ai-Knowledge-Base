@@ -33,3 +33,6 @@ build/
 .vscode/
 
 src/main/resources/application-local.properties
+# personal helper docs (not committed)
+docs/DAY42-REVIEW-PLAN.md
+docs/HANDOVER-2026-08-14.md

@@ -5,6 +5,6 @@ import com.yansheng.aiknowledgebase.entity.SearchResult;
 import java.util.List;
 
 public interface VectorStoreService {
-    void insert(Long chunkId,Long documentId,String content ,float[] vector);
+    void insert(Long chunkId, Long fileId, String content, float[] vector);
     List<SearchResult> search(float[] vector,int topK);
 }

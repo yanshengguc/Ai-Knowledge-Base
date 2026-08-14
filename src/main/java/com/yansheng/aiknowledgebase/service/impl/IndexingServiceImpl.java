@@ -29,10 +29,10 @@ public class IndexingServiceImpl implements IndexingService {
     // 原因：DashVector 插入是外部网络调用，不能和 MySQL 事务绑在一起
     // 参考之前 OSS 的教训：数据库事务管不了外部资源的回滚
     @Override
-    public void indexChunks(Long documentId, List<ChunkEntity> chunkList) {
+    public void indexChunks(Long fileId, List<ChunkEntity> chunkList) {
 
-        if (documentId == null) {
-            throw new IllegalArgumentException("documentId不能为空");
+        if (fileId == null) {
+            throw new IllegalArgumentException("fileId不能为空");
         }
 
         if (chunkList == null || chunkList.isEmpty()) {
@@ -55,7 +55,7 @@ public class IndexingServiceImpl implements IndexingService {
 
                 vectorStoreService.insert(
                         chunk.getId(),
-                        documentId,
+                        fileId,
                         chunk.getContent(),
                         vector
                 );
@@ -70,7 +70,7 @@ public class IndexingServiceImpl implements IndexingService {
             }
         }
 
-        log.info("索引完成，documentId={}, 成功={}, 失败={}",
-                documentId, successCount, failCount);
+        log.info("索引完成，fileId={}, 成功={}, 失败={}",
+                fileId, successCount, failCount);
     }
 }

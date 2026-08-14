@@ -1,8 +1,10 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import com.yansheng.aiknowledgebase.service.DocumentService;
+import com.yansheng.aiknowledgebase.service.IndexingService;
 import com.yansheng.aiknowledgebase.service.parser.DocumentParser;
 import com.yansheng.aiknowledgebase.service.parser.ParserFactory;
 import com.yansheng.aiknowledgebase.service.splitter.DocumentSplitter;
@@ -18,13 +20,16 @@ public class DocumentServiceImpl implements DocumentService {
     private final ParserFactory parserFactory;
     private final DocumentSplitter documentSplitter;
     private final ChunkService chunkService;
+    private final IndexingService indexingService;
 
     public DocumentServiceImpl(ParserFactory parserFactory,
                                DocumentSplitter documentSplitter,
-                               ChunkService chunkService) {
+                               ChunkService chunkService,
+                               IndexingService indexingService) {
         this.parserFactory = parserFactory;
         this.documentSplitter = documentSplitter;
         this.chunkService = chunkService;
+        this.indexingService = indexingService;
     }
 
 
@@ -54,10 +59,19 @@ public class DocumentServiceImpl implements DocumentService {
                 chunks.size());
 
 
-        chunkService.saveChunks(fileId, chunks);
+        List<ChunkEntity> chunkEntities = chunkService.saveChunks(fileId, chunks);
 
         log.info("Chunk保存完成,fileId={},chunkCount={}",
                 fileId,
                 chunks.size());
+
+        // 向量化入库:切片 → Embedding → DashVector
+        // 说明:indexChunks 内部不加事务(外部网络调用),单 chunk 失败已 catch;
+        // 整体失败会向上抛,由 FileServiceImpl 置文件状态 FAILED(数据不完整,语义正确)
+        indexingService.indexChunks(fileId, chunkEntities);
+
+        log.info("向量化入库完成,fileId={},chunkCount={}",
+                fileId,
+                chunkEntities.size());
     }
 }

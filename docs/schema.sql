@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS knowledge_file (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_knowledge_id (knowledge_id),
-    FOREIGN KEY (knowledge_id) REFERENCES knowledge(id)
+    FOREIGN KEY (knowledge_id) REFERENCES knowledge(id) ON DELETE CASCADE
 );
 
 -- 文档切片表（RAG 切片，后续做 Embedding 与向量检索）
@@ -54,5 +54,5 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_file_id (file_id),
-    FOREIGN KEY (file_id) REFERENCES knowledge_file(id)
+    FOREIGN KEY (file_id) REFERENCES knowledge_file(id) ON DELETE CASCADE
 );

@@ -42,6 +42,22 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
             }
             """;
 
+    /**
+     * file_search 工具的参数 Schema
+     */
+    private static final String FILE_SEARCH_SCHEMA = """
+            {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "用户的自然语言查询,原样传入,不要改写"
+                }
+              },
+              "required": ["query"]
+            }
+            """;
+
     public FunctionCallingServiceImpl(
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
@@ -123,6 +139,10 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
         if ("file_trace".equals(tool.getToolName())) {
             return FILE_TRACE_SCHEMA;
+        }
+
+        if ("file_search".equals(tool.getToolName())) {
+            return FILE_SEARCH_SCHEMA;
         }
 
         throw new IllegalArgumentException(

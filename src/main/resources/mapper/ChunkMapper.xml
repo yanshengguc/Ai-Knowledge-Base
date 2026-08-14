@@ -50,4 +50,9 @@
         ORDER BY chunk_index
 
     </select>
+
+    <delete id="deleteByFileId">
+        DELETE FROM knowledge_chunk
+        WHERE file_id = #{fileId}
+    </delete>
 </mapper>

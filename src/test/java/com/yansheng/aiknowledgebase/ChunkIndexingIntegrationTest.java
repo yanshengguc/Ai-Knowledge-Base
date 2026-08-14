@@ -57,7 +57,7 @@ class ChunkIndexingIntegrationTest {
 
         results.forEach(r -> System.out.println(
                 "chunkId=" + r.getChunkId()
-                        + ", documentId=" + r.getDocumentId()
+                        + ", fileId=" + r.getFileId()
                         + ", content=" + r.getContent()
                         + ", score=" + r.getScore()
         ));

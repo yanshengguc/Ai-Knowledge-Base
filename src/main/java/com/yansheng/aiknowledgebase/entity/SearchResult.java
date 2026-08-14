@@ -6,13 +6,13 @@ import lombok.Setter;
 @Setter
 @Getter
 public class SearchResult {
-    Long documentId;
+    Long fileId;
     Long chunkId;
     String content;
     Double score;
     public SearchResult(){}
-    public SearchResult(Long documentId, Long chunkId, String content, Double score) {
-        this.documentId = documentId;
+    public SearchResult(Long fileId, Long chunkId, String content, Double score) {
+        this.fileId = fileId;
         this.chunkId = chunkId;
         this.content = content;
         this.score = score;

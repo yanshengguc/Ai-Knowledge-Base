@@ -42,12 +42,12 @@ public class VectorStoreServiceImpl implements VectorStoreService {
     }
 
     @Override
-    public void insert(Long chunkId, Long documentId, String content, float[] vector) {
+    public void insert(Long chunkId, Long fileId, String content, float[] vector) {
         if (chunkId == null) {
             throw new IllegalArgumentException("chunkId不能为空");
         }
-        if (documentId == null) {
-            throw new IllegalArgumentException("documentId不能为空");
+        if (fileId == null) {
+            throw new IllegalArgumentException("fileId不能为空");
         }
         if (vector == null || vector.length == 0) {
             throw new IllegalArgumentException("向量不能为空");
@@ -61,7 +61,7 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         Doc doc = Doc.builder()
                 .id(String.valueOf(chunkId))  // DashVector的id字段本身是String类型,这里要转
                 .vector(Vector.builder().value(vectorList).build())
-                .field("document_id", documentId)
+                .field("file_id", fileId)
                 .field("content", content)
                 .build();
 
@@ -156,15 +156,15 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                 continue;
             }
 
-            // document_id
-            Object documentIdObject = fields.get("document_id");
+            // file_id
+            Object fileIdObject = fields.get("file_id");
 
-            if (documentIdObject == null) {
-                log.warn("Doc缺少document_id，chunkId={}", chunkId);
+            if (fileIdObject == null) {
+                log.warn("Doc缺少file_id，chunkId={}", chunkId);
                 continue;
             }
 
-            Long documentId = ((Number) documentIdObject).longValue();
+            Long fileId = ((Number) fileIdObject).longValue();
 
             // content
             Object contentObject = fields.get("content");
@@ -181,7 +181,7 @@ public class VectorStoreServiceImpl implements VectorStoreService {
 
             // 构造检索结果
             SearchResult result = new SearchResult(
-                    documentId,
+                    fileId,
                     chunkId,
                     content,
                     score

@@ -4,8 +4,11 @@ import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.common.RedisKey;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
+import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
+import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
@@ -24,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 public class KnowledgeServiceImpl implements KnowledgeService {
 
     private final KnowledgeMapper knowledgeMapper;
+    private final FileMapper fileMapper;
+    private final ChunkMapper chunkMapper;
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     private final Random random = new Random();
@@ -34,9 +39,11 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             "else " +
             "return 0 " +
             "end";
-    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper,RedisTemplate<String, Object> redisTemplate) {
+    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper, FileMapper fileMapper, ChunkMapper chunkMapper, RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
+        this.fileMapper = fileMapper;
+        this.chunkMapper = chunkMapper;
         this.redisTemplate = redisTemplate;
 
     }
@@ -212,6 +219,12 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         }else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
             throw new BusinessException("权限不足");
         }
+        // 级联删除:先删切片 → 再删文件 → 最后删知识(避免外键约束报错)
+        List<FileEntity> files = fileMapper.selectFileByKnowledgeId(id);
+        for (FileEntity file : files) {
+            chunkMapper.deleteByFileId(file.getId());
+        }
+        fileMapper.deleteByKnowledgeId(id);
         int rows=knowledgeMapper.delete(id);
         if(rows<=0){
             throw new BusinessException("删除失败");

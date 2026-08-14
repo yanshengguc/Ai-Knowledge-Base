@@ -9,7 +9,7 @@
             resultType="com.yansheng.aiknowledgebase.entity.UserEntity">
 
         select id, username, password
-        from user
+        from `user`
         where id = #{id}
 
     </select>
@@ -22,12 +22,12 @@ select
         username,
         password,
         nickname
-        FROM user
+        FROM `user`
         where username=#{username}
     </select>
 
     <insert id="insert">
-        insert into user(
+        insert into `user`(
         username,
         password,
         nickname
@@ -46,7 +46,7 @@ select
         username,
         password,
         nickname
-        FROM user
+        FROM `user`
         where password=#{password}
     </select>
 </mapper>

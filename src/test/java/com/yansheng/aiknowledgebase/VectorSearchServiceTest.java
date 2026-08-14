@@ -31,7 +31,7 @@ class VectorSearchServiceTest {
 
         for (SearchResult result : results) {
             System.out.println("chunkId = " + result.getChunkId());
-            System.out.println("documentId = " + result.getDocumentId());
+            System.out.println("fileId = " + result.getFileId());
             System.out.println("score = " + result.getScore());
             System.out.println("content = " + result.getContent());
             System.out.println("--------------------------------");

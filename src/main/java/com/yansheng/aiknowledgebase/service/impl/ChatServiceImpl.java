@@ -1,5 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import com.yansheng.aiknowledgebase.entity.ChatResponse;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.ChatService;
 import com.yansheng.aiknowledgebase.service.ConversationHistoryService;
@@ -30,7 +31,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public String ask(Long userId, String question) {
+    public ChatResponse ask(Long userId, String question) {
         // 1. 知识库检索(当前问题)
         List<SearchResult> searchResults = retrievalService.retrieveTopK(question);
 
@@ -47,6 +48,12 @@ public class ChatServiceImpl implements ChatService {
         historyService.append(userId, "user", question);
         historyService.append(userId, "assistant", answer);
 
-        return answer;
+        // 6. 返回回答 + 引用来源(供前端展示"回答出自哪些资料")
+        return new ChatResponse(answer, searchResults);
+    }
+
+    @Override
+    public void clear(Long userId) {
+        historyService.clear(userId);
     }
 }

@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase.controller;
 
 import com.yansheng.aiknowledgebase.common.Result;
 import com.yansheng.aiknowledgebase.dto.ChatDTO;
+import com.yansheng.aiknowledgebase.entity.ChatResponse;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.ChatService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
@@ -32,7 +33,7 @@ public class ChatController {
 
     /** 多轮对话:结合会话历史 + 知识库检索回答(需登录,会话按用户隔离) */
     @PostMapping
-    public Result<String> chat(@RequestBody ChatDTO dto) {
+    public Result<ChatResponse> chat(@RequestBody ChatDTO dto) {
         Long userId = UserContext.getUserId();
 
         // 输入校验:消息非空 + 长度上限
@@ -54,7 +55,14 @@ public class ChatController {
             throw new BusinessException("请求太频繁,请稍后再试");
         }
 
-        String answer = chatService.ask(userId, message);
-        return Result.success(answer);
+        ChatResponse response = chatService.ask(userId, message);
+        return Result.success(response);
+    }
+
+    /** 清空当前用户的会话历史 */
+    @PostMapping("/clear")
+    public Result<Void> clear() {
+        chatService.clear(UserContext.getUserId());
+        return Result.success();
     }
 }

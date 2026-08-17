@@ -76,7 +76,7 @@ class ChatIntegrationTest {
                         .content("{\"message\":\"你好,请问这个知识库能做什么?\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").isNotEmpty());
+                .andExpect(jsonPath("$.data.answer").isNotEmpty());
 
         // 第二轮(引用第一轮,验证动态上下文)
         mockMvc.perform(post("/api/chat")
@@ -85,7 +85,7 @@ class ChatIntegrationTest {
                         .content("{\"message\":\"那你刚才说能做什么?\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").isNotEmpty());
+                .andExpect(jsonPath("$.data.answer").isNotEmpty());
 
         // 验证 Redis 中已保存 2 轮 4 条消息(user + assistant ×2)
         Object value = redisTemplate.opsForValue().get("chat:" + userId);
@@ -94,5 +94,13 @@ class ChatIntegrationTest {
         assertEquals(4, history.size(), "两轮对话应存 4 条消息");
         assertTrue(((Map<?, ?>) history.get(0)).get("role").equals("user"));
         assertTrue(((Map<?, ?>) history.get(3)).get("role").equals("assistant"));
+
+        // 清空会话后历史应为空
+        mockMvc.perform(post("/api/chat/clear")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        Object after = redisTemplate.opsForValue().get("chat:" + userId);
+        assertNull(after, "清空后 Redis 不应再存在会话历史");
     }
 }

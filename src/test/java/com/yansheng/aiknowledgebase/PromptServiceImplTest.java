@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -64,5 +65,28 @@ class PromptServiceImplTest {
         assertTrue(prompt.contains("资料1："));
         // 验证没有超限太多（允许最后一条把长度推过一点，但不会离谱地超）
         assertTrue(prompt.length() < 4000);
+    }
+
+    @Test
+    void shouldIncludeConversationHistoryInChatPrompt() {
+        List<SearchResult> results = Collections.emptyList();
+        List<Map<String, String>> history = Arrays.asList(
+                Map.of("role", "user", "content", "我之前问过Spring是什么"),
+                Map.of("role", "assistant", "content", "Spring是一个框架")
+        );
+        String prompt = promptService.buildChatPrompt("那MyBatis呢？", results, history);
+
+        // 历史必须拼进 prompt(动态上下文)
+        assertTrue(prompt.contains("对话历史"));
+        assertTrue(prompt.contains("用户：我之前问过Spring是什么"));
+        assertTrue(prompt.contains("助手：Spring是一个框架"));
+        assertTrue(prompt.contains("那MyBatis呢？"));
+    }
+
+    @Test
+    void shouldHandleEmptyHistory() {
+        String prompt = promptService.buildChatPrompt("问题", Collections.emptyList(), Collections.emptyList());
+        assertTrue(prompt.contains("问题"));
+        assertFalse(prompt.contains("对话历史"));
     }
 }

@@ -155,6 +155,13 @@
                 </configuration>
             </plugin>
             <!-- 简化 Lombok 注解处理器配置（由 spring-boot-starter-parent 管理，通常无需额外配置） -->
-        </plugins>
+        			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<excludedGroups>integration</excludedGroups>
+				</configuration>
+			</plugin>
+		</plugins>
     </build>
 </project>

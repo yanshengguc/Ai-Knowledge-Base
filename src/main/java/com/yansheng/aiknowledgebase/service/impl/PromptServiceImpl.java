@@ -13,6 +13,12 @@ public class PromptServiceImpl implements PromptService {
 
     @Override
     public String buildPrompt(String question, List<SearchResult> retrievedResults) {
+        return buildChatPrompt(question, retrievedResults, List.of());
+    }
+
+    @Override
+    public String buildChatPrompt(String question, List<SearchResult> retrievedResults,
+                                  List<java.util.Map<String, String>> history) {
         StringBuilder contextBuilder = new StringBuilder();
 
         if (retrievedResults == null || retrievedResults.isEmpty()) {
@@ -31,12 +37,35 @@ public class PromptServiceImpl implements PromptService {
             }
         }
 
+        // 会话历史(动态上下文):非空时拼入,让模型能引用前文;空则省略该段
+        boolean hasHistory = history != null && !history.isEmpty();
+        StringBuilder historyBuilder = new StringBuilder();
+        if (hasHistory) {
+            for (java.util.Map<String, String> msg : history) {
+                String role = "user".equals(msg.get("role")) ? "用户" : "助手";
+                historyBuilder.append(role).append("：").append(msg.get("content")).append("\n");
+            }
+        }
+
+        if (!hasHistory) {
+            return String.format("""
+                    【参考资料】
+                    %s
+
+                    【用户问题】
+                    %s
+                    请基于参考资料回答；资料中没有的内容如实说明，不要编造。
+                    """, contextBuilder.toString(), question);
+        }
         return String.format("""
+                【对话历史】
+                %s
                 【参考资料】
                 %s
 
                 【用户问题】
                 %s
-                """, contextBuilder.toString(), question);
+                请基于对话历史和参考资料回答；资料中没有的内容如实说明，不要编造。
+                """, historyBuilder.toString(), contextBuilder.toString(), question);
     }
 }

@@ -1,0 +1,60 @@
+package com.yansheng.aiknowledgebase.controller;
+
+import com.yansheng.aiknowledgebase.common.Result;
+import com.yansheng.aiknowledgebase.dto.ChatDTO;
+import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.service.ChatService;
+import com.yansheng.aiknowledgebase.utils.UserContext;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.concurrent.TimeUnit;
+
+@RestController
+@RequestMapping("/api/chat")
+public class ChatController {
+
+    /** 单条消息最大字符数 */
+    private static final int MAX_MESSAGE_LENGTH = 2000;
+    /** 每用户每分钟最大请求数(LLM 调用花钱,防滥用) */
+    private static final int MAX_PER_MINUTE = 10;
+
+    private final ChatService chatService;
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    public ChatController(ChatService chatService, RedisTemplate<String, Object> redisTemplate) {
+        this.chatService = chatService;
+        this.redisTemplate = redisTemplate;
+    }
+
+    /** 多轮对话:结合会话历史 + 知识库检索回答(需登录,会话按用户隔离) */
+    @PostMapping
+    public Result<String> chat(@RequestBody ChatDTO dto) {
+        Long userId = UserContext.getUserId();
+
+        // 输入校验:消息非空 + 长度上限
+        String message = dto.getMessage();
+        if (message == null || message.isBlank()) {
+            throw new BusinessException("消息不能为空");
+        }
+        if (message.length() > MAX_MESSAGE_LENGTH) {
+            throw new BusinessException("消息过长,请控制在" + MAX_MESSAGE_LENGTH + "字以内");
+        }
+
+        // 频率限制:每用户每分钟 MAX_PER_MINUTE 次(LLM 调用防刷)
+        String rateKey = "chat:rate:" + userId;
+        Long count = redisTemplate.opsForValue().increment(rateKey);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);
+        }
+        if (count != null && count > MAX_PER_MINUTE) {
+            throw new BusinessException("请求太频繁,请稍后再试");
+        }
+
+        String answer = chatService.ask(userId, message);
+        return Result.success(answer);
+    }
+}

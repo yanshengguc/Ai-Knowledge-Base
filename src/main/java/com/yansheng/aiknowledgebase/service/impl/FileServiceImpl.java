@@ -67,6 +67,13 @@ long maxSize = 20*1024*1024;
 if (file.getSize() > maxSize) {
     throw new BusinessException("文件大小不能超过20MB");
 }
+// 文件类型白名单(安全加固:与 ParserFactory 支持的解析类型一致,防止上传任意恶意文件到 OSS)
+String originalName = file.getOriginalFilename();
+if (originalName == null
+        || !(originalName.toLowerCase().endsWith(".pdf")
+             || originalName.toLowerCase().endsWith(".docx"))) {
+    throw new BusinessException("仅支持 pdf/docx 格式文件");
+}
         log.info("开始上传文件,userId={},knowledgeId={},fileName={}",
                 userId,
                 knowledgeId,

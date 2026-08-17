@@ -52,7 +52,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
     @Override
     public List<KnowledgeVO> getKnowledgeList() {
-        List<KnowledgeEntity> knowledgeList = knowledgeMapper.selectAll();
+        // 只返回当前用户自己的知识(修复越权:此前 selectAll 返回全部用户的知识)
+        List<KnowledgeEntity> knowledgeList = knowledgeMapper.selectByUserId(UserContext.getUserId());
         List<KnowledgeVO> result = new ArrayList<>();
 
         for (KnowledgeEntity knowledgeEntity : knowledgeList) {
@@ -85,7 +86,13 @@ Object obj=null;
         }
         if (obj != null) {
             System.out.println("走缓存");
-            return (KnowledgeDetailVO) obj;
+            // 归属校验(修复越权:知道 id 即可查看任意知识)
+            KnowledgeDetailVO cachedVO = (KnowledgeDetailVO) obj;
+            UserEntity userEntity = UserContext.get();
+            if (!userEntity.getUsername().equals(cachedVO.getAuthor())) {
+                throw new BusinessException("权限不足");
+            }
+            return cachedVO;
         }
         String lockKey = "lock:"+key;
         String lockValue = UUID.randomUUID().toString();
@@ -104,7 +111,12 @@ Object obj=null;
                 }
                 if (obj != null) {
                     System.out.println("走缓存");
-                    return (KnowledgeDetailVO) obj;
+                    // 归属校验(修复越权)
+                    KnowledgeDetailVO cachedVO2 = (KnowledgeDetailVO) obj;
+                    if (!UserContext.get().getUsername().equals(cachedVO2.getAuthor())) {
+                        throw new BusinessException("权限不足");
+                    }
+                    return cachedVO2;
                 }
                 System.out.println("走MYSQL");
                 KnowledgeEntity entity = knowledgeMapper.selectById(id);
@@ -124,6 +136,10 @@ Object obj=null;
                 VO.setAuthor(entity.getAuthor());
                 VO.setCreateTime(entity.getCreateTime());
                 VO.setUpdateTime(entity.getUpdateTime());
+                // 归属校验(修复越权)
+                if (!UserContext.get().getUsername().equals(entity.getAuthor())) {
+                    throw new BusinessException("权限不足");
+                }
                 try {
                     redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
                 }catch (Exception e){

@@ -21,6 +21,23 @@
 
     </select>
 
+    <select id="selectByUserId"
+            resultType="com.yansheng.aiknowledgebase.entity.KnowledgeEntity">
+
+        select
+        id,
+        title,
+        content,
+        category,
+        author,
+        user_id,
+        create_time,
+        update_time
+        from knowledge
+        where user_id = #{userId}
+
+    </select>
+
 
     <select id="selectById"
             resultType="com.yansheng.aiknowledgebase.entity.KnowledgeEntity">

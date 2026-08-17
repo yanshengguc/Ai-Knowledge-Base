@@ -10,6 +10,7 @@ import java.util.List;
 public interface KnowledgeMapper {
 
     List<KnowledgeEntity> selectAll();
+    List<KnowledgeEntity> selectByUserId(Long userId);
     KnowledgeEntity selectById(Long id);
 
     int insert(KnowledgeEntity knowledgeEntity);

@@ -76,6 +76,11 @@
             <version>0.12.6</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- BCrypt 密码哈希(仅加密模块,不含整个 Spring Security 栈) -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>

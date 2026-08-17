@@ -19,6 +19,12 @@ import static com.yansheng.aiknowledgebase.config.SecurityConfig.WHITE_LIST;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private final JwtUtil jwtUtil;
+
+    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -36,8 +42,7 @@ if (token==null || !token.startsWith("Bearer ")) {
 }
             String jwt = token.substring(7);
             try {
-                System.out.println(jwt);
-                Claims claims = JwtUtil.parseToken(jwt);
+                Claims claims = jwtUtil.parseToken(jwt);
                 Long id = claims.get("id", Long.class);
                 String username = claims.get("username", String.class);
 if(id==null||username==null){
@@ -52,9 +57,7 @@ if(id==null||username==null){
                 // 放行请求
                 filterChain.doFilter(request, response);
             } catch (Exception e) {
-                e.printStackTrace();
-                // 令牌无效，返回401
-                //log.warn();
+                // 令牌无效，返回401(不打印 token,避免敏感信息泄露)
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType("application/json;charset=UTF-8");
                 response.getWriter().write("{\"error\":\"Invalid or expired token\"}");

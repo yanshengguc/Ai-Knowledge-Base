@@ -23,7 +23,7 @@
           <span class="username">{{ userStore.username || '用户' }}</span>
           <el-dropdown @command="onLang">
             <el-button text>
-              <el-icon><Language /></el-icon>
+              <el-icon><Operation /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
@@ -71,7 +71,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Language } from '@element-plus/icons-vue'
+import { Operation } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { setLocale } from '@/i18n'
 

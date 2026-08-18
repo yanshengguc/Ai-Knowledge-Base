@@ -4,6 +4,7 @@
       <el-button :icon="ArrowLeft" text @click="router.push('/knowledge')">{{ t('common.back') }}</el-button>
       <h2>{{ detail.title }}</h2>
       <el-tag v-if="detail.category" size="small" effect="plain">{{ detail.category }}</el-tag>
+      <el-button type="primary" text :icon="Edit" @click="openEdit">编辑</el-button>
     </div>
 
     <div class="detail-content">{{ detail.content || t('upload.noContent') }}</div>
@@ -51,18 +52,38 @@
         <el-tag v-if="uploadedFile" :type="fileStatusType" effect="light" class="file-status">
           {{ fileStatusText }}
         </el-tag>
+        <el-progress v-if="uploading" :percentage="uploadProgress" class="upload-progress" />
       </div>
     </div>
   </div>
   <el-skeleton v-else animated :rows="6" />
+
+  <!-- 编辑弹窗 -->
+  <el-dialog v-model="editVisible" :title="t('knowledge.editTitle')" width="min(520px, 92vw)">
+    <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="60px">
+      <el-form-item :label="t('knowledge.name')" prop="title">
+        <el-input v-model="editForm.title" />
+      </el-form-item>
+      <el-form-item :label="t('knowledge.category')" prop="category">
+        <el-input v-model="editForm.category" :placeholder="t('knowledge.categoryPlaceholder')" />
+      </el-form-item>
+      <el-form-item :label="t('knowledge.content')" prop="content">
+        <el-input v-model="editForm.content" type="textarea" :rows="6" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="editVisible = false">{{ t('common.cancel') }}</el-button>
+      <el-button type="primary" :loading="editing" @click="onSaveEdit">{{ t('knowledge.save') }}</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, UploadFilled } from '@element-plus/icons-vue'
-import { deleteFile, getFileById, getFileList, getKnowledgeDetail, uploadFile } from '@/api/modules/knowledge'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ArrowLeft, Edit, UploadFilled } from '@element-plus/icons-vue'
+import { deleteFile, getFileById, getFileList, getKnowledgeDetail, updateKnowledge, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import { Delete } from '@element-plus/icons-vue'
 import type { KnowledgeDetailVO } from '@/types/api'
@@ -74,8 +95,17 @@ const { t } = useI18n()
 const detail = ref<KnowledgeDetailVO | null>(null)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
+const uploadProgress = ref(0)
 const uploadedFile = ref<FileVO | null>(null)
 const fileList = ref<FileVO[]>([])
+const editVisible = ref(false)
+const editing = ref(false)
+const editFormRef = ref<FormInstance>()
+const editForm = reactive({ title: '', category: '', content: '' })
+const editRules: FormRules = {
+  title: [{ required: true, message: t('knowledge.nameRequired'), trigger: 'blur' }],
+  content: [{ required: true, message: t('knowledge.contentRequired'), trigger: 'blur' }],
+}
 let pollTimer: number | undefined
 
 const fileStatusText = computed(() => {
@@ -183,7 +213,8 @@ async function onUpload() {
   if (!selectedFile.value || !detail.value) return
   uploading.value = true
   try {
-    const res = await uploadFile(detail.value.id, selectedFile.value)
+    uploadProgress.value = 0
+    const res = await uploadFile(detail.value.id, selectedFile.value, (p) => (uploadProgress.value = p))
     const fileId = (res.data as FileVO)?.id
     ElMessage.success(t('upload.uploadSuccess'))
     selectedFile.value = null
@@ -197,6 +228,34 @@ async function onUpload() {
   }
 }
 onBeforeUnmount(stopPolling)
+
+function openEdit() {
+  if (!detail.value) return
+  editForm.title = detail.value.title
+  editForm.category = detail.value.category || ''
+  editForm.content = detail.value.content || ''
+  editVisible.value = true
+}
+
+async function onSaveEdit() {
+  if (!editFormRef.value || !detail.value) return
+  await editFormRef.value.validate()
+  editing.value = true
+  try {
+    await updateKnowledge(detail.value.id, {
+      title: editForm.title,
+      content: editForm.content,
+      category: editForm.category || undefined,
+    })
+    ElMessage.success(t('knowledge.editSuccess'))
+    editVisible.value = false
+    const res = await getKnowledgeDetail(detail.value.id)
+    detail.value = res.data
+  } catch {
+  } finally {
+    editing.value = false
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -252,6 +311,10 @@ onBeforeUnmount(stopPolling)
   .file-status {
     margin-top: 12px;
   }
+}
+
+.upload-progress {
+  width: 200px;
 }
 
 .file-row {

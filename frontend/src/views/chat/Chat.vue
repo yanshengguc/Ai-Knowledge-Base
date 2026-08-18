@@ -11,7 +11,7 @@
           <div v-if="msg.loading" class="msg-loading">
             <span class="dot" />{{ t('chat.thinking') }}...
           </div>
-          <div v-else class="msg-content">{{ msg.content }}</div>
+          <div v-else class="msg-content markdown-body" v-html="renderMarkdown(msg.content)" />
 
           <!-- 引用来源 -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
@@ -22,7 +22,7 @@
                 :key="ri"
                 :title="`${t('chat.material')} ${ri + 1}`"
               >
-                <div class="ref-content">{{ ref.content }}</div>
+                <div class="ref-content markdown-body" v-html="renderMarkdown(ref.content)" />
               </el-collapse-item>
             </el-collapse>
           </div>
@@ -59,6 +59,7 @@ import { Delete } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
+import { renderMarkdown } from '@/utils/markdown'
 import { useI18n } from 'vue-i18n'
 
 const chatStore = useChatStore()
@@ -217,5 +218,42 @@ function scrollToBottom() {
     gap: $space-2;
     margin-top: $space-2;
   }
+}
+.markdown-body {
+  word-break: break-word;
+  line-height: 1.7;
+
+  :deep(p) { margin: 0 0 8px; &:last-child { margin-bottom: 0; } }
+  :deep(ul), :deep(ol) { padding-left: 1.4em; margin: 0 0 8px; }
+  :deep(pre) {
+    background: $color-bg;
+    border: 1px solid $color-border;
+    border-radius: $radius-sm;
+    padding: $space-3;
+    overflow-x: auto;
+    font-size: $font-size-xs;
+    margin: 0 0 8px;
+  }
+  :deep(code) {
+    font-family: $font-family-mono;
+    background: $color-bg;
+    border-radius: 3px;
+    padding: 1px 4px;
+    font-size: 0.92em;
+  }
+  :deep(pre code) { background: transparent; padding: 0; }
+  :deep(h1), :deep(h2), :deep(h3) { font-weight: 600; margin: 12px 0 8px; }
+  :deep(h1) { font-size: 1.15em; }
+  :deep(h2) { font-size: 1.08em; }
+  :deep(h3) { font-size: 1em; }
+  :deep(blockquote) {
+    border-left: 3px solid $color-border;
+    padding-left: $space-3;
+    color: $color-text-secondary;
+    margin: 0 0 8px;
+  }
+  :deep(a) { color: $color-primary; }
+  :deep(table) { border-collapse: collapse; margin: 0 0 8px; }
+  :deep(th), :deep(td) { border: 1px solid $color-border; padding: 4px 8px; font-size: $font-size-xs; }
 }
 </style>

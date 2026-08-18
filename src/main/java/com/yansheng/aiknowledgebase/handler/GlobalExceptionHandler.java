@@ -19,6 +19,15 @@ public class GlobalExceptionHandler {
     }
 
 
+    /**
+     * 路径参数类型不匹配(如 /api/knowledge/abc):返回明确的"参数格式不正确",
+     * 而不是误导性的"系统异常"
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public Result handleTypeMismatch(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException e){
+        return Result.error("参数格式不正确");
+    }
+
     @ExceptionHandler(Exception.class)
     public Result handleException(Exception e){
 

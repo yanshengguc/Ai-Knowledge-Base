@@ -46,6 +46,9 @@ export default {
     createTitle: '新建知识',
     create: '创建',
     createSuccess: '创建成功',
+    editTitle: '编辑知识',
+    save: '保存',
+    editSuccess: '保存成功',
     deleteConfirm: '确定删除该知识吗?',
     deleteSuccess: '已删除',
     name: '标题',
@@ -56,7 +59,9 @@ export default {
     emptyHint: '点击右上角"新建"创建第一条知识',
     nameRequired: '请输入标题',
     contentRequired: '请输入内容',
-    categoryPlaceholder: '如:面试 / 学习 / 工作 / 读书笔记',
+    categoryPlaceholder:
+    searchPlaceholder: '搜索标题或内容',
+    allCategories: '全部分类', '如:面试 / 学习 / 工作 / 读书笔记',
   },
   upload: {
     title: '上传文档',

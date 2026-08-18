@@ -32,10 +32,16 @@ export function deleteKnowledge(id: number) {
   return request.delete<unknown, Result>(`/knowledge/${id}`)
 }
 
-export function uploadFile(knowledgeId: number, file: File) {
+export function uploadFile(knowledgeId: number, file: File, onProgress?: (percent: number) => void) {
   const form = new FormData()
   form.append('file', file)
-  return request.post<unknown, Result>(`/file/upload/${knowledgeId}`, form)
+  return request.post<unknown, Result>(`/file/upload/${knowledgeId}`, form, {
+    onUploadProgress: (e) => {
+      if (onProgress && e.total) {
+        onProgress(Math.round((e.loaded / e.total) * 100))
+      }
+    },
+  })
 }
 
 export function chat(message: string) {

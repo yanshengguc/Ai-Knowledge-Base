@@ -46,6 +46,9 @@ export default {
     createTitle: 'New Knowledge',
     create: 'Create',
     createSuccess: 'Created',
+    editTitle: 'Edit Knowledge',
+    save: 'Save',
+    editSuccess: 'Saved',
     deleteConfirm: 'Delete this knowledge?',
     deleteSuccess: 'Deleted',
     name: 'Title',
@@ -56,7 +59,9 @@ export default {
     emptyHint: 'Click "New" at top right to create your first item',
     nameRequired: 'Please enter a title',
     contentRequired: 'Please enter content',
-    categoryPlaceholder: 'e.g. Interview / Study / Work / Notes',
+    categoryPlaceholder:
+    searchPlaceholder: 'Search title or content',
+    allCategories: 'All categories', 'e.g. Interview / Study / Work / Notes',
   },
   upload: {
     title: 'Upload Document',

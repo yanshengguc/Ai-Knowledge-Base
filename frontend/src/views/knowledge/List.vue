@@ -5,8 +5,22 @@
       <el-button type="primary" :icon="Plus" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
     </div>
 
+    <!-- 工具条:搜索 + 分类筛选 -->
+    <div class="toolbar">
+      <el-input
+        v-model="keyword"
+        :placeholder="t('knowledge.searchPlaceholder')"
+        :prefix-icon="Search"
+        clearable
+        class="search-input"
+      />
+      <el-select v-model="categoryFilter" clearable :placeholder="t('knowledge.allCategories')" class="category-select">
+        <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
+      </el-select>
+    </div>
+
     <!-- 空态 -->
-    <div v-if="!loading && list.length === 0" class="empty">
+    <div v-if="!loading && filteredList.length === 0" class="empty">
       <el-empty :description="t('knowledge.empty') + ',' + t('knowledge.emptyHint')">
         <el-button type="primary" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
       </el-empty>
@@ -50,7 +64,7 @@
       </div>
     </div>
     <el-pagination
-      v-if="list.length > pageSize"
+      v-if="filteredList.length > pageSize"
       class="pager"
       layout="prev, pager, next"
       :total="list.length"
@@ -85,7 +99,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Delete } from '@element-plus/icons-vue'
+import { Plus, Delete, Search } from '@element-plus/icons-vue'
 import {
   addKnowledge,
   deleteKnowledge,
@@ -100,7 +114,21 @@ const { t } = useI18n()
 const list = ref<KnowledgeVO[]>([])
 const page = ref(1)
 const pageSize = 12
-const pagedList = computed(() => list.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+const keyword = ref('')
+const categoryFilter = ref('')
+const categories = computed(() => Array.from(new Set(list.value.map((k) => k.category).filter(Boolean))))
+const filteredList = computed(() => {
+  const kw = keyword.value.trim().toLowerCase()
+  return list.value.filter((k) => {
+    const matchKw =
+      !kw ||
+      k.title.toLowerCase().includes(kw) ||
+      (k.content || '').toLowerCase().includes(kw)
+    const matchCat = !categoryFilter.value || k.category === categoryFilter.value
+    return matchKw && matchCat
+  })
+})
+const pagedList = computed(() => filteredList.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -227,6 +255,22 @@ onMounted(load)
 
 .empty {
   padding: $space-12 0;
+}
+
+.toolbar {
+  display: flex;
+  gap: $space-3;
+  margin-bottom: $space-4;
+  flex-wrap: wrap;
+
+  .search-input {
+    max-width: 320px;
+    flex: 1;
+  }
+
+  .category-select {
+    width: 160px;
+  }
 }
 
 .pager {

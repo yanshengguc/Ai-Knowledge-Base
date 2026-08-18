@@ -37,6 +37,28 @@ public class GenerationServiceImpl implements GenerationService {
 
 
     @Override
+    public reactor.core.publisher.Flux<String> generateStream(String prompt) {
+        if (!StringUtils.hasText(prompt)) {
+            throw new IllegalArgumentException("Prompt不能为空");
+        }
+        Prompt fullPrompt = new Prompt(List.of(
+                new SystemMessage(SYSTEM_PROMPT),
+                new UserMessage(prompt)
+        ));
+        // 流式调用(不做同步重试:流式重试语义复杂,连接中断由前端重发兜底)
+        // 注意:流式响应末尾可能包含空 chunk/usage chunk(result 或 text 为 null),需判空过滤
+        return openAiChatModel.stream(fullPrompt)
+                .map(response -> {
+                    var result = response.getResult();
+                    if (result == null || result.getOutput() == null || result.getOutput().getText() == null) {
+                        return "";
+                    }
+                    return result.getOutput().getText();
+                })
+                .filter(text -> !text.isEmpty());
+    }
+
+    @Override
     public String generate(String prompt) {
         if (!StringUtils.hasText(prompt)) {
             throw new IllegalArgumentException("Prompt不能为空");

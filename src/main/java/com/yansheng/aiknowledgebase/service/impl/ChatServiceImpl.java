@@ -7,12 +7,14 @@ import com.yansheng.aiknowledgebase.service.ConversationHistoryService;
 import com.yansheng.aiknowledgebase.service.GenerationService;
 import com.yansheng.aiknowledgebase.service.PromptService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class ChatServiceImpl implements ChatService {
 
     private final RetrievalService retrievalService;
@@ -50,6 +52,38 @@ public class ChatServiceImpl implements ChatService {
 
         // 6. 返回回答 + 引用来源(供前端展示"回答出自哪些资料")
         return new ChatResponse(answer, searchResults);
+    }
+
+    @Override
+    public void streamAsk(Long userId, String question,
+                          java.util.function.Consumer<String> onToken,
+                          java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone) {
+        // 1. 检索 + 历史 + Prompt(与 ask 相同)
+        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
+        List<Map<String, String>> history = historyService.getHistory(userId);
+        String prompt = promptService.buildChatPrompt(question, searchResults, history);
+
+        // 2. 流式生成:逐 token 推给前端,收集完整答案
+        StringBuilder fullAnswer = new StringBuilder();
+        generationService.generateStream(prompt).subscribe(
+                token -> {
+                    fullAnswer.append(token);
+                    onToken.accept(token);
+                },
+                error -> {
+                    // 流中断:已收集部分保存到历史,避免整轮丢失
+                    if (fullAnswer.length() > 0) {
+                        historyService.append(userId, "assistant", fullAnswer.toString());
+                    }
+                    log.error("流式生成失败,userId={}", userId, error);
+                },
+                () -> {
+                    // 3. 完成:保存本轮(user + assistant)到历史
+                    historyService.append(userId, "user", question);
+                    historyService.append(userId, "assistant", fullAnswer.toString());
+                    onDone.accept(searchResults);
+                }
+        );
     }
 
     @Override

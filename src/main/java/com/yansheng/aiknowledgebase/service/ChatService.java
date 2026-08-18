@@ -20,4 +20,13 @@ public interface ChatService {
 
     /** 读取当前用户会话历史(前端刷新后恢复) */
     java.util.List<java.util.Map<String, String>> history(Long userId);
+
+    /**
+     * 流式多轮问答(SSE 打字机效果)
+     * @param onToken 每个 token 回调(线程安全,直接推给前端)
+     * @param onDone  生成完成回调(携带引用来源,此时已写入会话历史)
+     */
+    void streamAsk(Long userId, String question,
+                   java.util.function.Consumer<String> onToken,
+                   java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone);
 }

@@ -85,7 +85,7 @@ async function onSend() {
   const msg = input.value.trim()
   if (!msg || chatStore.sending) return
   input.value = ''
-  await chatStore.send(msg)
+  await chatStore.sendStream(msg)
   scrollToBottom()
 }
 

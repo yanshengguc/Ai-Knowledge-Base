@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.concurrent.TimeUnit;
 
@@ -58,6 +59,52 @@ public class ChatController {
 
         ChatResponse response = chatService.ask(userId, message);
         return Result.success(response);
+    }
+
+    /** 流式多轮对话(SSE 打字机效果):token 事件 + refs 事件(引用来源) */
+    @PostMapping("/stream")
+    public SseEmitter stream(@RequestBody ChatDTO dto) {
+        Long userId = UserContext.getUserId();
+
+        // 输入校验(与 chat 相同)
+        String message = dto.getMessage();
+        if (message == null || message.isBlank()) {
+            throw new BusinessException("消息不能为空");
+        }
+        if (message.length() > MAX_MESSAGE_LENGTH) {
+            throw new BusinessException("消息过长,请控制在" + MAX_MESSAGE_LENGTH + "字以内");
+        }
+
+        // 频率限制(与 chat 共用计数)
+        String rateKey = "chat:rate:" + userId;
+        Long count = redisTemplate.opsForValue().increment(rateKey);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);
+        }
+        if (count != null && count > MAX_PER_MINUTE) {
+            throw new BusinessException("请求太频繁,请稍后再试");
+        }
+
+        SseEmitter emitter = new SseEmitter(120_000L);
+        chatService.streamAsk(userId, message,
+                token -> safeSend(emitter, SseEmitter.event().name("token").data(token)),
+                refs -> {
+                    safeSend(emitter, SseEmitter.event().name("refs").data(refs));
+                    // 流结束:引用发完后关闭连接,前端 reader 收到 done
+                    emitter.complete();
+                });
+        emitter.onCompletion(emitter::complete);
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(e -> emitter.complete());
+        return emitter;
+    }
+
+    private void safeSend(SseEmitter emitter, SseEmitter.SseEventBuilder builder) {
+        try {
+            emitter.send(builder);
+        } catch (Exception ignored) {
+            // 连接已断开,忽略后续推送
+        }
     }
 
     /** 读取会话历史(前端刷新后恢复多轮上下文) */

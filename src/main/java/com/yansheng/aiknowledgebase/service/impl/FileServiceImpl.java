@@ -52,6 +52,7 @@ public class FileServiceImpl implements FileService {
         vo.setFileUrl(entity.getFileUrl());
         vo.setFileSize(entity.getFileSize());
         vo.setKnowledgeId(entity.getKnowledgeId());
+        vo.setStatus(entity.getStatus());
         vo.setUpdateTime(entity.getUpdateTime());
 
         return vo;

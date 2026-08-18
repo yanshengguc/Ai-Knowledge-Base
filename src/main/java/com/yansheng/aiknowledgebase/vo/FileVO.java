@@ -12,6 +12,7 @@ public class FileVO {
         private Long fileSize;
         private String fileUrl;
         private Long knowledgeId;
+        private String status;
         private LocalDateTime updateTime;
 
 

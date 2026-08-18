@@ -60,6 +60,13 @@ public class ChatController {
         return Result.success(response);
     }
 
+    /** 读取会话历史(前端刷新后恢复多轮上下文) */
+    @GetMapping("/history")
+    public Result<java.util.List<java.util.Map<String, String>>> history() {
+        Long userId = UserContext.getUserId();
+        return Result.success(chatService.history(userId));
+    }
+
     /** 清空当前用户的会话历史 */
     @PostMapping("/clear")
     public Result<Void> clear() {

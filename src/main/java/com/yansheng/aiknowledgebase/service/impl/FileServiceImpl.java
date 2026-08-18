@@ -167,4 +167,23 @@ entity.setStatus("PROCESSING");
 
         return entity;
     }
+
+    @Override
+    public void deleteFile(Long id) {
+        FileEntity file = fileMapper.selectById(id);
+        if (file == null) {
+            throw new BusinessException("文件不存在");
+        }
+        // 权限校验:文件所属知识必须是当前用户的
+        KnowledgeEntity knowledge = knowledgeMapper.selectById(file.getKnowledgeId());
+        com.yansheng.aiknowledgebase.entity.UserEntity user = UserContext.get();
+        if (knowledge == null || user == null || !user.getUsername().equals(knowledge.getAuthor())) {
+            throw new BusinessException("无权删除该文件");
+        }
+        // 级联:先删切片 → 再删记录 → 最后删 OSS 对象(失败降级)
+        chunkMapper.deleteByFileId(id);
+        fileMapper.deleteById(id);
+        ossService.delete(file.getFileUrl());
+        log.info("文件已删除,fileId={},knowledgeId={}", id, file.getKnowledgeId());
+    }
 }

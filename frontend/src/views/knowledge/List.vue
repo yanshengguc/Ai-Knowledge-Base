@@ -1,14 +1,14 @@
 <template>
   <div class="knowledge-list">
     <div class="page-header">
-      <h2>知识库</h2>
-      <el-button type="primary" :icon="Plus" @click="dialogVisible = true">新建知识</el-button>
+      <h2>{{ t('nav.knowledge') }}</h2>
+      <el-button type="primary" :icon="Plus" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
     </div>
 
     <!-- 空态 -->
     <div v-if="!loading && list.length === 0" class="empty">
-      <el-empty description="还没有知识,点击右上角新建">
-        <el-button type="primary" @click="dialogVisible = true">新建知识</el-button>
+      <el-empty :description="t('knowledge.empty') + ',' + t('knowledge.emptyHint')">
+        <el-button type="primary" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
       </el-empty>
     </div>
 
@@ -34,7 +34,7 @@
       >
         <div class="card-title">{{ item.title }}</div>
         <div class="card-meta">
-          <el-tag size="small" :type="categoryTagType(item.category)" effect="light">{{ item.category || '未分类' }}</el-tag>
+          <el-tag size="small" :type="categoryTagType(item.category)" effect="light">{{ item.category || t('knowledge.uncategorized') }}</el-tag>
           <span class="card-time">{{ item.updateTime || '' }}</span>
         </div>
         <el-button
@@ -45,7 +45,7 @@
           :icon="Delete"
           @click.stop="onDelete(item)"
         >
-          删除
+          {{ t('common.delete') }}
         </el-button>
       </div>
     </div>
@@ -61,21 +61,21 @@
     </div>
 
     <!-- 新建对话框 -->
-    <el-dialog v-model="dialogVisible" title="新建知识" width="480px">
+    <el-dialog v-model="dialogVisible" :title="t('knowledge.createTitle')" width="480px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="60px">
-        <el-form-item label="标题" prop="title">
-          <el-input v-model="form.title" placeholder="知识标题" />
+        <el-form-item :label="t('knowledge.name')" prop="title">
+          <el-input v-model="form.title" :placeholder="t('knowledge.name')" />
         </el-form-item>
-        <el-form-item label="分类" prop="category">
-          <el-input v-model="form.category" :placeholder="'如:' + COMMON_CATEGORIES.join(' / ')" />
+        <el-form-item :label="t('knowledge.category')" prop="category">
+          <el-input v-model="form.category" :placeholder="t('knowledge.categoryPlaceholder')" />
         </el-form-item>
-        <el-form-item label="内容" prop="content">
-          <el-input v-model="form.content" type="textarea" :rows="5" placeholder="知识内容" />
+        <el-form-item :label="t('knowledge.content')" prop="content">
+          <el-input v-model="form.content" type="textarea" :rows="5" :placeholder="t('knowledge.content')" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="onCreate">创建</el-button>
+        <el-button @click="dialogVisible = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="onCreate">{{ t('knowledge.create') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -92,9 +92,11 @@ import {
   getKnowledgeList2 as fetchList,
 } from '@/api/modules/knowledge'
 import type { KnowledgeVO } from '@/types/api'
+import { useI18n } from 'vue-i18n'
 import { categoryTagType, COMMON_CATEGORIES } from '@/utils/category'
 
 const router = useRouter()
+const { t } = useI18n()
 const list = ref<KnowledgeVO[]>([])
 const page = ref(1)
 const pageSize = 12
@@ -106,8 +108,8 @@ const formRef = ref<FormInstance>()
 const form = reactive({ title: '', category: '', content: '' })
 
 const rules: FormRules = {
-  title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入内容', trigger: 'blur' }],
+  title: [{ required: true, message: t('knowledge.nameRequired'), trigger: 'blur' }],
+  content: [{ required: true, message: t('knowledge.contentRequired'), trigger: 'blur' }],
 }
 
 async function load() {
@@ -129,7 +131,7 @@ async function onCreate() {
   saving.value = true
   try {
     await addKnowledge({ title: form.title, content: form.content, category: form.category || undefined })
-    ElMessage.success('创建成功')
+    ElMessage.success(t('knowledge.createSuccess'))
     dialogVisible.value = false
     form.title = ''
     form.category = ''
@@ -142,10 +144,10 @@ async function onCreate() {
 }
 
 async function onDelete(item: KnowledgeVO) {
-  await ElMessageBox.confirm(`确定删除「${item.title}」吗?`, '删除确认', { type: 'warning' })
+  await ElMessageBox.confirm(t('knowledge.deleteConfirm', { name: item.title }), t('common.confirm'), { type: 'warning' })
   try {
     await deleteKnowledge(item.id)
-    ElMessage.success('已删除')
+    ElMessage.success(t('knowledge.deleteSuccess'))
     load()
   } catch {
     // 取消或失败

@@ -1,18 +1,18 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <h1 class="auth-title">AI 知识库</h1>
-      <p class="auth-sub">上传文档 · 智能问答</p>
+      <h1 class="auth-title">{{ t('app.name') }}</h1>
+      <p class="auth-sub">{{ t('app.tagline') }}</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @submit.prevent="onSubmit">
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" :prefix-icon="User" />
+          <el-input v-model="form.username" :placeholder="t('auth.username')" :prefix-icon="User" />
         </el-form-item>
         <el-form-item prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="密码"
+            :placeholder="t('auth.password')"
             show-password
             :prefix-icon="Lock"
             @keyup.enter="onSubmit"
@@ -20,14 +20,14 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" class="auth-btn" :loading="loading" @click="onSubmit">
-            登 录
+            {{ t('auth.login') }}
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="auth-footer">
-        还没有账号?
-        <router-link to="/register">立即注册</router-link>
+        {{ t('auth.noAccount') }}
+        <router-link to="/register">{{ t('auth.goRegister') }}</router-link>
       </div>
     </div>
   </div>
@@ -39,17 +39,19 @@ import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  username: [{ required: true, message: t('auth.usernameRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('auth.passwordRequired'), trigger: 'blur' }],
 }
 
 async function onSubmit() {
@@ -61,14 +63,14 @@ async function onSubmit() {
     await userStore.login({ username: form.username, password: form.password })
     ok = true
   } catch (e) {
-    console.error('登录失败:', e)
+    console.error(t('auth.loginFail'), e)
     // 错误提示已在拦截器处理
   } finally {
     loading.value = false
   }
   if (ok) {
-    ElMessage.success('登录成功')
-    console.log('跳转到 /knowledge')
+    ElMessage.success(t('auth.loginSuccess'))
+    console.log('→ /knowledge')
     router.push('/knowledge')
   }
 }

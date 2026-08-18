@@ -1,14 +1,16 @@
 <template>
   <div class="not-found">
     <div class="code">404</div>
-    <div class="desc">页面不存在</div>
-    <el-button type="primary" @click="router.push('/knowledge')">返回知识库</el-button>
+    <div class="desc">{{ t('notFound.title') }}</div>
+    <el-button type="primary" @click="router.push('/knowledge')">{{ t('notFound.back') }}</el-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 const router = useRouter()
+const { t } = useI18n()
 </script>
 
 <style scoped lang="scss">

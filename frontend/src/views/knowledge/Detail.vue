@@ -1,28 +1,28 @@
 <template>
   <div v-if="detail" class="detail">
     <div class="detail-header">
-      <el-button :icon="ArrowLeft" text @click="router.push('/knowledge')">返回</el-button>
+      <el-button :icon="ArrowLeft" text @click="router.push('/knowledge')">{{ t('common.back') }}</el-button>
       <h2>{{ detail.title }}</h2>
       <el-tag v-if="detail.category" size="small" effect="plain">{{ detail.category }}</el-tag>
     </div>
 
-    <div class="detail-content">{{ detail.content || '暂无内容' }}</div>
+    <div class="detail-content">{{ detail.content || t('upload.noContent') }}</div>
 
     <!-- 已有文件列表 -->
     <div v-if="fileList.length" class="upload-section">
-      <h3>已上传文档</h3>
+      <h3>{{ t('upload.fileList') }}</h3>
       <div v-for="f in fileList" :key="f.id" class="file-row">
         <span class="file-name">{{ f.fileName }}</span>
         <div class="file-right">
           <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
-          <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">删除</el-button>
+          <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">{{ t('common.delete') }}</el-button>
         </div>
       </div>
     </div>
 
     <!-- 文件上传 -->
     <div class="upload-section">
-      <h3>上传文档</h3>
+      <h3>{{ t('upload.title') }}</h3>
       <el-upload
         :auto-upload="false"
         :limit="1"
@@ -33,9 +33,9 @@
         drag
       >
         <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">拖拽文件到此处,或<em>点击选择</em></div>
+        <div class="el-upload__text">{{ t('upload.dragText') }}<em>{{ t('upload.clickSelect') }}</em></div>
         <template #tip>
-          <div class="el-upload__tip">仅支持 pdf / docx,不超过 20MB</div>
+          <div class="el-upload__tip">{{ t('upload.formatHint') }},{{ t('upload.sizeHint') }}</div>
         </template>
       </el-upload>
       <div class="upload-actions">
@@ -46,7 +46,7 @@
           style="margin-top: 12px"
           @click="onUpload"
         >
-          上传并处理
+          {{ t('upload.uploadAndProcess') }}
         </el-button>
         <el-tag v-if="uploadedFile" :type="fileStatusType" effect="light" class="file-status">
           {{ fileStatusText }}
@@ -66,9 +66,11 @@ import { deleteFile, getFileById, getFileList, getKnowledgeDetail, uploadFile } 
 import type { FileVO } from '@/types/api'
 import { Delete } from '@element-plus/icons-vue'
 import type { KnowledgeDetailVO } from '@/types/api'
+import { useI18n } from 'vue-i18n'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const detail = ref<KnowledgeDetailVO | null>(null)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
@@ -79,9 +81,9 @@ let pollTimer: number | undefined
 const fileStatusText = computed(() => {
   if (!uploadedFile.value) return ''
   const st = uploadedFile.value.status
-  if (st === 'SUCCESS') return '处理完成 ✅'
-  if (st === 'FAILED') return '处理失败 ❌'
-  return '处理中...'
+  if (st === 'SUCCESS') return t('upload.success') + ' ✅'
+  if (st === 'FAILED') return t('upload.failed') + ' ❌'
+  return t('upload.processing') + '...'
 })
 const fileStatusType = computed(() => {
   const st = uploadedFile.value?.status
@@ -98,8 +100,8 @@ function startPolling(fileId: number) {
       uploadedFile.value = res.data
       if (res.data.status === 'SUCCESS' || res.data.status === 'FAILED') {
         stopPolling()
-        if (res.data.status === 'SUCCESS') ElMessage.success('文档处理完成')
-        else ElMessage.error('文档处理失败')
+        if (res.data.status === 'SUCCESS') ElMessage.success(t('upload.docSuccess'))
+        else ElMessage.error(t('upload.docFailed'))
         // 刷新文件列表
         if (detail.value) {
           const listRes = await getFileList(detail.value.id)
@@ -113,9 +115,9 @@ function startPolling(fileId: number) {
 }
 
 function fileStatusLabel(status?: string) {
-  if (status === 'SUCCESS') return '处理完成'
-  if (status === 'FAILED') return '处理失败'
-  return '处理中'
+  if (status === 'SUCCESS') return t('upload.success')
+  if (status === 'FAILED') return t('upload.failed')
+  return t('upload.processing')
 }
 function fileTagType(status?: string) {
   if (status === 'SUCCESS') return 'success'
@@ -124,12 +126,12 @@ function fileTagType(status?: string) {
 }
 
 async function onDeleteFile(f: FileVO) {
-  await ElMessageBox.confirm(`确定删除文件「${f.fileName}」吗?删除后该文档将无法检索。`, '删除文件', {
+  await ElMessageBox.confirm(t('upload.deleteConfirm', { name: f.fileName }), t('upload.title'), {
     type: 'warning',
   })
   try {
     await deleteFile(f.id)
-    ElMessage.success('文件已删除')
+    ElMessage.success(t('upload.deleteSuccess'))
     fileList.value = fileList.value.filter((x) => x.id !== f.id)
     if (uploadedFile.value?.id === f.id) {
       stopPolling()
@@ -167,11 +169,11 @@ function onFileChange(file: any) {
   if (!raw) return
   const ext = raw.name.split('.').pop()?.toLowerCase()
   if (ext !== 'pdf' && ext !== 'docx') {
-    ElMessage.error('仅支持 pdf / docx 文件')
+    ElMessage.error(t('upload.formatHint'))
     return
   }
   if (raw.size > 20 * 1024 * 1024) {
-    ElMessage.error('文件不能超过 20MB')
+    ElMessage.error(t('upload.sizeError'))
     return
   }
   selectedFile.value = raw
@@ -183,7 +185,7 @@ async function onUpload() {
   try {
     const res = await uploadFile(detail.value.id, selectedFile.value)
     const fileId = (res.data as FileVO)?.id
-    ElMessage.success('上传成功,后台处理中')
+    ElMessage.success(t('upload.uploadSuccess'))
     selectedFile.value = null
     if (fileId) {
       uploadedFile.value = { id: fileId, status: 'PROCESSING' }

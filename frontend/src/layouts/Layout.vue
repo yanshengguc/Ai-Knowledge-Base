@@ -1,15 +1,15 @@
 <template>
   <el-container class="layout">
     <el-aside :width="isMobile ? '0px' : '200px'" class="aside">
-      <div v-if="!isMobile" class="logo">📚 AI 知识库</div>
+      <div v-if="!isMobile" class="logo">📚 {{ t('app.name') }}</div>
       <el-menu router :default-active="$route.path" class="menu">
         <el-menu-item index="/knowledge">
           <el-icon><Collection /></el-icon>
-          <span>知识库</span>
+          <span>{{ t('nav.knowledge') }}</span>
         </el-menu-item>
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
-          <span>智能问答</span>
+          <span>{{ t('nav.chat') }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -20,14 +20,14 @@
           <Expand />
         </el-icon>
         <div class="header-right">
-          <span class="username">{{ userStore.username || '用户' }}</span>
+          <span class="username">{{ userStore.username || t('nav.user') }}</span>
           <el-dropdown @command="onLang">
             <el-button text>
               <el-icon><Operation /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="zh">简体中文</el-dropdown-item>
+                <el-dropdown-item command="zh">{{ t('nav.lang') }}</el-dropdown-item>
                 <el-dropdown-item command="en">English</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -38,7 +38,7 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+                <el-dropdown-item command="logout">{{ t('nav.logout') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -47,15 +47,15 @@
 
       <!-- 移动端抽屉菜单 -->
       <el-drawer v-model="mobileMenuVisible" direction="ltr" size="200px" :with-header="false">
-        <div class="logo">📚 AI 知识库</div>
+        <div class="logo">📚 {{ t('app.name') }}</div>
         <el-menu router :default-active="$route.path" @select="mobileMenuVisible = false">
           <el-menu-item index="/knowledge">
             <el-icon><Collection /></el-icon>
-            <span>知识库</span>
+            <span>{{ t('nav.knowledge') }}</span>
           </el-menu-item>
           <el-menu-item index="/chat">
             <el-icon><ChatDotRound /></el-icon>
-            <span>智能问答</span>
+            <span>{{ t('nav.chat') }}</span>
           </el-menu-item>
         </el-menu>
       </el-drawer>
@@ -73,10 +73,12 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Operation } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const isMobile = ref(window.innerWidth <= 768)
 const mobileMenuVisible = ref(false)
@@ -91,7 +93,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 function onCommand(cmd: string) {
   if (cmd === 'logout') {
     userStore.logout()
-    ElMessage.success('已退出登录')
+    ElMessage.success(t('auth.logoutSuccess'))
     router.push('/login')
   }
 }

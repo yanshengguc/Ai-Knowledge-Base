@@ -3,24 +3,24 @@
     <!-- 消息流 -->
     <div ref="messageListRef" class="message-list">
       <div v-if="messages.length === 0" class="empty">
-        <el-empty description="向知识库提问,开始智能问答" />
+        <el-empty :description="t('chat.empty')" />
       </div>
 
       <div v-for="(msg, idx) in messages" :key="idx" :class="['msg-row', msg.role]">
         <div class="msg-bubble">
           <div v-if="msg.loading" class="msg-loading">
-            <span class="dot" />正在思考...
+            <span class="dot" />{{ t('chat.thinking') }}...
           </div>
           <div v-else class="msg-content">{{ msg.content }}</div>
 
           <!-- 引用来源 -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
-            <div class="refs-title">📎 引用来源</div>
+            <div class="refs-title">📎 {{ t('chat.references') }}</div>
             <el-collapse>
               <el-collapse-item
                 v-for="(ref, ri) in msg.references.slice(0, 3)"
                 :key="ri"
-                :title="`资料 ${ri + 1}`"
+                :title="`${t('chat.material')} ${ri + 1}`"
               >
                 <div class="ref-content">{{ ref.content }}</div>
               </el-collapse-item>
@@ -38,13 +38,13 @@
           type="textarea"
           :rows="2"
           :disabled="chatStore.sending"
-          placeholder="输入问题,回车发送(Ctrl+Enter 换行)"
+          :placeholder="t('chat.placeholder')"
           @keydown.enter.exact.prevent="onSend"
         />
         <div class="actions">
-          <el-button text :icon="Delete" @click="onClear">清空</el-button>
+          <el-button text :icon="Delete" @click="onClear">{{ t('common.clear') }}</el-button>
           <el-button type="primary" :loading="chatStore.sending" :disabled="!input.trim()" @click="onSend">
-            发送
+            {{ t('common.send') }}
           </el-button>
         </div>
       </div>
@@ -59,8 +59,10 @@ import { Delete } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
+import { useI18n } from 'vue-i18n'
 
 const chatStore = useChatStore()
+const { t } = useI18n()
 const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const messageListRef = ref<HTMLElement>()
@@ -89,7 +91,7 @@ async function onSend() {
 
 async function onClear() {
   if (chatStore.messages.length === 0) return
-  await ElMessageBox.confirm('确定清空当前对话吗?', '清空会话', { type: 'warning' })
+  await ElMessageBox.confirm(t('chat.clearConfirm'), t('chat.clearTitle'), { type: 'warning' })
   try {
     await chatStore.clear()
     ElMessageBox.closeAll()

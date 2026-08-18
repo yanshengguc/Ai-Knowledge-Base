@@ -1,21 +1,21 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <h1 class="auth-title">注册账号</h1>
-      <p class="auth-sub">创建你的 AI 知识库</p>
+      <h1 class="auth-title">{{ t('auth.registerTitle') }}</h1>
+      <p class="auth-sub">{{ t('auth.registerSub') }}</p>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @submit.prevent="onSubmit">
         <el-form-item prop="username">
-          <el-input v-model="form.username" placeholder="用户名" :prefix-icon="User" />
+          <el-input v-model="form.username" :placeholder="t('auth.username')" :prefix-icon="User" />
         </el-form-item>
         <el-form-item prop="nickname">
-          <el-input v-model="form.nickname" placeholder="昵称(可选)" :prefix-icon="Avatar" />
+          <el-input v-model="form.nickname" :placeholder="t('auth.nickname')" :prefix-icon="Avatar" />
         </el-form-item>
         <el-form-item prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="密码"
+            :placeholder="t('auth.password')"
             show-password
             :prefix-icon="Lock"
           />
@@ -24,7 +24,7 @@
           <el-input
             v-model="form.confirmPassword"
             type="password"
-            placeholder="确认密码"
+            :placeholder="t('auth.confirmPassword')"
             show-password
             :prefix-icon="Lock"
             @keyup.enter="onSubmit"
@@ -32,14 +32,14 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" class="auth-btn" :loading="loading" @click="onSubmit">
-            注 册
+            {{ t('auth.register') }}
           </el-button>
         </el-form-item>
       </el-form>
 
       <div class="auth-footer">
-        已有账号?
-        <router-link to="/login">去登录</router-link>
+        {{ t('auth.hasAccount') }}
+        <router-link to="/login">{{ t('auth.goLogin') }}</router-link>
       </div>
     </div>
   </div>
@@ -51,25 +51,27 @@ import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { User, Lock, Avatar } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useI18n } from 'vue-i18n'
 
 const router = useRouter()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 const form = reactive({ username: '', nickname: '', password: '', confirmPassword: '' })
 
 const rules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [{ required: true, message: t('auth.usernameRequired'), trigger: 'blur' }],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少 6 位', trigger: 'blur' },
+    { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
+    { min: 6, message: t('auth.passwordMin'), trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
+    { required: true, message: t('auth.confirmRequired'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
-        if (value !== form.password) callback(new Error('两次密码不一致'))
+        if (value !== form.password) callback(new Error(t('auth.passwordMismatch')))
         else callback()
       },
       trigger: 'blur',
@@ -87,7 +89,7 @@ async function onSubmit() {
       password: form.password,
       nickname: form.nickname || undefined,
     })
-    ElMessage.success('注册成功,请登录')
+    ElMessage.success(t('auth.registerSuccess'))
     router.push('/login')
   } catch {
     // 错误提示已在拦截器处理

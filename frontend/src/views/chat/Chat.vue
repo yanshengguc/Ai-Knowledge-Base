@@ -56,9 +56,11 @@
 import { nextTick, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
+import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 
 const chatStore = useChatStore()
+const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const messageListRef = ref<HTMLElement>()
 

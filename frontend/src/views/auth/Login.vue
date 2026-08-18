@@ -54,16 +54,22 @@ const rules: FormRules = {
 
 async function onSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate()
-  loading.value = true
+  let ok = false
   try {
+    await formRef.value.validate()
+    loading.value = true
     await userStore.login({ username: form.username, password: form.password })
-    ElMessage.success('登录成功')
-    router.push('/knowledge')
-  } catch {
+    ok = true
+  } catch (e) {
+    console.error('登录失败:', e)
     // 错误提示已在拦截器处理
   } finally {
     loading.value = false
+  }
+  if (ok) {
+    ElMessage.success('登录成功')
+    console.log('跳转到 /knowledge')
+    router.push('/knowledge')
   }
 }
 </script>

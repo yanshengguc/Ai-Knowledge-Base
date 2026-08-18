@@ -34,3 +34,12 @@ a {
   --el-border-radius-base: 6px;
   --el-border-radius-small: 4px;
 }
+
+// 主内容区移动端留边
+.el-main {
+  padding: 20px;
+
+  @media (max-width: $bp-sm) {
+    padding: 12px;
+  }
+}

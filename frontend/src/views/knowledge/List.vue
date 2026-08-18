@@ -61,7 +61,7 @@
     </div>
 
     <!-- 新建对话框 -->
-    <el-dialog v-model="dialogVisible" :title="t('knowledge.createTitle')" width="480px">
+    <el-dialog v-model="dialogVisible" :title="t('knowledge.createTitle')" width="min(480px, 92vw)">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="60px">
         <el-form-item :label="t('knowledge.name')" prop="title">
           <el-input v-model="form.title" :placeholder="t('knowledge.name')" />
@@ -164,6 +164,8 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $space-2;
   margin-bottom: $space-4;
 
   h2 {

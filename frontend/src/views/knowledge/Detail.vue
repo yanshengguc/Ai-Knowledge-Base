@@ -210,12 +210,15 @@ onBeforeUnmount(stopPolling)
 .detail-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: $space-3;
   margin-bottom: $space-4;
 
   h2 {
     font-size: $font-size-lg;
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 }
 
@@ -243,6 +246,7 @@ onBeforeUnmount(stopPolling)
 .upload-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: $space-3;
 
   .file-status {

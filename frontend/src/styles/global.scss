@@ -21,3 +21,16 @@ a {
   color: $color-primary;
   text-decoration: none;
 }
+
+// ===== Element Plus 主题化(设计系统落地,主色 #2563EB) =====
+:root {
+  --el-color-primary: #2563EB;
+  --el-color-primary-light-3: #6692F1;
+  --el-color-primary-light-5: #92B1F5;
+  --el-color-primary-light-7: #BED0F9;
+  --el-color-primary-light-8: #D3E0FB;
+  --el-color-primary-light-9: #E9EFFD;
+  --el-color-primary-dark-2: #1E4FBC;
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+}

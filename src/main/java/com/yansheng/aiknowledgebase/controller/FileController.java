@@ -18,4 +18,10 @@ public class FileController {
         FileEntity fileEntity=  fileService.uploadFile(file,knowledgeId);
         return Result.success(fileEntity);
     }
+
+    /** 查询文件处理状态(前端上传后轮询:PROCESSING -> SUCCESS) */
+    @GetMapping("/{id}")
+    public Result getFileById(@PathVariable Long id) {
+        return Result.success(fileService.getFileById(id));
+    }
 }

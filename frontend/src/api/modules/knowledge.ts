@@ -1,6 +1,7 @@
 import request from '@/api/request'
 import type {
   ChatResponse,
+  FileVO,
   KnowledgeDTO,
   KnowledgeDetailVO,
   KnowledgeVO,
@@ -43,4 +44,8 @@ export function chat(message: string) {
 
 export function clearChat() {
   return request.post<unknown, Result>('/chat/clear')
+}
+
+export function getFileById(id: number) {
+  return request.get<unknown, Result<FileVO>>(`/file/${id}`)
 }

@@ -1,0 +1,36 @@
+export default {
+  app: {
+    name: 'AI 知识库',
+    tagline: '上传文档 · 智能问答',
+  },
+  nav: {
+    knowledge: '知识库',
+    chat: '智能问答',
+    logout: '退出登录',
+  },
+  auth: {
+    login: '登 录',
+    register: '注 册',
+    noAccount: '还没有账号?',
+    hasAccount: '已有账号?',
+    goRegister: '立即注册',
+    goLogin: '去登录',
+    username: '用户名',
+    password: '密码',
+    confirmPassword: '确认密码',
+    nickname: '昵称(可选)',
+    registerTitle: '注册账号',
+    registerSub: '创建你的 AI 知识库',
+    registerSuccess: '注册成功,请登录',
+    loginSuccess: '登录成功',
+    logoutSuccess: '已退出登录',
+  },
+  common: {
+    confirm: '确定',
+    cancel: '取消',
+    delete: '删除',
+    back: '返回',
+    send: '发送',
+    clear: '清空',
+  },
+}

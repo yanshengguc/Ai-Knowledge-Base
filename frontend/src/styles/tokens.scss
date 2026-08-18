@@ -1,0 +1,54 @@
+// ===== 设计变量(定稿 v2 · 依据 UI UX Pro Max 设计系统) =====
+// 风格:Minimalism & Swiss Style(极简瑞士风:留白/高对比/网格/sans-serif)
+// 规范:AI knowledge base 学习工具 · 浅色为主
+
+// ── 颜色(UI UX Pro Max:Knowledge blue + accepted green + reputation gold) ──
+$color-primary: #2563EB; // 主色(品牌蓝)
+$color-on-primary: #FFFFFF;
+$color-primary-light: #E8F0FE; // 主色浅底(选中/标签/渐变)
+$color-secondary: #0891B2; // 辅助(青)
+$color-accent: #D97706; // 强调/CTA(琥珀金)
+$color-success: #16A34A; // 成功(文件处理完成)
+$color-warning: #F5A623; // 警告(处理中)
+$color-danger: #DC2626; // 危险(删除/错误)
+$color-bg: #F8FAFC; // 页面背景
+$color-bg-card: #FFFFFF; // 卡片背景
+$color-text: #0F172A; // 主文字(foreground)
+$color-text-secondary: #475569; // 次要文字(muted-foreground)
+$color-text-muted: #94A3B8; // 弱化文字(占位/时间)
+$color-border: #E4ECFC; // 分割线/边框
+$color-muted: #F1F5F9; // 弱化底色(输入框/hover)
+$color-hover: #F1F5F9; // 悬停底色
+
+// ── 圆角/阴影(UI UX Pro Max:sharp shadows if any + subtle hover) ──
+$radius-sm: 6px;
+$radius-md: 10px;
+$radius-lg: 16px;
+$shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06);
+$shadow-pop: 0 4px 16px rgba(15, 23, 42, 0.12);
+
+// ── 字体(中英混排:系统栈为主,英文/数字可用 Fira Sans) ──
+$font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+  'Microsoft YaHei', sans-serif;
+$font-size-xs: 12px;
+$font-size-sm: 14px;
+$font-size-md: 16px;
+$font-size-lg: 20px;
+
+// ── 间距(4 的倍数) ──
+$space-1: 4px;
+$space-2: 8px;
+$space-3: 12px;
+$space-4: 16px;
+$space-6: 24px;
+$space-8: 32px;
+$space-12: 48px;
+
+// ── 断点(响应式,移动端优先) ──
+$bp-sm: 375px;
+$bp-md: 768px;
+$bp-lg: 1024px;
+$bp-xl: 1440px;
+
+// ── 过渡(UI UX Pro Max:200-250ms) ──
+$transition-fast: 200ms;

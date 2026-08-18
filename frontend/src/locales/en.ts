@@ -1,0 +1,36 @@
+export default {
+  app: {
+    name: 'AI Knowledge Base',
+    tagline: 'Upload docs · Ask questions',
+  },
+  nav: {
+    knowledge: 'Knowledge',
+    chat: 'Ask AI',
+    logout: 'Log out',
+  },
+  auth: {
+    login: 'Sign In',
+    register: 'Sign Up',
+    noAccount: "Don't have an account?",
+    hasAccount: 'Already have an account?',
+    goRegister: 'Sign up now',
+    goLogin: 'Sign in',
+    username: 'Username',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    nickname: 'Nickname (optional)',
+    registerTitle: 'Create Account',
+    registerSub: 'Start your AI knowledge base',
+    registerSuccess: 'Registered, please sign in',
+    loginSuccess: 'Signed in',
+    logoutSuccess: 'Signed out',
+  },
+  common: {
+    confirm: 'OK',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    back: 'Back',
+    send: 'Send',
+    clear: 'Clear',
+  },
+}

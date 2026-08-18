@@ -17,4 +17,7 @@ public interface ChatService {
 
     /** 清空当前用户会话历史 */
     void clear(Long userId);
+
+    /** 读取当前用户会话历史(前端刷新后恢复) */
+    java.util.List<java.util.Map<String, String>> history(Long userId);
 }

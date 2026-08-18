@@ -53,16 +53,31 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { Delete } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
+import { getChatHistory } from '@/api/modules/chat'
 
 const chatStore = useChatStore()
 const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const messageListRef = ref<HTMLElement>()
+
+// 刷新后从后端恢复会话历史(Redis 存 chat:{userId})
+onMounted(async () => {
+  try {
+    const res = await getChatHistory()
+    const history = res.data || []
+    if (history.length) {
+      chatStore.messages = history.map((h) => ({ role: h.role, content: h.content }))
+      scrollToBottom()
+    }
+  } catch {
+    // 拦截器已提示,刷新后无历史可接受
+  }
+})
 
 async function onSend() {
   const msg = input.value.trim()

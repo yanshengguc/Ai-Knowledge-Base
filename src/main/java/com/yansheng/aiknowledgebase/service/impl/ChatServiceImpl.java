@@ -56,4 +56,9 @@ public class ChatServiceImpl implements ChatService {
     public void clear(Long userId) {
         historyService.clear(userId);
     }
+
+    @Override
+    public java.util.List<java.util.Map<String, String>> history(Long userId) {
+        return historyService.getHistory(userId);
+    }
 }

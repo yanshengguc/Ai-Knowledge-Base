@@ -3,6 +3,7 @@ package com.yansheng.aiknowledgebase.service.impl;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.DocumentService;
@@ -29,15 +30,18 @@ public class FileServiceImpl implements FileService {
     private final OssService ossService;
     private final KnowledgeMapper knowledgeMapper;
     private final FileMapper fileMapper;
+    private final ChunkMapper chunkMapper;
 
     public FileServiceImpl(DocumentService documentService,
                            OssService ossService,
                            KnowledgeMapper knowledgeMapper,
-                           FileMapper fileMapper) {
+                           FileMapper fileMapper,
+                           ChunkMapper chunkMapper) {
         this.documentService = documentService;
         this.ossService = ossService;
         this.knowledgeMapper = knowledgeMapper;
         this.fileMapper = fileMapper;
+        this.chunkMapper = chunkMapper;
     }
 
     @Override

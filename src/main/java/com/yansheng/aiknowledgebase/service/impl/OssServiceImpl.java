@@ -1,5 +1,6 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
+import lombok.extern.slf4j.Slf4j;
 import com.aliyun.oss.OSS;
 import com.yansheng.aiknowledgebase.service.OssService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import java.io.IOException;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class OssServiceImpl implements OssService {
     @Autowired
     private OSS ossClient;
@@ -39,5 +41,23 @@ public class OssServiceImpl implements OssService {
                 + fileName;
         return url;
 
+    }
+
+    @Override
+    public void delete(String fileUrl) {
+        if (fileUrl == null || fileUrl.isBlank()) {
+            return;
+        }
+        String prefix = "https://" + bucketName + "." + endpoint + "/";
+        String key = fileUrl.startsWith(prefix) ? fileUrl.substring(prefix.length()) : fileUrl;
+        if (key.contains("?")) {
+            key = key.substring(0, key.indexOf("?"));
+        }
+        try {
+            ossClient.deleteObject(bucketName, key);
+        } catch (Exception e) {
+            // OSS 删除失败不影响主流程(对象残留可接受,记录日志)
+            log.warn("OSS 删除失败,key={}", key, e);
+        }
     }
 }

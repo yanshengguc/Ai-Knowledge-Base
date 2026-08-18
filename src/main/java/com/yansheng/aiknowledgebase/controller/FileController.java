@@ -30,4 +30,11 @@ public class FileController {
     public Result getFileList(@PathVariable Long knowledgeId) {
         return Result.success(fileService.listByKnowledgeId(knowledgeId));
     }
+
+    /** 删除文件(级联删切片 + OSS 对象,含权限校验) */
+    @DeleteMapping("/{id}")
+    public Result deleteFile(@PathVariable Long id) {
+        fileService.deleteFile(id);
+        return Result.success();
+    }
 }

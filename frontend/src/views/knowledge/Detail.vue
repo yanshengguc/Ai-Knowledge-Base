@@ -13,7 +13,10 @@
       <h3>已上传文档</h3>
       <div v-for="f in fileList" :key="f.id" class="file-row">
         <span class="file-name">{{ f.fileName }}</span>
-        <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+        <div class="file-right">
+          <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+          <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">删除</el-button>
+        </div>
       </div>
     </div>
 
@@ -57,10 +60,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, UploadFilled } from '@element-plus/icons-vue'
-import { getFileById, getFileList, getKnowledgeDetail, uploadFile } from '@/api/modules/knowledge'
+import { deleteFile, getFileById, getFileList, getKnowledgeDetail, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
+import { Delete } from '@element-plus/icons-vue'
 import type { KnowledgeDetailVO } from '@/types/api'
 
 const route = useRoute()
@@ -117,6 +121,23 @@ function fileTagType(status?: string) {
   if (status === 'SUCCESS') return 'success'
   if (status === 'FAILED') return 'danger'
   return 'warning'
+}
+
+async function onDeleteFile(f: FileVO) {
+  await ElMessageBox.confirm(`确定删除文件「${f.fileName}」吗?删除后该文档将无法检索。`, '删除文件', {
+    type: 'warning',
+  })
+  try {
+    await deleteFile(f.id)
+    ElMessage.success('文件已删除')
+    fileList.value = fileList.value.filter((x) => x.id !== f.id)
+    if (uploadedFile.value?.id === f.id) {
+      stopPolling()
+      uploadedFile.value = null
+    }
+  } catch {
+    // 用户取消或失败,拦截器已提示
+  }
 }
 
 function stopPolling() {
@@ -240,6 +261,14 @@ onBeforeUnmount(stopPolling)
     text-overflow: ellipsis;
     white-space: nowrap;
     margin-right: $space-3;
+    flex: 1;
+  }
+
+  .file-right {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+    flex-shrink: 0;
   }
 }
 </style>

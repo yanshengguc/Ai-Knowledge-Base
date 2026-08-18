@@ -49,6 +49,10 @@
         where knowledge_id=#{knowledgeId}
     </select>
 
+    <delete id="deleteById">
+        DELETE FROM knowledge_file WHERE id = #{id}
+    </delete>
+
     <delete id="deleteByKnowledgeId">
         DELETE FROM knowledge_file
         WHERE knowledge_id = #{knowledgeId}

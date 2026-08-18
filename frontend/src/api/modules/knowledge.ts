@@ -53,3 +53,7 @@ export function getFileById(id: number) {
 export function getFileList(knowledgeId: number) {
   return request.get<unknown, Result<FileVO[]>>(`/file/list/${knowledgeId}`)
 }
+
+export function deleteFile(id: number) {
+  return request.delete<unknown, Result<null>>(`/file/${id}`)
+}

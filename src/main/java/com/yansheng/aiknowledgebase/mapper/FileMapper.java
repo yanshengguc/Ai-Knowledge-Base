@@ -14,4 +14,6 @@ List<FileEntity> selectFileByKnowledgeId(Long knowledgeId);
 int updateStatus(@Param("id") Long id,@Param("status") String status);
     FileEntity selectById(@Param("id") Long id);
     int deleteByKnowledgeId(Long knowledgeId);
+
+    int deleteById(@Param("id") Long id);
 }

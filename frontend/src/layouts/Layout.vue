@@ -27,8 +27,8 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="zh">{{ t('nav.lang') }}</el-dropdown-item>
-                <el-dropdown-item command="en">English</el-dropdown-item>
+                <el-dropdown-item command="zh" :class="{ active: locale === 'zh' }">简体中文</el-dropdown-item>
+                <el-dropdown-item command="en" :class="{ active: locale === 'en' }">English</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -78,7 +78,7 @@ import { setLocale } from '@/i18n'
 
 const router = useRouter()
 const userStore = useUserStore()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const isMobile = ref(window.innerWidth <= 768)
 const mobileMenuVisible = ref(false)
@@ -152,5 +152,10 @@ function onLang(lang: 'zh' | 'en') {
 .main {
   padding: $space-4;
   overflow: auto;
+}
+.el-dropdown-menu__item.active {
+  font-weight: 600;
+  color: $color-primary;
+  background: $color-primary-light;
 }
 </style>

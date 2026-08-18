@@ -14,6 +14,7 @@
       <el-upload
         :auto-upload="false"
         :limit="1"
+        :disabled="uploading || !!uploadedFile"
         accept=".pdf,.docx"
         :on-change="onFileChange"
         :on-remove="() => (selectedFile = null)"
@@ -29,7 +30,7 @@
         <el-button
           type="primary"
           :loading="uploading"
-          :disabled="!selectedFile || !!uploadedFile"
+          :disabled="uploading || !selectedFile || !!uploadedFile"
           style="margin-top: 12px"
           @click="onUpload"
         >

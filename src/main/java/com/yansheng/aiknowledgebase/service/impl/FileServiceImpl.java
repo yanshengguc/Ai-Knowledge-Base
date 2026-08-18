@@ -8,13 +8,16 @@ import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.OssService;
+import com.yansheng.aiknowledgebase.utils.ByteArrayMultipartFile;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.FileVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -121,19 +124,29 @@ entity.setStatus("PROCESSING");
 
         fileMapper.saveFile(entity);
 
+        // 异步处理文档(解析/切片/向量化):请求立即返回,前端轮询文件状态
+        // 先同步读出字节(快),避免请求结束后 MultipartFile 临时文件被清理
+        final byte[] content;
+        final String fileName = entity.getFileName();
+        final String contentType = entity.getFileType();
+        final Long fileId = entity.getId();
         try {
-            documentService.handleDocument(file, entity.getId());
-
-            fileMapper.updateStatus(entity.getId(), "SUCCESS");
-
-            log.info("文件解析切片完成,fileId={}", entity.getId());
-
-        } catch (Exception e) {
-
-            fileMapper.updateStatus(entity.getId(), "FAILED");
-
-            throw e;
+            content = file.getBytes();
+        } catch (IOException e) {
+            throw new BusinessException("文件读取失败");
         }
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                documentService.handleDocument(
+                        new ByteArrayMultipartFile(content, fileName, contentType),
+                        fileId);
+                fileMapper.updateStatus(fileId, "SUCCESS");
+                log.info("文件处理完成,fileId={}", fileId);
+            } catch (Exception e) {
+                log.error("文件处理失败,fileId={}", fileId, e);
+                fileMapper.updateStatus(fileId, "FAILED");
+            }
+        });
 
         return entity;
     }

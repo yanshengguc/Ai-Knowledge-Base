@@ -33,7 +33,7 @@
       >
         <div class="card-title">{{ item.title }}</div>
         <div class="card-meta">
-          <el-tag size="small" effect="plain">{{ item.category || '未分类' }}</el-tag>
+          <el-tag size="small" :type="categoryTagType(item.category)" effect="light">{{ item.category || '未分类' }}</el-tag>
           <span class="card-time">{{ item.updateTime || '' }}</span>
         </div>
         <el-button
@@ -56,7 +56,7 @@
           <el-input v-model="form.title" placeholder="知识标题" />
         </el-form-item>
         <el-form-item label="分类" prop="category">
-          <el-input v-model="form.category" placeholder="如:Java / 面试 / 读书笔记" />
+          <el-input v-model="form.category" :placeholder="'如:' + COMMON_CATEGORIES.join(' / ')" />
         </el-form-item>
         <el-form-item label="内容" prop="content">
           <el-input v-model="form.content" type="textarea" :rows="5" placeholder="知识内容" />
@@ -81,6 +81,7 @@ import {
   getKnowledgeList2 as fetchList,
 } from '@/api/modules/knowledge'
 import type { KnowledgeVO } from '@/types/api'
+import { categoryTagType, COMMON_CATEGORIES } from '@/utils/category'
 
 const router = useRouter()
 const list = ref<KnowledgeVO[]>([])

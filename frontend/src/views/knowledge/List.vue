@@ -24,9 +24,10 @@
     </div>
 
     <!-- 列表 -->
-    <div v-else class="grid">
+    <div v-else>
+    <div class="grid">
       <div
-        v-for="item in list"
+        v-for="item in pagedList"
         :key="item.id"
         class="card"
         @click="router.push(`/knowledge/${item.id}`)"
@@ -47,6 +48,16 @@
           删除
         </el-button>
       </div>
+    </div>
+    <el-pagination
+      v-if="list.length > pageSize"
+      class="pager"
+      layout="prev, pager, next"
+      :total="list.length"
+      :page-size="pageSize"
+      :current-page="page"
+      @current-change="page = $event"
+    />
     </div>
 
     <!-- 新建对话框 -->
@@ -71,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Delete } from '@element-plus/icons-vue'
@@ -85,6 +96,9 @@ import { categoryTagType, COMMON_CATEGORIES } from '@/utils/category'
 
 const router = useRouter()
 const list = ref<KnowledgeVO[]>([])
+const page = ref(1)
+const pageSize = 12
+const pagedList = computed(() => list.value.slice((page.value - 1) * pageSize, page.value * pageSize))
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -101,6 +115,7 @@ async function load() {
   try {
     const res = await fetchList()
     list.value = res.data || []
+    page.value = 1
   } catch {
     // 拦截器已提示
   } finally {
@@ -208,5 +223,11 @@ onMounted(load)
 
 .empty {
   padding: $space-12 0;
+}
+
+.pager {
+  display: flex;
+  justify-content: center;
+  margin-top: $space-6;
 }
 </style>

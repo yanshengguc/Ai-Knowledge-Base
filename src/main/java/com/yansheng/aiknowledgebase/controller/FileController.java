@@ -24,4 +24,10 @@ public class FileController {
     public Result getFileById(@PathVariable Long id) {
         return Result.success(fileService.getFileById(id));
     }
+
+    /** 按知识查文件列表(含处理状态,详情页展示) */
+    @GetMapping("/list/{knowledgeId}")
+    public Result getFileList(@PathVariable Long knowledgeId) {
+        return Result.success(fileService.listByKnowledgeId(knowledgeId));
+    }
 }

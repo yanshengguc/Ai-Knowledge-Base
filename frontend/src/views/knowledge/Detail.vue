@@ -8,6 +8,15 @@
 
     <div class="detail-content">{{ detail.content || '暂无内容' }}</div>
 
+    <!-- 已有文件列表 -->
+    <div v-if="fileList.length" class="upload-section">
+      <h3>已上传文档</h3>
+      <div v-for="f in fileList" :key="f.id" class="file-row">
+        <span class="file-name">{{ f.fileName }}</span>
+        <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+      </div>
+    </div>
+
     <!-- 文件上传 -->
     <div class="upload-section">
       <h3>上传文档</h3>
@@ -50,7 +59,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, UploadFilled } from '@element-plus/icons-vue'
-import { getFileById, getKnowledgeDetail, uploadFile } from '@/api/modules/knowledge'
+import { getFileById, getFileList, getKnowledgeDetail, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import type { KnowledgeDetailVO } from '@/types/api'
 
@@ -60,6 +69,7 @@ const detail = ref<KnowledgeDetailVO | null>(null)
 const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const uploadedFile = ref<FileVO | null>(null)
+const fileList = ref<FileVO[]>([])
 let pollTimer: number | undefined
 
 const fileStatusText = computed(() => {
@@ -86,11 +96,27 @@ function startPolling(fileId: number) {
         stopPolling()
         if (res.data.status === 'SUCCESS') ElMessage.success('文档处理完成')
         else ElMessage.error('文档处理失败')
+        // 刷新文件列表
+        if (detail.value) {
+          const listRes = await getFileList(detail.value.id)
+          fileList.value = listRes.data || []
+        }
       }
     } catch {
       stopPolling()
     }
   }, 2000)
+}
+
+function fileStatusLabel(status?: string) {
+  if (status === 'SUCCESS') return '处理完成'
+  if (status === 'FAILED') return '处理失败'
+  return '处理中'
+}
+function fileTagType(status?: string) {
+  if (status === 'SUCCESS') return 'success'
+  if (status === 'FAILED') return 'danger'
+  return 'warning'
 }
 
 function stopPolling() {
@@ -107,6 +133,9 @@ onMounted(async () => {
   try {
     const res = await getKnowledgeDetail(id)
     detail.value = res.data
+    // 加载已有文件列表(刷新后仍显示)
+    const fileRes = await getFileList(id)
+    fileList.value = fileRes.data || []
   } catch {
     // 拦截器已提示
   }
@@ -195,6 +224,22 @@ onBeforeUnmount(stopPolling)
 
   .file-status {
     margin-top: 12px;
+  }
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 0;
+  border-bottom: 1px solid $color-border;
+
+  .file-name {
+    color: $color-text;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-right: $space-3;
   }
 }
 </style>

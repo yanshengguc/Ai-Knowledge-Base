@@ -49,3 +49,7 @@ export function clearChat() {
 export function getFileById(id: number) {
   return request.get<unknown, Result<FileVO>>(`/file/${id}`)
 }
+
+export function getFileList(knowledgeId: number) {
+  return request.get<unknown, Result<FileVO[]>>(`/file/list/${knowledgeId}`)
+}

@@ -18,6 +18,8 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -46,6 +48,10 @@ public class FileServiceImpl implements FileService {
             throw new BusinessException("文件不存在");
         }
 
+        return toVO(entity);
+    }
+
+    private FileVO toVO(FileEntity entity) {
         FileVO vo = new FileVO();
         vo.setId(entity.getId());
         vo.setFileName(entity.getFileName());
@@ -54,8 +60,14 @@ public class FileServiceImpl implements FileService {
         vo.setKnowledgeId(entity.getKnowledgeId());
         vo.setStatus(entity.getStatus());
         vo.setUpdateTime(entity.getUpdateTime());
-
         return vo;
+    }
+
+    @Override
+    public List<FileVO> listByKnowledgeId(Long knowledgeId) {
+        return fileMapper.selectFileByKnowledgeId(knowledgeId).stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
     }
     @Override
     public FileEntity uploadFile(

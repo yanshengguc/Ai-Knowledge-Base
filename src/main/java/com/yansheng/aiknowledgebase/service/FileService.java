@@ -5,8 +5,13 @@ import com.yansheng.aiknowledgebase.vo.FileVO;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 public interface FileService
 {
     FileEntity uploadFile(MultipartFile file, Long knowledgeId);
      FileVO getFileById(Long id);
+
+    /** 按知识查文件列表(含处理状态) */
+    List<FileVO> listByKnowledgeId(Long knowledgeId);
 }

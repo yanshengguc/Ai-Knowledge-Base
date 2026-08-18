@@ -16,7 +16,7 @@ const router = createRouter({
         { path: 'chat', name: 'chat', component: () => import('@/views/chat/Chat.vue') },
       ],
     },
-    { path: '/:pathMatch(.*)*', redirect: '/knowledge' },
+    { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
   ],
 })
 

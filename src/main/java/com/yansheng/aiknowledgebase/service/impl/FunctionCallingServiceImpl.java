@@ -58,6 +58,16 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
             }
             """;
 
+    /**
+     * 无参数工具的 Schema(knowledge_stats / time_now)
+     */
+    private static final String EMPTY_SCHEMA = """
+            {
+              "type": "object",
+              "properties": {}
+            }
+            """;
+
     public FunctionCallingServiceImpl(
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
@@ -143,6 +153,11 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
         if ("file_search".equals(tool.getToolName())) {
             return FILE_SEARCH_SCHEMA;
+        }
+
+        if ("knowledge_stats".equals(tool.getToolName())
+                || "time_now".equals(tool.getToolName())) {
+            return EMPTY_SCHEMA;
         }
 
         throw new IllegalArgumentException(

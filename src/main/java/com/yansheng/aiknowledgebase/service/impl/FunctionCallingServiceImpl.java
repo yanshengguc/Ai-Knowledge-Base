@@ -5,10 +5,12 @@ import com.yansheng.aiknowledgebase.common.tool.Tool;
 import com.yansheng.aiknowledgebase.common.tool.ToolCallbackAdapter;
 import com.yansheng.aiknowledgebase.common.tool.ToolRegistry;
 import com.yansheng.aiknowledgebase.service.FunctionCallingService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
-
-
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -19,8 +21,15 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class FunctionCallingServiceImpl implements FunctionCallingService {
+
+    /**
+     * Agent Loop 死循环防护:工具调用最多执行 MAX_STEPS 轮,超限强制终止
+     * (面试:死循环怎么掐 = 最大步数 + 进展校验 + 人工介入,这里是第一重)
+     */
+    private static final int MAX_STEPS = 5;
 
     private final OpenAiChatModel openAiChatModel;
     private final ToolRegistry toolRegistry;
@@ -131,32 +140,74 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
         /*
          * 3. 把 ToolCallback 配置到本次模型请求
+         *    关闭框架的"自动工具执行",改为手动控制循环 —— 这样才能加 max_steps 死循环防护
          */
         ToolCallingChatOptions options =
                 ToolCallingChatOptions.builder()
                         .toolCallbacks(toolCallbacks)
+                        .internalToolExecutionEnabled(false)
                         .build();
 
         /*
-         * 4. 创建带工具配置的 Prompt
+         * 4. Agent Loop:模型 → 工具 → 观察 → 再决策
+         *    (面试:这就是"循环工程"——自动化+工具+验证,外加 max_steps 死循环防护)
          */
-        Prompt request = new Prompt(
-                List.of(new UserMessage(prompt)),
-                options
-        );
+        List<Message> messages = new ArrayList<>();
+        messages.add(new UserMessage(prompt));
+
+        int step = 0;
+        String finalAnswer = null;
+        while (step < MAX_STEPS) {
+
+            ChatResponse response = openAiChatModel.call(new Prompt(messages, options));
+            AssistantMessage assistantMsg = response.getResult().getOutput();
+            messages.add(assistantMsg);
+
+            // 模型要调工具 → 逐个执行,结果回填对话,进入下一轮
+            if (assistantMsg.hasToolCalls()) {
+                log.info("Agent Loop 第 {} 轮:模型调用 {} 个工具", step + 1, assistantMsg.getToolCalls().size());
+                for (AssistantMessage.ToolCall toolCall : assistantMsg.getToolCalls()) {
+                    String result = executeTool(toolCall, toolCallbacks);
+                    messages.add(ToolResponseMessage.builder()
+                            .responses(List.of(new ToolResponseMessage.ToolResponse(toolCall.id(), toolCall.name(), result)))
+                            .build());
+                }
+                step++;
+                continue;
+            }
+
+            // 模型不再调工具 = 最终答案
+            finalAnswer = assistantMsg.getText();
+            break;
+        }
 
         /*
-         * 5. 调用模型
+         * 5. 死循环防护:超限强制终止(不返回空,给用户明确提示)
          */
-        ChatResponse response =
-                openAiChatModel.call(request);
+        if (finalAnswer == null) {
+            finalAnswer = "任务已达到最大执行步数(" + MAX_STEPS + "),已强制终止。建议拆分为更小的子问题重试。";
+        }
 
-        /*
-         * 6. 返回最终答案
-         */
-        return response.getResult()
-                .getOutput()
-                .getText();
+        return finalAnswer;
+    }
+
+    /**
+     * 执行单个工具调用(按名字匹配回调)。
+     * 失败时把错误信息回传模型 —— 让模型"自愈"(换个参数或换工具),这是 loop 的容错。
+     */
+    private String executeTool(AssistantMessage.ToolCall toolCall, List<ToolCallback> callbacks) {
+        String name = toolCall.name();
+        for (ToolCallback cb : callbacks) {
+            if (cb.getToolDefinition().name().equals(name)) {
+                try {
+                    return cb.call(toolCall.arguments());
+                } catch (Exception e) {
+                    log.warn("工具执行失败: {}, 错误: {}", name, e.getMessage());
+                    return "工具执行失败: " + e.getMessage() + "(请换一种方式处理或如实告知用户)";
+                }
+            }
+        }
+        return "工具不存在: " + name;
     }
 
     /**

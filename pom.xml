@@ -114,6 +114,12 @@
             <artifactId>spring-ai-alibaba-starter-dashscope</artifactId>
             <version>1.1.2.1</version>
         </dependency>
+        <!-- MCP Server:把项目工具暴露为标准协议,任何 MCP Client(Claude/Cursor/Cherry Studio)可调 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+            <version>1.1.2</version>
+        </dependency>
 
     <dependency>
         <groupId>org.apache.pdfbox</groupId>

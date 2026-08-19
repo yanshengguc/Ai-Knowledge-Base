@@ -1,14 +1,21 @@
 package com.yansheng.aiknowledgebase.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yansheng.aiknowledgebase.entity.FileEntity;
+import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
+import com.yansheng.aiknowledgebase.mapper.FileMapper;
+import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,10 +39,20 @@ public class KnowledgeMcpTools {
     private static final int SNIPPET_MAX = 200;
 
     private final VectorSearchService vectorSearchService;
+    private final KnowledgeMapper knowledgeMapper;
+    private final FileMapper fileMapper;
+    private final ChunkMapper chunkMapper;
     private final ObjectMapper objectMapper;
 
-    public KnowledgeMcpTools(VectorSearchService vectorSearchService, ObjectMapper objectMapper) {
+    public KnowledgeMcpTools(VectorSearchService vectorSearchService,
+                             KnowledgeMapper knowledgeMapper,
+                             FileMapper fileMapper,
+                             ChunkMapper chunkMapper,
+                             ObjectMapper objectMapper) {
         this.vectorSearchService = vectorSearchService;
+        this.knowledgeMapper = knowledgeMapper;
+        this.fileMapper = fileMapper;
+        this.chunkMapper = chunkMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -80,6 +97,51 @@ public class KnowledgeMcpTools {
         } catch (Exception e) {
             throw new BusinessException("结果序列化失败");
         }
+    }
+
+    /**
+     * 知识库概况统计(对外 MCP 工具)
+     * 注意:MCP 客户端直连无登录态,这里做全库统计(演示/对外能力);
+     * 若按用户隔离,需客户端在 Header 携带 JWT(已支持,见 SecurityConfig 白名单逻辑)
+     */
+    @Tool(description = "统计知识库概况:知识条目数/文件总数/切片总数/文件处理状态分布")
+    public String knowledge_stats() {
+        log.info(">>> MCP knowledge_stats 被调用");
+        List<KnowledgeEntity> knowledges = knowledgeMapper.selectAll();
+
+        int fileCount = 0;
+        int chunkCount = 0;
+        Map<String, Integer> statusSummary = new LinkedHashMap<>();
+
+        for (KnowledgeEntity k : knowledges) {
+            List<FileEntity> files = fileMapper.selectFileByKnowledgeId(k.getId());
+            fileCount += files.size();
+            for (FileEntity f : files) {
+                chunkCount += chunkMapper.selectByFileId(f.getId()).size();
+                String status = f.getStatus() == null ? "UNKNOWN" : f.getStatus();
+                statusSummary.merge(status, 1, Integer::sum);
+            }
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("knowledgeCount", knowledges.size());
+        result.put("fileCount", fileCount);
+        result.put("chunkCount", chunkCount);
+        result.put("statusSummary", statusSummary);
+        try {
+            return objectMapper.writeValueAsString(result);
+        } catch (Exception e) {
+            throw new BusinessException("结果序列化失败");
+        }
+    }
+
+    /**
+     * 当前时间(对外 MCP 工具)
+     */
+    @Tool(description = "获取当前本地时间(格式 yyyy-MM-dd HH:mm:ss),用于需要实时时间的场景")
+    public String time_now() {
+        log.info(">>> MCP time_now 被调用");
+        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
     private String truncate(String s, int max) {

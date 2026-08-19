@@ -32,6 +32,15 @@
 
     <!-- 输入区 -->
     <div class="input-area">
+      <div class="input-toolbar">
+        <el-switch
+          v-model="webSearchOn"
+          :active-text="t('chat.webSearch')"
+          size="small"
+          class="web-search-switch"
+        />
+        <span class="web-search-hint" v-if="webSearchOn">{{ t('chat.webSearchHint') }}</span>
+      </div>
       <div class="input-row">
         <el-input
           v-model="input"
@@ -66,6 +75,7 @@ const chatStore = useChatStore()
 const { t } = useI18n()
 const { messages } = storeToRefs(chatStore)
 const input = ref('')
+const webSearchOn = ref(false)
 const messageListRef = ref<HTMLElement>()
 
 // 刷新后从后端恢复会话历史(Redis 存 chat:{userId})
@@ -86,7 +96,7 @@ async function onSend() {
   const msg = input.value.trim()
   if (!msg || chatStore.sending) return
   input.value = ''
-  await chatStore.sendStream(msg)
+  await chatStore.sendStream(msg, webSearchOn.value)
   scrollToBottom()
 }
 
@@ -211,6 +221,19 @@ function scrollToBottom() {
 
 .input-area {
   padding: $space-3 0 $space-2;
+
+  .input-toolbar {
+    display: flex;
+    align-items: center;
+    gap: $space-3;
+    margin-bottom: $space-2;
+    min-height: 24px;
+
+    .web-search-hint {
+      font-size: $font-size-xs;
+      color: $color-text-secondary;
+    }
+  }
 
   .actions {
     display: flex;

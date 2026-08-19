@@ -36,7 +36,7 @@ export const useChatStore = defineStore('chat', {
       }
     },
     /** 流式发送(SSE 打字机效果):token 增量拼接 + 结束带引用来源 */
-    async sendStream(message: string) {
+    async sendStream(message: string, enableWebSearch = false) {
       this.messages.push({ role: 'user', content: message })
       this.sending = true
       const assistantMsg: MessageItem = { role: 'assistant', content: '', loading: true }
@@ -49,7 +49,7 @@ export const useChatStore = defineStore('chat', {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${getToken()}`,
           },
-          body: JSON.stringify({ message }),
+          body: JSON.stringify({ message, enableWebSearch }),
         })
         if (!resp.ok || !resp.body) {
           throw new Error(`stream failed: ${resp.status}`)

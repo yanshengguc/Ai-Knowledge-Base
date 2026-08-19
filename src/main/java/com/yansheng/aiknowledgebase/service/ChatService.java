@@ -15,6 +15,13 @@ public interface ChatService {
      */
     ChatResponse ask(Long userId, String question);
 
+    /**
+     * 多轮问答(支持联网搜索)
+     *
+     * @param enableWebSearch true = 回答前先联网搜索,最新信息注入上下文(用户显式授权)
+     */
+    ChatResponse ask(Long userId, String question, boolean enableWebSearch);
+
     /** 清空当前用户会话历史 */
     void clear(Long userId);
 
@@ -29,4 +36,13 @@ public interface ChatService {
     void streamAsk(Long userId, String question,
                    java.util.function.Consumer<String> onToken,
                    java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone);
+
+    /**
+     * 流式多轮问答(支持联网搜索)
+     * @param enableWebSearch true = 回答前先联网搜索,最新信息注入上下文(用户显式授权)
+     */
+    void streamAsk(Long userId, String question,
+                   java.util.function.Consumer<String> onToken,
+                   java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone,
+                   boolean enableWebSearch);
 }

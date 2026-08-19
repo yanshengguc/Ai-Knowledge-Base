@@ -57,7 +57,7 @@ public class ChatController {
             throw new BusinessException("请求太频繁,请稍后再试");
         }
 
-        ChatResponse response = chatService.ask(userId, message);
+        ChatResponse response = chatService.ask(userId, message, dto.isEnableWebSearch());
         return Result.success(response);
     }
 
@@ -92,7 +92,8 @@ public class ChatController {
                     safeSend(emitter, SseEmitter.event().name("refs").data(refs));
                     // 流结束:引用发完后关闭连接,前端 reader 收到 done
                     emitter.complete();
-                });
+                },
+                dto.isEnableWebSearch());
         emitter.onCompletion(emitter::complete);
         emitter.onTimeout(emitter::complete);
         emitter.onError(e -> emitter.complete());

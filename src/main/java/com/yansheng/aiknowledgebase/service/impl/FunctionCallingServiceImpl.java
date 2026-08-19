@@ -68,6 +68,26 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
             }
             """;
 
+    /**
+     * web_search 工具的参数 Schema(query 必填,count 可选)
+     */
+    private static final String WEB_SEARCH_SCHEMA = """
+            {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "用户想要联网搜索的内容,原样传入,不要改写"
+                },
+                "count": {
+                  "type": "integer",
+                  "description": "返回结果数,可选,默认5"
+                }
+              },
+              "required": ["query"]
+            }
+            """;
+
     public FunctionCallingServiceImpl(
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
@@ -158,6 +178,10 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
         if ("knowledge_stats".equals(tool.getToolName())
                 || "time_now".equals(tool.getToolName())) {
             return EMPTY_SCHEMA;
+        }
+
+        if ("web_search".equals(tool.getToolName())) {
+            return WEB_SEARCH_SCHEMA;
         }
 
         throw new IllegalArgumentException(

@@ -59,9 +59,9 @@ export default {
     emptyHint: 'Click "New" at top right to create your first item',
     nameRequired: 'Please enter a title',
     contentRequired: 'Please enter content',
-    categoryPlaceholder:
+    categoryPlaceholder: 'e.g. Interview / Study / Work / Notes',
     searchPlaceholder: 'Search title or content',
-    allCategories: 'All categories', 'e.g. Interview / Study / Work / Notes',
+    allCategories: 'All categories',
   },
   upload: {
     title: 'Upload Document',
@@ -88,6 +88,8 @@ export default {
     thinking: 'Thinking',
     references: 'References',
     material: 'Source',
+    webSearch: '🌐 Web Search',
+    webSearchHint: 'When on, fetches latest info from web before answering',
     clearTitle: 'Clear Chat',
     clearConfirm: 'Clear the current conversation?',
   },

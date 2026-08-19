@@ -59,9 +59,9 @@ export default {
     emptyHint: '点击右上角"新建"创建第一条知识',
     nameRequired: '请输入标题',
     contentRequired: '请输入内容',
-    categoryPlaceholder:
+    categoryPlaceholder: '如:面试 / 学习 / 工作 / 读书笔记',
     searchPlaceholder: '搜索标题或内容',
-    allCategories: '全部分类', '如:面试 / 学习 / 工作 / 读书笔记',
+    allCategories: '全部分类',
   },
   upload: {
     title: '上传文档',
@@ -88,6 +88,8 @@ export default {
     thinking: '正在思考',
     references: '引用来源',
     material: '资料',
+    webSearch: '🌐 联网搜索',
+    webSearchHint: '开启后,回答前先联网获取最新信息',
     clearTitle: '清空会话',
     clearConfirm: '确定清空当前对话吗?',
   },

@@ -21,27 +21,38 @@ public class ChatServiceImpl implements ChatService {
     private final PromptService promptService;
     private final GenerationService generationService;
     private final ConversationHistoryService historyService;
+    private final WebSearchTool webSearchTool;
 
     public ChatServiceImpl(RetrievalService retrievalService,
                            PromptService promptService,
                            GenerationService generationService,
-                           ConversationHistoryService historyService) {
+                           ConversationHistoryService historyService,
+                           WebSearchTool webSearchTool) {
         this.retrievalService = retrievalService;
         this.promptService = promptService;
         this.generationService = generationService;
         this.historyService = historyService;
+        this.webSearchTool = webSearchTool;
     }
 
     @Override
     public ChatResponse ask(Long userId, String question) {
+        return ask(userId, question, false);
+    }
+
+    @Override
+    public ChatResponse ask(Long userId, String question, boolean enableWebSearch) {
         // 1. 知识库检索(当前问题)
         List<SearchResult> searchResults = retrievalService.retrieveTopK(question);
 
         // 2. 读取会话历史(动态上下文)
         List<Map<String, String>> history = historyService.getHistory(userId);
 
-        // 3. 拼接带历史的 Prompt
+        // 3. 拼接带历史的 Prompt(可选:附加联网搜索结果,用户显式授权)
         String prompt = promptService.buildChatPrompt(question, searchResults, history);
+        if (enableWebSearch) {
+            prompt = appendWebSearchContext(prompt, question);
+        }
 
         // 4. 生成回答
         String answer = generationService.generate(prompt);
@@ -54,14 +65,42 @@ public class ChatServiceImpl implements ChatService {
         return new ChatResponse(answer, searchResults);
     }
 
+    /**
+     * 联网搜索并附加到 Prompt(用户显式开启"🌐联网"开关才调用)。
+     * 容错:搜索失败不阻塞主流程,降级为纯知识库回答。
+     */
+    private String appendWebSearchContext(String prompt, String question) {
+        try {
+            String webContext = webSearchTool.execute(java.util.Map.of("query", question));
+            log.info("联网搜索完成,注入上下文,question={}", question);
+            return prompt + "\n\n【联网搜索结果】\n" + webContext
+                    + "\n请结合以上最新联网信息回答;若与知识库内容冲突,以联网搜索结果为准。";
+        } catch (Exception e) {
+            // 搜索失败降级:纯知识库回答,不中断对话
+            log.warn("联网搜索失败,降级为纯知识库回答: {}", e.getMessage());
+            return prompt;
+        }
+    }
+
     @Override
     public void streamAsk(Long userId, String question,
                           java.util.function.Consumer<String> onToken,
                           java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone) {
+        streamAsk(userId, question, onToken, onDone, false);
+    }
+
+    @Override
+    public void streamAsk(Long userId, String question,
+                          java.util.function.Consumer<String> onToken,
+                          java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone,
+                          boolean enableWebSearch) {
         // 1. 检索 + 历史 + Prompt(与 ask 相同)
         List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
         List<Map<String, String>> history = historyService.getHistory(userId);
         String prompt = promptService.buildChatPrompt(question, searchResults, history);
+        if (enableWebSearch) {
+            prompt = appendWebSearchContext(prompt, question);
+        }
 
         // 2. 流式生成:逐 token 推给前端,收集完整答案
         StringBuilder fullAnswer = new StringBuilder();

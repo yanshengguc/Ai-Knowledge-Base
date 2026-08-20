@@ -116,6 +116,20 @@ if (originalName == null
                 userId,
                 knowledgeId);
 
+        // ===== 版本管理:同名文件重新上传 = 覆盖更新(删旧切片+旧记录+OSS 对象,再入库新版本) =====
+        // 面试讲法:知识库更新/增量 —— 同名覆盖保证库里永远是最新版,不残留过期切片
+        List<FileEntity> existing = fileMapper.selectFileByKnowledgeId(knowledgeId);
+        String newFileName = file.getOriginalFilename();
+        for (FileEntity old : existing) {
+            if (old.getFileName() != null && old.getFileName().equals(newFileName)) {
+                log.info("检测到同名文件,执行覆盖更新: oldFileId={}, fileName={}", old.getId(), newFileName);
+                // 级联删除旧版本(切片 → 记录 → OSS 对象)
+                chunkMapper.deleteByFileId(old.getId());
+                fileMapper.deleteById(old.getId());
+                ossService.delete(old.getFileUrl());
+                log.info("旧版本已清理,fileId={}", old.getId());
+            }
+        }
 
         String url = ossService.upload(file);
 

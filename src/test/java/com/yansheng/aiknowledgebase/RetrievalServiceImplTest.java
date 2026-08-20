@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase;
 
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
+import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,15 +18,18 @@ import static org.mockito.Mockito.*;
 class RetrievalServiceImplTest {
 
     private VectorSearchService vectorSearchService;
+    private RerankService rerankService;
     private RetrievalServiceImpl retrievalService;
 
     @BeforeEach
     void setUp() {
         vectorSearchService = mock(VectorSearchService.class);
-        retrievalService = new RetrievalServiceImpl(vectorSearchService);
+        rerankService = mock(RerankService.class);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService);
         // 因为 @Value 注入的字段在纯 new 出来的对象里不会自动赋值，手动塞进去
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
+        ReflectionTestUtils.setField(retrievalService, "rerankEnabled", false);
     }
 
     @Test

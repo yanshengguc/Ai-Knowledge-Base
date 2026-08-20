@@ -29,15 +29,24 @@ import java.util.Map;
 @Service
 public class RerankServiceImpl implements RerankService {
 
-    private static final String RERANK_ENDPOINT = "https://api.bochaai.com/v1/rerank";
-    private static final String MODEL = "gte-rerank";
     private static final int HTTP_TIMEOUT_SECONDS = 10;
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
 
-    @Value("${BOCHA_API_KEY:}")
-    private String bochaApiKey;
+    /**
+     * 重排 API 配置(可切换 provider):
+     *   默认 硅基流动(SiliconFlow,国内直连,免费模型 BAAI/bge-reranker-v2-m3)
+     *   备选 博查 BoCha(gte-rerank,需余额)
+     */
+    @Value("${rerank.endpoint:https://api.siliconflow.cn/v1/rerank}")
+    private String endpoint;
+
+    @Value("${rerank.model:BAAI/bge-reranker-v2-m3}")
+    private String model;
+
+    @Value("${rerank.api-key:}")
+    private String apiKey;
 
     public RerankServiceImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -49,7 +58,7 @@ public class RerankServiceImpl implements RerankService {
     @Override
     public List<SearchResult> rerank(String query, List<SearchResult> candidates, int topN) {
         // 降级①:未配置 key 或候选太少,直接截取返回
-        if (bochaApiKey == null || bochaApiKey.isBlank() || candidates == null || candidates.size() <= 1) {
+        if (apiKey == null || apiKey.isBlank() || candidates == null || candidates.size() <= 1) {
             return truncate(candidates, topN);
         }
 
@@ -60,23 +69,23 @@ public class RerankServiceImpl implements RerankService {
             }
 
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put("model", MODEL);
+            body.put("model", model);
             body.put("query", query);
             body.put("documents", documents);
             body.put("top_n", topN);
             body.put("return_documents", false);
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(RERANK_ENDPOINT))
+                    .uri(URI.create(endpoint))
                     .timeout(Duration.ofSeconds(HTTP_TIMEOUT_SECONDS))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + bochaApiKey)
+                    .header("Authorization", "Bearer " + apiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                log.warn("重排 API 非200: status={}", response.statusCode());
+                log.warn("重排 API 非200: status={}, provider={}", response.statusCode(), endpoint);
                 return truncate(candidates, topN);
             }
 
@@ -88,10 +97,14 @@ public class RerankServiceImpl implements RerankService {
         }
     }
 
-    /** 按博查 relevance_score 降序重排候选,取 topN */
+    /** 按重排 relevance_score 降序重排候选,取 topN */
     private List<SearchResult> reorderByScore(List<SearchResult> candidates, String rawJson, int topN) throws Exception {
         JsonNode root = objectMapper.readTree(rawJson);
-        JsonNode results = root.path("data").path("results");
+        // 兼容两种响应格式:硅基流动 results 在顶层;博查在 data.results
+        JsonNode results = root.path("results");
+        if (!results.isArray()) {
+            results = root.path("data").path("results");
+        }
 
         // index -> relevance_score
         Map<Integer, Double> scoreMap = new LinkedHashMap<>();

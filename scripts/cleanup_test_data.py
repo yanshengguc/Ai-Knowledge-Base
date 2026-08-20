@@ -37,7 +37,8 @@ cur.execute("""SELECT id, username FROM user
                OR username LIKE 'ws_test%' OR username LIKE 'ws_t%'
                OR username LIKE 'search_%'
                OR username LIKE 'chain_%'
-               OR username LIKE 'rr2_%'""")
+               OR username LIKE 'rr2_%'
+               OR username LIKE 'rr3_%'""")
 users = cur.fetchall()
 print("待清理测试用户数:", len(users))
 

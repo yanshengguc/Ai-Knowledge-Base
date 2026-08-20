@@ -4,6 +4,7 @@ import com.yansheng.aiknowledgebase.entity.ChatResponse;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.ChatService;
 import com.yansheng.aiknowledgebase.service.ConversationHistoryService;
+import com.yansheng.aiknowledgebase.service.LongTermMemoryService;
 import com.yansheng.aiknowledgebase.service.GenerationService;
 import com.yansheng.aiknowledgebase.service.PromptService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
@@ -22,17 +23,20 @@ public class ChatServiceImpl implements ChatService {
     private final GenerationService generationService;
     private final ConversationHistoryService historyService;
     private final WebSearchTool webSearchTool;
+    private final LongTermMemoryService longTermMemoryService;
 
     public ChatServiceImpl(RetrievalService retrievalService,
                            PromptService promptService,
                            GenerationService generationService,
                            ConversationHistoryService historyService,
-                           WebSearchTool webSearchTool) {
+                           WebSearchTool webSearchTool,
+                           LongTermMemoryService longTermMemoryService) {
         this.retrievalService = retrievalService;
         this.promptService = promptService;
         this.generationService = generationService;
         this.historyService = historyService;
         this.webSearchTool = webSearchTool;
+        this.longTermMemoryService = longTermMemoryService;
     }
 
     @Override
@@ -57,9 +61,12 @@ public class ChatServiceImpl implements ChatService {
         // 4. 生成回答
         String answer = generationService.generate(prompt);
 
-        // 5. 保存本轮对话到历史
+        // 5. 保存本轮对话到历史 + 写入长期记忆(问题+回答摘要,供跨会话召回)
         historyService.append(userId, "user", question);
         historyService.append(userId, "assistant", answer);
+        String memoryContent = "用户问过：" + question + "\n回答要点：" +
+                (answer.length() > 100 ? answer.substring(0, 100) : answer);
+        longTermMemoryService.remember(userId, memoryContent);
 
         // 6. 返回回答 + 引用来源(供前端展示"回答出自哪些资料")
         return new ChatResponse(answer, searchResults);
@@ -94,10 +101,11 @@ public class ChatServiceImpl implements ChatService {
                           java.util.function.Consumer<String> onToken,
                           java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone,
                           boolean enableWebSearch) {
-        // 1. 检索 + 历史 + Prompt(与 ask 相同)
+        // 1. 检索 + 历史 + 长期记忆 + Prompt(与 ask 相同)
         List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
         List<Map<String, String>> history = historyService.getHistory(userId);
-        String prompt = promptService.buildChatPrompt(question, searchResults, history);
+        List<String> memories = longTermMemoryService.recall(userId, question, 3);
+        String prompt = promptService.buildChatPrompt(question, searchResults, history, memories);
         if (enableWebSearch) {
             prompt = appendWebSearchContext(prompt, question);
         }
@@ -117,9 +125,12 @@ public class ChatServiceImpl implements ChatService {
                     log.error("流式生成失败,userId={}", userId, error);
                 },
                 () -> {
-                    // 3. 完成:保存本轮(user + assistant)到历史
+                    // 3. 完成:保存本轮(user + assistant)到历史 + 写入长期记忆
                     historyService.append(userId, "user", question);
                     historyService.append(userId, "assistant", fullAnswer.toString());
+                    String memoryContent = "用户问过：" + question + "\n回答要点：" +
+                            (fullAnswer.length() > 100 ? fullAnswer.substring(0, 100) : fullAnswer.toString());
+                    longTermMemoryService.remember(userId, memoryContent);
                     onDone.accept(searchResults);
                 }
         );

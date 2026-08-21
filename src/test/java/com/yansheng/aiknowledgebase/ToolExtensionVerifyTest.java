@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.common.tool.ToolRegistry;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.service.FunctionCallingService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +22,7 @@ import java.util.List;
  * 观察点:控制台 ">>> xxx被调用" 日志
  */
 @SpringBootTest
+@Tag("e2e")
 @ActiveProfiles("local")
 class ToolExtensionVerifyTest {
 

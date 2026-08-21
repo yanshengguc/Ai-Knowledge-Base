@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.yansheng.aiknowledgebase.service.FunctionCallingService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import java.util.List;
  * (这是"Agent 评估/Evals"考点,也是避坑三查"证据包"的数据来源)
  */
 @SpringBootTest
+@Tag("e2e")
 @ActiveProfiles("local")
 class EvalHarnessTest {
 

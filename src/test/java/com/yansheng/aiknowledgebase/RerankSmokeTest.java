@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase;
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.RerankService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -11,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 @SpringBootTest
+@Tag("e2e")
 @ActiveProfiles("local")
 class RerankSmokeTest {
 

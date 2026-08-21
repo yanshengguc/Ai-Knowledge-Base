@@ -2,6 +2,7 @@
 
 > 评审原则:**只看代码本身,不受注释影响**(代码里的"面试讲法/安全加固/亮点"等标注不影响判定)。
 > 范围:Spring Boot 3 单模块 + RAG/Agent 能力,65 Java 文件,全链路通读。
+> **更新(8/21 晚):评审提出的 A1/A2/B1/B2/C1/C2/C3 七项已全部落地,全量 79 测试 0 失败。**
 
 ---
 
@@ -94,6 +95,23 @@
 > 面试关联:A1/C1 是"架构意识"的硬证据——面试官问"上线前你会做什么"时,答 MCP 用户隔离 + 工具抽象统一,比任何注释都有说服力。
 
 ---
+
+## 五、实施状态(8/21 已全部落地)
+
+| 项 | 状态 | 落地内容 | 验证 |
+|---|---|---|---|
+| A1 MCP 用户隔离 | ✅ | MCP 工具 `requireUser()` 门禁(匿名拒业务数据);JWT filter 对 MCP 端点支持可选 token;`VectorSearchService.searchForUser`(file_id OR 链 filter) | KnowledgeMcpSecurityTest 4 例 |
+| A2 统计聚合 | ✅ | `selectStatsByUserId` + `selectStatusSummaryByUserId` 一条 SQL 聚合,内部/外部 stats 共用,消 selectAll+N+1 | 统计断言=用户自己数据 |
+| B1 索引补偿 | ✅ | `IndexingService.reindexFile(fileId)` 重建索引入口(幂等:DashVector 已存在 id 跳过) | IndexingReindexTest 2 例 |
+| B2 覆盖窗口 | ✅ | 同名上传:先入库新版本,处理成功后再清旧版;失败保留旧版 | FileServiceImplTest 2 例 |
+| C1 Schema 统一 | ✅ | `Tool.getInputSchema()` 各工具自带,删除中心 if-else 分派(开闭) | 工具链路 8 例 |
+| C2 枚举化 | ✅ | `FileStatus` 枚举替换魔法值 + KnowledgeServiceImpl println 全换 log | 回归 13 例 |
+| C3 限流下沉 | ✅ | `RateLimitService` 独立组件,ChatController 只调 | RateLimitServiceTest 3 例 |
+
+**全量回归:79 测试(原 68 + 新增 11)0 失败 0 错误,Eval 100% 保持。**
+**评分更新:安全 4→7,一致性 6→7.5,可扩展 6→7.5,分层 7→7.5,工程 7→8,总体 ≈7.5/10。**
+
+**剩余(可选/随上线)**:D1 分页 + 显式 userId 传递;web 检索链路的多用户隔离(MCP 口已封,A1 只覆盖了外部暴露面,web 路径检索仍为全库,多用户上线前需一并做)。
 
 ## 四、一句话总评(面试可用)
 

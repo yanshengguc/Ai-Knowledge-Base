@@ -8,12 +8,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class IndexingServiceImpl implements IndexingService {
 
     private static final Logger log = LoggerFactory.getLogger(IndexingServiceImpl.class);
+
+    /**
+     * 每批向量化的切片数:批量接口一次请求处理一批,大幅减少网络往返。
+     * (Spring AI 内部会再按模型 API 限制自动拆分,此处只是控制单次组装量)
+     */
+    private static final int BATCH_SIZE = 20;
 
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
@@ -42,31 +49,45 @@ public class IndexingServiceImpl implements IndexingService {
         int successCount = 0;
         int failCount = 0;
 
-        for (ChunkEntity chunk : chunkList) {
+        // 分批处理:每批 批量向量化 + 批量入库(一次 HTTP 往返),失败回退逐条,保证单 chunk 失败不影响整体
+        for (int from = 0; from < chunkList.size(); from += BATCH_SIZE) {
+            List<ChunkEntity> batch = chunkList.subList(from, Math.min(from + BATCH_SIZE, chunkList.size()));
 
-            if (chunk.getId() == null) {
-                log.error("Chunk缺少id，跳过索引，content={}", chunk.getContent());
-                failCount++;
+            // 跳过缺少 id 的切片(数据库未回填,无法作为向量 id)
+            List<ChunkEntity> valid = new ArrayList<>();
+            for (ChunkEntity chunk : batch) {
+                if (chunk.getId() == null) {
+                    log.error("Chunk缺少id，跳过索引，content={}", chunk.getContent());
+                    failCount++;
+                } else {
+                    valid.add(chunk);
+                }
+            }
+            if (valid.isEmpty()) {
                 continue;
             }
 
             try {
-                float[] vector = embeddingService.embed(chunk.getContent());
-
-                vectorStoreService.insert(
-                        chunk.getId(),
-                        fileId,
-                        chunk.getContent(),
-                        vector
-                );
-
-                successCount++;
-
+                List<String> texts = valid.stream().map(ChunkEntity::getContent).toList();
+                List<float[]> vectors = embeddingService.embedBatch(texts);
+                vectorStoreService.insertBatch(fileId, valid, vectors);
+                successCount += valid.size();
+                log.info("批量索引成功，fileId={}, batchSize={}", fileId, valid.size());
             } catch (Exception e) {
-                // 单个chunk失败不影响其他chunk继续处理
-                log.error("Chunk索引失败，chunkId={}, error={}",
-                        chunk.getId(), e.getMessage(), e);
-                failCount++;
+                // 批量失败(如单条文本触发 API 校验) → 回退逐条索引,保持"单 chunk 失败不影响其他"语义
+                log.warn("批量索引失败，回退逐条索引，fileId={}, batchSize={}, error={}",
+                        fileId, valid.size(), e.getMessage());
+                for (ChunkEntity chunk : valid) {
+                    try {
+                        float[] vector = embeddingService.embed(chunk.getContent());
+                        vectorStoreService.insert(chunk.getId(), fileId, chunk.getContent(), vector);
+                        successCount++;
+                    } catch (Exception ex) {
+                        log.error("Chunk索引失败，chunkId={}, error={}",
+                                chunk.getId(), ex.getMessage(), ex);
+                        failCount++;
+                    }
+                }
             }
         }
 

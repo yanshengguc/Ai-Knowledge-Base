@@ -9,6 +9,7 @@ import com.aliyun.dashvector.models.Vector;
 import com.aliyun.dashvector.models.requests.InsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import jakarta.annotation.PostConstruct;
@@ -69,6 +70,41 @@ public class VectorStoreServiceImpl implements VectorStoreService {
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量插入失败: " + response.getMessage());
+        }
+    }
+
+    @Override
+    public void insertBatch(Long fileId, List<ChunkEntity> chunks, List<float[]> vectors) {
+        if (fileId == null) {
+            throw new IllegalArgumentException("fileId不能为空");
+        }
+        if (chunks == null || chunks.isEmpty()) {
+            throw new IllegalArgumentException("chunks不能为空");
+        }
+        if (vectors == null || vectors.size() != chunks.size()) {
+            throw new IllegalArgumentException("向量数与切片数不一致");
+        }
+
+        List<Doc> docs = new ArrayList<>(chunks.size());
+        for (int i = 0; i < chunks.size(); i++) {
+            ChunkEntity chunk = chunks.get(i);
+            float[] vector = vectors.get(i);
+            List<Float> vectorList = new ArrayList<>(vector.length);
+            for (float v : vector) {
+                vectorList.add(v);
+            }
+            docs.add(Doc.builder()
+                    .id(String.valueOf(chunk.getId()))
+                    .vector(Vector.builder().value(vectorList).build())
+                    .field("file_id", fileId)
+                    .field("content", chunk.getContent())
+                    .build());
+        }
+
+        Response<List<DocOpResult>> response = collection.insert(InsertDocRequest.builder().docs(docs).build());
+
+        if (!response.isSuccess()) {
+            throw new RuntimeException("向量批量插入失败: " + response.getMessage());
         }
     }
 

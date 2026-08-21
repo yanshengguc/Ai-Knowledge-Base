@@ -9,16 +9,19 @@ import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.OssService;
+import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.utils.ByteArrayMultipartFile;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.FileVO;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,17 +34,25 @@ public class FileServiceImpl implements FileService {
     private final KnowledgeMapper knowledgeMapper;
     private final FileMapper fileMapper;
     private final ChunkMapper chunkMapper;
+    /** 文档处理专用线程池(IO 密集长任务,避免占用 ForkJoinPool.commonPool) */
+    private final Executor docProcessExecutor;
+    /** 检索结果缓存失效:知识内容更新后,让旧检索结果过期 */
+    private final RetrievalService retrievalService;
 
     public FileServiceImpl(DocumentService documentService,
                            OssService ossService,
                            KnowledgeMapper knowledgeMapper,
                            FileMapper fileMapper,
-                           ChunkMapper chunkMapper) {
+                           ChunkMapper chunkMapper,
+                           @Qualifier("docProcessExecutor") Executor docProcessExecutor,
+                           RetrievalService retrievalService) {
         this.documentService = documentService;
         this.ossService = ossService;
         this.knowledgeMapper = knowledgeMapper;
         this.fileMapper = fileMapper;
         this.chunkMapper = chunkMapper;
+        this.docProcessExecutor = docProcessExecutor;
+        this.retrievalService = retrievalService;
     }
 
     @Override
@@ -172,12 +183,14 @@ entity.setStatus("PROCESSING");
                         new ByteArrayMultipartFile(content, fileName, contentType),
                         fileId);
                 fileMapper.updateStatus(fileId, "SUCCESS");
+                // 知识内容已更新:失效该用户的检索缓存,下次检索重新召回(短 TTL 兜底)
+                retrievalService.invalidate(userId);
                 log.info("文件处理完成,fileId={}", fileId);
             } catch (Exception e) {
                 log.error("文件处理失败,fileId={}", fileId, e);
                 fileMapper.updateStatus(fileId, "FAILED");
             }
-        });
+        }, docProcessExecutor);
 
         return entity;
     }

@@ -7,10 +7,13 @@ import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -19,13 +22,21 @@ class RetrievalServiceImplTest {
 
     private VectorSearchService vectorSearchService;
     private RerankService rerankService;
+    @SuppressWarnings("unchecked")
+    private RedisTemplate<String, Object> redisTemplate;
+    @SuppressWarnings("unchecked")
+    private ValueOperations<String, Object> valueOperations;
     private RetrievalServiceImpl retrievalService;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
         vectorSearchService = mock(VectorSearchService.class);
         rerankService = mock(RerankService.class);
-        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService);
+        redisTemplate = mock(RedisTemplate.class);
+        valueOperations = mock(ValueOperations.class);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate);
         // 因为 @Value 注入的字段在纯 new 出来的对象里不会自动赋值，手动塞进去
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
@@ -43,6 +54,7 @@ class RetrievalServiceImplTest {
                 new SearchResult(5L, 5L, "内容E", 0.90)  // 完全不相关，应被过滤
         );
 
+        when(valueOperations.get(anyString())).thenReturn(null); // 缓存未命中
         when(vectorSearchService.search(eq("测试查询"), anyInt())).thenReturn(mockResults);
 
         List<SearchResult> result = retrievalService.retrieveTopK("测试查询");
@@ -63,11 +75,34 @@ class RetrievalServiceImplTest {
                 new SearchResult(3L, 3L, "内容C", 0.90)
         );
 
+        when(valueOperations.get(anyString())).thenReturn(null); // 缓存未命中
         when(vectorSearchService.search(eq("怪问题"), anyInt())).thenReturn(mockResults);
 
         List<SearchResult> result = retrievalService.retrieveTopK("怪问题");
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).getChunkId());
+    }
+
+    @Test
+    void shouldHitCacheWithoutCallingVectorSearch() {
+        // 缓存命中:直接返回缓存结果,不再走 embedding/检索/重排
+        List<SearchResult> cached = List.of(new SearchResult(9L, 9L, "缓存内容", 0.01));
+        when(valueOperations.get(anyString())).thenReturn(cached);
+
+        List<SearchResult> result = retrievalService.retrieveTopK("测试查询");
+
+        verify(vectorSearchService, never()).search(anyString(), anyInt());
+        assertEquals(1, result.size());
+        assertEquals(9L, result.get(0).getChunkId());
+    }
+
+    @Test
+    void shouldInvalidateUserCache() {
+        when(redisTemplate.keys("retrieval:100:*")).thenReturn(Set.of("retrieval:100:abc"));
+
+        retrievalService.invalidate(100L);
+
+        verify(redisTemplate).delete(anyCollection());
     }
 }

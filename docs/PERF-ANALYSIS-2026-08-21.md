@@ -148,6 +148,18 @@ public ThreadPoolTaskExecutor docProcessExecutor() {
 
 ---
 
+## 八、实施状态(8/21 已落地,含验证)
+
+| 项 | 状态 | 落地内容 |
+|---|---|---|
+| P0-1 批量向量化 | ✅ 已完成 | `EmbeddingService.embedBatch`(embedForResponse 批量)+ `VectorStoreService.insertBatch`(DashVector `docs()` 批量)+ `IndexingServiceImpl` 分批 20 + 批量失败回退逐条(保留单条失败不中断语义) |
+| P0-2 文档线程池 | ✅ 已完成 | 新增 `AsyncConfig.docProcessExecutor`(核心2/最大4/队列100/CallerRunsPolicy),`FileServiceImpl` 显式传入,替代 commonPool |
+| P0-3 检索缓存 | ✅ 已完成 | 结果缓存(Redis,userId+归一化 query MD5,TTL 5min)+ query embedding 缓存(TTL 1h,List\<Float\> 序列化规避 float[] 往返坑)+ 上传成功自动失效(`retrievalService.invalidate(userId)`) |
+| P1-2 SQL 日志 | ✅ 已完成 | 移除 `StdOutImpl`,避免批量入库刷屏 |
+| P1-1 连接池 / P1-3 缓存代码 / P1-4 大文件 | ⏳ 待做 | 部署后按需(不影响上线) |
+
+**验证(跑通流程)**:全量 `mvn test` **68 个测试 0 失败 0 错误**(原 66 + 新增 2:缓存命中、缓存失效),含 `ChunkIndexingIntegrationTest`(批量索引 + 批量入库 + 真实检索)、`EvalHarnessTest`(评估保持 100%)。单测日志可见「检索缓存命中」「已失效用户检索缓存」。
+
 ## 七、参考来源
 
 | 方案 | 来源 |

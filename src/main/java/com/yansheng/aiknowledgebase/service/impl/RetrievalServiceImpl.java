@@ -4,19 +4,34 @@ import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
+import com.yansheng.aiknowledgebase.utils.UserContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
 @Service
 public class RetrievalServiceImpl implements RetrievalService {
 
+    private static final Logger log = LoggerFactory.getLogger(RetrievalServiceImpl.class);
+
+    /** 检索结果缓存 TTL:知识库查询是典型读多写少,短 TTL + 上传失效双保险 */
+    private static final long RESULT_CACHE_TTL_MINUTES = 5;
+
     private final VectorSearchService vectorSearchService;
     private final RerankService rerankService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     @Value("${retrieval.top-k}")
     private int topK;
@@ -27,13 +42,24 @@ public class RetrievalServiceImpl implements RetrievalService {
     @Value("${retrieval.rerank.enabled:true}")
     private boolean rerankEnabled;
 
-    public RetrievalServiceImpl(VectorSearchService vectorSearchService, RerankService rerankService) {
+    public RetrievalServiceImpl(VectorSearchService vectorSearchService,
+                                RerankService rerankService,
+                                RedisTemplate<String, Object> redisTemplate) {
         this.vectorSearchService = vectorSearchService;
         this.rerankService = rerankService;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
     public List<SearchResult> retrieveTopK(String queryText) {
+        // 缓存:同用户 + 同问题(归一化)直接命中,省去重复的 embedding/检索/重排开销
+        String cacheKey = resultCacheKey(queryText);
+        List<SearchResult> cached = readCache(cacheKey);
+        if (cached != null) {
+            log.info("检索缓存命中, key={}", cacheKey);
+            return cached;
+        }
+
         // 1. 粗召回(向量检索,多召回一些留给重排)
         List<SearchResult> rawResults = vectorSearchService.search(queryText, topK * 3);
 
@@ -43,14 +69,76 @@ public class RetrievalServiceImpl implements RetrievalService {
                 .collect(Collectors.toList());
 
         // 3. 重排(精排):粗召回 → 交叉编码器重打分 → 取 topK;失败降级按原分排序
+        List<SearchResult> finalResults;
         if (rerankEnabled && !filtered.isEmpty()) {
-            return rerankService.rerank(queryText, filtered, topK);
+            finalResults = rerankService.rerank(queryText, filtered, topK);
+        } else {
+            finalResults = filtered.stream()
+                    .sorted(Comparator.comparingDouble(SearchResult::getScore))
+                    .limit(topK)
+                    .collect(Collectors.toList());
         }
 
-        return filtered.stream()
-                .sorted(Comparator.comparingDouble(SearchResult::getScore))
-                .limit(topK)
-                .collect(Collectors.toList());
+        writeCache(cacheKey, finalResults);
+        return finalResults;
+    }
+
+    @Override
+    public void invalidate(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        try {
+            Set<String> keys = redisTemplate.keys("retrieval:" + userId + ":*");
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("已失效用户检索缓存, userId={}, count={}", userId, keys.size());
+            }
+        } catch (Exception e) {
+            // 失效失败不影响主流程:短 TTL 会自动过期兜底
+            log.warn("检索缓存失效失败, userId={}, error={}", userId, e.getMessage());
+        }
+    }
+
+    private String resultCacheKey(String queryText) {
+        Long userId = UserContext.getUserId();
+        String normalized = queryText == null ? "" : queryText.trim().toLowerCase();
+        return "retrieval:" + userId + ":" + md5(normalized);
+    }
+
+    private List<SearchResult> readCache(String key) {
+        try {
+            Object value = redisTemplate.opsForValue().get(key);
+            if (value instanceof List<?> list) {
+                return (List<SearchResult>) list;
+            }
+        } catch (Exception e) {
+            // 缓存故障降级为不缓存,直接走全链路检索
+            log.warn("检索缓存读取失败, key={}, error={}", key, e.getMessage());
+        }
+        return null;
+    }
+
+    private void writeCache(String key, List<SearchResult> results) {
+        try {
+            redisTemplate.opsForValue().set(key, results, RESULT_CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("检索缓存写入失败, key={}, error={}", key, e.getMessage());
+        }
+    }
+
+    private String md5(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return Integer.toHexString(input.hashCode());
+        }
     }
 
 

@@ -61,30 +61,35 @@ public class KnowledgeStatsTool implements Tool {
     }
 
     @Override
+    public String getInputSchema() {
+        return """
+                {
+                  "type": "object",
+                  "properties": {}
+                }
+                """;
+    }
+
+    @Override
     public String execute(Map<String, Object> params) {
         log.info(">>> knowledge_stats被调用");
 
         Long userId = UserContext.getUserId();
-        List<KnowledgeEntity> knowledges = knowledgeMapper.selectByUserId(userId);
-
-        int fileCount = 0;
-        int chunkCount = 0;
+        // 一条 SQL 聚合统计,替代 selectByUserId + N+1 查询
+        Map<String, Object> counts = knowledgeMapper.selectStatsByUserId(userId);
+        List<Map<String, Object>> statusRows = fileMapper.selectStatusSummaryByUserId(userId);
         Map<String, Integer> statusSummary = new LinkedHashMap<>();
-
-        for (KnowledgeEntity k : knowledges) {
-            List<FileEntity> files = fileMapper.selectFileByKnowledgeId(k.getId());
-            fileCount += files.size();
-            for (FileEntity f : files) {
-                chunkCount += chunkMapper.selectByFileId(f.getId()).size();
-                String status = f.getStatus() == null ? "UNKNOWN" : f.getStatus();
-                statusSummary.merge(status, 1, Integer::sum);
-            }
+        for (Map<String, Object> row : statusRows) {
+            Object status = row.get("status");
+            Object count = row.get("count");
+            statusSummary.put(String.valueOf(status),
+                    count == null ? 0 : ((Number) count).intValue());
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("knowledgeCount", knowledges.size());
-        result.put("fileCount", fileCount);
-        result.put("chunkCount", chunkCount);
+        result.put("knowledgeCount", counts.getOrDefault("knowledgeCount", 0));
+        result.put("fileCount", counts.getOrDefault("fileCount", 0));
+        result.put("chunkCount", counts.getOrDefault("chunkCount", 0));
         result.put("statusSummary", statusSummary);
 
         try {

@@ -1,6 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.entity.ChunkEntity;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.IndexingService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
@@ -24,12 +25,15 @@ public class IndexingServiceImpl implements IndexingService {
 
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
+    private final ChunkMapper chunkMapper;
 
     public IndexingServiceImpl(
             EmbeddingService embeddingService,
-            VectorStoreService vectorStoreService) {
+            VectorStoreService vectorStoreService,
+            ChunkMapper chunkMapper) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
+        this.chunkMapper = chunkMapper;
     }
 
     // 注意：这里不加 @Transactional
@@ -93,5 +97,20 @@ public class IndexingServiceImpl implements IndexingService {
 
         log.info("索引完成，fileId={}, 成功={}, 失败={}",
                 fileId, successCount, failCount);
+    }
+
+    @Override
+    public void reindexFile(Long fileId) {
+        if (fileId == null) {
+            throw new IllegalArgumentException("fileId不能为空");
+        }
+        List<ChunkEntity> chunks = chunkMapper.selectByFileId(fileId);
+        if (chunks == null || chunks.isEmpty()) {
+            log.info("重建索引:该文件无切片, fileId={}", fileId);
+            return;
+        }
+        log.info("重建索引开始, fileId={}, chunkCount={}", fileId, chunks.size());
+        // 幂等:已存在的向量 id 会被 DashVector 跳过,重跑只补缺失向量
+        indexChunks(fileId, chunks);
     }
 }

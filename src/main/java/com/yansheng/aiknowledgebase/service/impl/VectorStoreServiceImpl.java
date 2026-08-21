@@ -110,6 +110,11 @@ public class VectorStoreServiceImpl implements VectorStoreService {
 
     @Override
     public List<SearchResult> search(float[] vector, int topK) {
+        return search(vector, topK, null);
+    }
+
+    @Override
+    public List<SearchResult> search(float[] vector, int topK, String filter) {
 
         // 1. 参数校验
         if (vector == null || vector.length == 0) {
@@ -120,8 +125,8 @@ public class VectorStoreServiceImpl implements VectorStoreService {
             throw new IllegalArgumentException("topK需要大于0");
         }
 
-        log.info("开始向量检索，vectorDimension={}, topK={}",
-                vector.length, topK);
+        log.info("开始向量检索，vectorDimension={}, topK={}, filter={}",
+                vector.length, topK, filter);
 
         // 2. float[] 转 List<Float>
         List<Float> vectorList = new ArrayList<>();
@@ -135,11 +140,20 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                 .value(vectorList)
                 .build();
 
-        // 4. 构造 Top-K 查询请求
-        QueryDocRequest request = QueryDocRequest.builder()
-                .vector(queryVector)
-                .topk(topK)
-                .build();
+        // 4. 构造 Top-K 查询请求(可选 filter 表达式,按文件范围隔离)
+        QueryDocRequest request;
+        if (filter != null && !filter.isBlank()) {
+            request = QueryDocRequest.builder()
+                    .vector(queryVector)
+                    .topk(topK)
+                    .filter(filter)
+                    .build();
+        } else {
+            request = QueryDocRequest.builder()
+                    .vector(queryVector)
+                    .topk(topK)
+                    .build();
+        }
 
         // 5. 调用 DashVector
         Response<List<Doc>> response = collection.query(request);

@@ -35,6 +35,22 @@ public class FileTraceServiceImpl implements FileTraceService {
     }
 
     @Override
+    public String getInputSchema() {
+        return """
+                {
+                  "type": "object",
+                  "properties": {
+                    "fileId": {
+                      "type": "integer",
+                      "description": "文件ID"
+                    }
+                  },
+                  "required": ["fileId"]
+                }
+                """;
+    }
+
+    @Override
     public String execute(Map<String, Object> params) {
         log.info(">>> file_trace被调用,参数: {}", params);
         Object rawId = params.get("fileId");

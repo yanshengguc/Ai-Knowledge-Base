@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
+import com.yansheng.aiknowledgebase.entity.FileStatus;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
@@ -20,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.List;
@@ -127,18 +129,17 @@ if (originalName == null
                 userId,
                 knowledgeId);
 
-        // ===== 版本管理:同名文件重新上传 = 覆盖更新(删旧切片+旧记录+OSS 对象,再入库新版本) =====
-        // 面试讲法:知识库更新/增量 —— 同名覆盖保证库里永远是最新版,不残留过期切片
+        // ===== 版本管理:同名文件重新上传 = 覆盖更新 =====
+        // 一致性设计:先入库新版本(PROCESSING),处理成功后再清理旧版本(切片→记录→OSS);
+        // 若新版本处理失败,旧版本保留,知识不丢(避免"先删后插"的窗口期)
         List<FileEntity> existing = fileMapper.selectFileByKnowledgeId(knowledgeId);
         String newFileName = file.getOriginalFilename();
+        List<FileEntity> sameNameOldFiles = new ArrayList<>();
         for (FileEntity old : existing) {
             if (old.getFileName() != null && old.getFileName().equals(newFileName)) {
-                log.info("检测到同名文件,执行覆盖更新: oldFileId={}, fileName={}", old.getId(), newFileName);
-                // 级联删除旧版本(切片 → 记录 → OSS 对象)
-                chunkMapper.deleteByFileId(old.getId());
-                fileMapper.deleteById(old.getId());
-                ossService.delete(old.getFileUrl());
-                log.info("旧版本已清理,fileId={}", old.getId());
+                sameNameOldFiles.add(old);
+                log.info("检测到同名文件,将在新版本处理成功后清理: oldFileId={}, fileName={}",
+                        old.getId(), newFileName);
             }
         }
 
@@ -149,7 +150,7 @@ if (originalName == null
 
 
         FileEntity entity = new FileEntity();
-entity.setStatus("PROCESSING");
+entity.setStatus(FileStatus.PROCESSING.name());
         entity.setUserId(userId);
         entity.setKnowledgeId(knowledgeId);
 
@@ -182,13 +183,21 @@ entity.setStatus("PROCESSING");
                 documentService.handleDocument(
                         new ByteArrayMultipartFile(content, fileName, contentType),
                         fileId);
-                fileMapper.updateStatus(fileId, "SUCCESS");
+                // 新版本处理成功 → 清理旧版本(切片 → 记录 → OSS 对象)
+                for (FileEntity old : sameNameOldFiles) {
+                    chunkMapper.deleteByFileId(old.getId());
+                    fileMapper.deleteById(old.getId());
+                    ossService.delete(old.getFileUrl());
+                    log.info("旧版本已清理,fileId={}", old.getId());
+                }
+                fileMapper.updateStatus(fileId, FileStatus.SUCCESS.name());
                 // 知识内容已更新:失效该用户的检索缓存,下次检索重新召回(短 TTL 兜底)
                 retrievalService.invalidate(userId);
                 log.info("文件处理完成,fileId={}", fileId);
             } catch (Exception e) {
-                log.error("文件处理失败,fileId={}", fileId, e);
-                fileMapper.updateStatus(fileId, "FAILED");
+                // 处理失败:旧版本保留(旧数据仍可用),新记录置 FAILED
+                log.error("文件处理失败,fileId={}, 保留旧版本", fileId, e);
+                fileMapper.updateStatus(fileId, FileStatus.FAILED.name());
             }
         }, docProcessExecutor);
 

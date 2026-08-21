@@ -68,6 +68,26 @@ public class WebSearchTool implements Tool {
     }
 
     @Override
+    public String getInputSchema() {
+        return """
+                {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "用户想要联网搜索的内容,原样传入,不要改写"
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "返回结果数,可选,默认5"
+                    }
+                  },
+                  "required": ["query"]
+                }
+                """;
+    }
+
+    @Override
     public String execute(Map<String, Object> params) {
         log.info(">>> web_search被调用, 参数: {}", params);
 

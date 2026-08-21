@@ -16,4 +16,10 @@ int updateStatus(@Param("id") Long id,@Param("status") String status);
     int deleteByKnowledgeId(Long knowledgeId);
 
     int deleteById(@Param("id") Long id);
+
+    /** 查询某用户拥有的全部文件 id(用于向量检索按用户隔离的 filter) */
+    List<Long> selectFileIdsByUserId(Long userId);
+
+    /** 按用户统计文件处理状态分布(GROUP BY status) */
+    List<java.util.Map<String, Object>> selectStatusSummaryByUserId(Long userId);
 }

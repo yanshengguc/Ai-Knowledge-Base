@@ -5,16 +5,14 @@ import com.yansheng.aiknowledgebase.dto.ChatDTO;
 import com.yansheng.aiknowledgebase.entity.ChatResponse;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.ChatService;
+import com.yansheng.aiknowledgebase.service.RateLimitService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/chat")
@@ -26,11 +24,11 @@ public class ChatController {
     private static final int MAX_PER_MINUTE = 10;
 
     private final ChatService chatService;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final RateLimitService rateLimitService;
 
-    public ChatController(ChatService chatService, RedisTemplate<String, Object> redisTemplate) {
+    public ChatController(ChatService chatService, RateLimitService rateLimitService) {
         this.chatService = chatService;
-        this.redisTemplate = redisTemplate;
+        this.rateLimitService = rateLimitService;
     }
 
     /** 多轮对话:结合会话历史 + 知识库检索回答(需登录,会话按用户隔离) */
@@ -47,15 +45,8 @@ public class ChatController {
             throw new BusinessException("消息过长,请控制在" + MAX_MESSAGE_LENGTH + "字以内");
         }
 
-        // 频率限制:每用户每分钟 MAX_PER_MINUTE 次(LLM 调用防刷)
-        String rateKey = "chat:rate:" + userId;
-        Long count = redisTemplate.opsForValue().increment(rateKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);
-        }
-        if (count != null && count > MAX_PER_MINUTE) {
-            throw new BusinessException("请求太频繁,请稍后再试");
-        }
+        // 频率限制:每用户每分钟 MAX_PER_MINUTE 次(独立组件,防刷)
+        rateLimitService.check(userId, "chat", MAX_PER_MINUTE);
 
         ChatResponse response = chatService.ask(userId, message, dto.isEnableWebSearch());
         return Result.success(response);
@@ -75,15 +66,8 @@ public class ChatController {
             throw new BusinessException("消息过长,请控制在" + MAX_MESSAGE_LENGTH + "字以内");
         }
 
-        // 频率限制(与 chat 共用计数)
-        String rateKey = "chat:rate:" + userId;
-        Long count = redisTemplate.opsForValue().increment(rateKey);
-        if (count != null && count == 1L) {
-            redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);
-        }
-        if (count != null && count > MAX_PER_MINUTE) {
-            throw new BusinessException("请求太频繁,请稍后再试");
-        }
+        // 频率限制(独立组件,与 chat 共用计数)
+        rateLimitService.check(userId, "chat", MAX_PER_MINUTE);
 
         SseEmitter emitter = new SseEmitter(120_000L);
         chatService.streamAsk(userId, message,

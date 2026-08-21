@@ -17,4 +17,7 @@ public interface KnowledgeMapper {
     int update(KnowledgeEntity knowledgeEntity);
     int delete(Long id);
 
+    /** 按用户统计概况(一条 SQL 聚合,消除 N+1):knowledgeCount/fileCount/chunkCount */
+    java.util.Map<String, Object> selectStatsByUserId(Long userId);
+
 }

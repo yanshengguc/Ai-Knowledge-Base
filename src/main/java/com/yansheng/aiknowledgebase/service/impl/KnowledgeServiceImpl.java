@@ -15,6 +15,7 @@ import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class KnowledgeServiceImpl implements KnowledgeService {
 
@@ -77,15 +79,15 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 Object obj=null;
         try {
             obj=redisTemplate.opsForValue().get(key);
-            System.out.println("Redis查询："+obj);
+            log.debug("Redis查询: {}", obj);
         }catch (Exception e){
-            System.out.println("Redis异常:"+e.getMessage());
+            log.warn("Redis异常: {}", e.getMessage());
         }
         if( "NULL".equals(obj)){
             throw new BusinessException("不存在");
         }
         if (obj != null) {
-            System.out.println("走缓存");
+            log.info("走缓存");
             // 归属校验(修复越权:知道 id 即可查看任意知识)
             KnowledgeDetailVO cachedVO = (KnowledgeDetailVO) obj;
             UserEntity userEntity = UserContext.get();
@@ -110,7 +112,7 @@ Object obj=null;
                     throw new BusinessException("不存在");
                 }
                 if (obj != null) {
-                    System.out.println("走缓存");
+                    log.info("走缓存");
                     // 归属校验(修复越权)
                     KnowledgeDetailVO cachedVO2 = (KnowledgeDetailVO) obj;
                     if (!UserContext.get().getUsername().equals(cachedVO2.getAuthor())) {
@@ -118,13 +120,13 @@ Object obj=null;
                     }
                     return cachedVO2;
                 }
-                System.out.println("走MYSQL");
+                log.info("走MYSQL");
                 KnowledgeEntity entity = knowledgeMapper.selectById(id);
 
                 if(entity ==null){try {
                     redisTemplate.opsForValue().set(key,"NULL",5,TimeUnit.MINUTES);
                 }catch (Exception e){
-                    System.out.println("Redis写入异常");
+                    log.warn("Redis写入异常");
                 }
 
                     throw new BusinessException("不存在");
@@ -143,7 +145,7 @@ Object obj=null;
                 try {
                     redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
                 }catch (Exception e){
-                    System.out.println("Redis写入异常");
+                    log.warn("Redis写入异常");
                 }
 
                 return VO;
@@ -159,7 +161,7 @@ Object obj=null;
                 );
 }
             }else{
-            System.out.println("等待锁");
+            log.info("等待锁");
             try {
 Thread.sleep(100);
             }catch (InterruptedException e){

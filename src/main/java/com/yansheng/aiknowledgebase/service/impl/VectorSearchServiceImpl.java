@@ -1,6 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
+import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
@@ -15,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 public class VectorSearchServiceImpl implements VectorSearchService {
@@ -27,13 +29,16 @@ public class VectorSearchServiceImpl implements VectorSearchService {
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final FileMapper fileMapper;
 
     public VectorSearchServiceImpl(EmbeddingService embeddingService,
                                    VectorStoreService vectorStoreService,
-                                   RedisTemplate<String, Object> redisTemplate) {
+                                   RedisTemplate<String, Object> redisTemplate,
+                                   FileMapper fileMapper) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
         this.redisTemplate = redisTemplate;
+        this.fileMapper = fileMapper;
     }
 
     @Override
@@ -41,6 +46,24 @@ public class VectorSearchServiceImpl implements VectorSearchService {
         // 查询向量带缓存:相同问题不重复调 embedding API
         float[] queryVector = embedWithCache(query);
         return vectorStoreService.search(queryVector, topK);
+    }
+
+    @Override
+    public List<SearchResult> searchForUser(String query, int topK, Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("userId不能为空");
+        }
+        // 用户拥有的文件范围 → filter 表达式,向量检索只在该范围内召回(多用户隔离)
+        List<Long> fileIds = fileMapper.selectFileIdsByUserId(userId);
+        if (fileIds == null || fileIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        String filter = fileIds.stream()
+                .map(id -> "file_id = " + id)
+                .collect(Collectors.joining(" OR "));
+
+        float[] queryVector = embedWithCache(query);
+        return vectorStoreService.search(queryVector, topK, filter);
     }
 
     private float[] embedWithCache(String query) {

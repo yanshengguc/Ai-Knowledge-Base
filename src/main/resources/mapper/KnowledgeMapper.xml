@@ -92,4 +92,15 @@ update  knowledge
 DELETE FROM  knowledge
         where id=#{id}
     </delete>
+
+    <!-- 按用户统计概况:一条 SQL 聚合,替代 selectByUserId+N+1 查询 -->
+    <select id="selectStatsByUserId" resultType="java.util.HashMap">
+        SELECT
+        (SELECT COUNT(*) FROM knowledge WHERE user_id = #{userId}) AS knowledgeCount,
+        (SELECT COUNT(*) FROM knowledge_file WHERE user_id = #{userId}) AS fileCount,
+        (SELECT COUNT(*)
+         FROM knowledge_chunk c
+         JOIN knowledge_file f ON c.file_id = f.id
+         WHERE f.user_id = #{userId}) AS chunkCount
+    </select>
 </mapper>

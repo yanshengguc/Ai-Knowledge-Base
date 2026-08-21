@@ -50,6 +50,16 @@ public class TimeNowTool implements Tool {
     }
 
     @Override
+    public String getInputSchema() {
+        return """
+                {
+                  "type": "object",
+                  "properties": {}
+                }
+                """;
+    }
+
+    @Override
     public String execute(Map<String, Object> params) {
         log.info(">>> time_now被调用");
 

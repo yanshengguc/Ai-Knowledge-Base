@@ -114,6 +114,11 @@ class ToolRegistryImplTest {
         }
 
         @Override
+        public String getInputSchema() {
+            return "{\"type\":\"object\",\"properties\":{}}";
+        }
+
+        @Override
         public String execute(Map<String, Object> params) {
             return "success";
         }

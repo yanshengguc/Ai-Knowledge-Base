@@ -81,4 +81,15 @@
         FROM knowledge_file
         where id = #{id}
     </select>
+
+    <select id="selectFileIdsByUserId" resultType="java.lang.Long">
+        SELECT id FROM knowledge_file WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectStatusSummaryByUserId" resultType="java.util.HashMap">
+        SELECT status AS status, COUNT(*) AS count
+        FROM knowledge_file
+        WHERE user_id = #{userId}
+        GROUP BY status
+    </select>
 </mapper>

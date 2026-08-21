@@ -19,6 +19,11 @@ public interface Tool {
     String getToolDescription();
 
     /**
+     * 工具的参数 JSON Schema(每个工具自带,新增工具无需改动编排层 —— 开闭原则)。
+     */
+    String getInputSchema();
+
+    /**
      * 执行工具逻辑
      * @param params 编排层已解析好的参数键值对
      * @return 执行结果字符串,将被发回模型作为工具调用结果

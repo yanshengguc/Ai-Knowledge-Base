@@ -55,6 +55,22 @@ public class FileSearchServiceImpl implements FileSearchService {
     }
 
     @Override
+    public String getInputSchema() {
+        return """
+                {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string",
+                      "description": "用户的自然语言查询,原样传入,不要改写"
+                    }
+                  },
+                  "required": ["query"]
+                }
+                """;
+    }
+
+    @Override
     public String execute(Map<String, Object> params) {
         log.info(">>> file_search被调用,参数: {}", params);
 

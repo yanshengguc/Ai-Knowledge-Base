@@ -58,6 +58,8 @@ public class KnowledgeMcpTools {
 
     /**
      * 知识库语义检索(对外 MCP 工具)
+     * 安全:匿名 MCP 客户端(MCP 握手不需要鉴权)不允许读取业务数据——
+     * 请求需在 Header 携带 Bearer JWT,MCP Client 配置中可声明 headers。
      */
     @Tool(description = "在知识库中做语义检索:输入自然语言查询,返回最相关的文件列表(含相关度分数与内容摘要)")
     public String knowledge_search(
@@ -67,7 +69,10 @@ public class KnowledgeMcpTools {
             throw new BusinessException("缺少参数query");
         }
 
-        List<SearchResult> results = vectorSearchService.search(query.trim(), TOP_K);
+        Long userId = requireUser();
+
+        // 按用户隔离检索:只在该用户拥有的文件范围内召回
+        List<SearchResult> results = vectorSearchService.searchForUser(query.trim(), TOP_K, userId);
 
         // 按 fileId 去重,保留最高分;轻量返回
         Map<Long, SearchResult> bestByFile = new LinkedHashMap<>();
@@ -101,32 +106,28 @@ public class KnowledgeMcpTools {
 
     /**
      * 知识库概况统计(对外 MCP 工具)
-     * 注意:MCP 客户端直连无登录态,这里做全库统计(演示/对外能力);
-     * 若按用户隔离,需客户端在 Header 携带 JWT(已支持,见 SecurityConfig 白名单逻辑)
+     * 安全:同样需要认证,且只统计当前用户自己的数据。
      */
     @Tool(description = "统计知识库概况:知识条目数/文件总数/切片总数/文件处理状态分布")
     public String knowledge_stats() {
         log.info(">>> MCP knowledge_stats 被调用");
-        List<KnowledgeEntity> knowledges = knowledgeMapper.selectAll();
+        Long userId = requireUser();
 
-        int fileCount = 0;
-        int chunkCount = 0;
+        // 一条 SQL 聚合统计,消除 selectAll + N+1 查询
+        Map<String, Object> counts = knowledgeMapper.selectStatsByUserId(userId);
+        List<Map<String, Object>> statusRows = fileMapper.selectStatusSummaryByUserId(userId);
         Map<String, Integer> statusSummary = new LinkedHashMap<>();
-
-        for (KnowledgeEntity k : knowledges) {
-            List<FileEntity> files = fileMapper.selectFileByKnowledgeId(k.getId());
-            fileCount += files.size();
-            for (FileEntity f : files) {
-                chunkCount += chunkMapper.selectByFileId(f.getId()).size();
-                String status = f.getStatus() == null ? "UNKNOWN" : f.getStatus();
-                statusSummary.merge(status, 1, Integer::sum);
-            }
+        for (Map<String, Object> row : statusRows) {
+            Object status = row.get("status");
+            Object count = row.get("count");
+            statusSummary.put(String.valueOf(status),
+                    count == null ? 0 : ((Number) count).intValue());
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("knowledgeCount", knowledges.size());
-        result.put("fileCount", fileCount);
-        result.put("chunkCount", chunkCount);
+        result.put("knowledgeCount", counts.getOrDefault("knowledgeCount", 0));
+        result.put("fileCount", counts.getOrDefault("fileCount", 0));
+        result.put("chunkCount", counts.getOrDefault("chunkCount", 0));
         result.put("statusSummary", statusSummary);
         try {
             return objectMapper.writeValueAsString(result);
@@ -149,5 +150,14 @@ public class KnowledgeMcpTools {
             return "";
         }
         return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** 认证门禁:MCP 工具必须携带有效 JWT 才允许访问业务数据 */
+    private Long requireUser() {
+        Long userId = com.yansheng.aiknowledgebase.utils.UserContext.getUserId();
+        if (userId == null) {
+            throw new BusinessException("MCP 工具需要认证:请在请求头携带 Bearer JWT(Authorization: Bearer <token>)");
+        }
+        return userId;
     }
 }

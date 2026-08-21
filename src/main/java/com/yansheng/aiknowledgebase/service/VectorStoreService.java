@@ -15,4 +15,10 @@ public interface VectorStoreService {
     void insertBatch(Long fileId, List<ChunkEntity> chunks, List<float[]> vectors);
 
     List<SearchResult> search(float[] vector,int topK);
+
+    /**
+     * 带条件检索:DashVector filter 表达式(如 "file_id = 1 OR file_id = 2"),
+     * 用于按用户/文件范围隔离检索结果。
+     */
+    List<SearchResult> search(float[] vector, int topK, String filter);
 }

@@ -35,68 +35,6 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
     private final ToolRegistry toolRegistry;
     private final ObjectMapper objectMapper;
 
-    /**
-     * file_trace 工具的参数 Schema
-     */
-    private static final String FILE_TRACE_SCHEMA = """
-            {
-              "type": "object",
-              "properties": {
-                "fileId": {
-                  "type": "integer",
-                  "description": "文件ID"
-                }
-              },
-              "required": ["fileId"]
-            }
-            """;
-
-    /**
-     * file_search 工具的参数 Schema
-     */
-    private static final String FILE_SEARCH_SCHEMA = """
-            {
-              "type": "object",
-              "properties": {
-                "query": {
-                  "type": "string",
-                  "description": "用户的自然语言查询,原样传入,不要改写"
-                }
-              },
-              "required": ["query"]
-            }
-            """;
-
-    /**
-     * 无参数工具的 Schema(knowledge_stats / time_now)
-     */
-    private static final String EMPTY_SCHEMA = """
-            {
-              "type": "object",
-              "properties": {}
-            }
-            """;
-
-    /**
-     * web_search 工具的参数 Schema(query 必填,count 可选)
-     */
-    private static final String WEB_SEARCH_SCHEMA = """
-            {
-              "type": "object",
-              "properties": {
-                "query": {
-                  "type": "string",
-                  "description": "用户想要联网搜索的内容,原样传入,不要改写"
-                },
-                "count": {
-                  "type": "integer",
-                  "description": "返回结果数,可选,默认5"
-                }
-              },
-              "required": ["query"]
-            }
-            """;
-
     public FunctionCallingServiceImpl(
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
@@ -126,13 +64,12 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
         for (Tool tool : tools) {
 
-            String inputSchema = getInputSchema(tool);
-
+            // Schema 由每个工具自带(开闭原则:新增工具不改编排层)
             ToolCallback callback =
                     new ToolCallbackAdapter(
                             tool,
                             objectMapper,
-                            inputSchema
+                            tool.getInputSchema()
                     );
 
             toolCallbacks.add(callback);
@@ -208,36 +145,5 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
             }
         }
         return "工具不存在: " + name;
-    }
-
-    /**
-     * 根据工具获取参数 Schema。
-     *
-     * 当前 Day39 只有 file_trace，
-     * 所以暂时先写死。
-     */
-    private String getInputSchema(Tool tool) {
-
-        if ("file_trace".equals(tool.getToolName())) {
-            return FILE_TRACE_SCHEMA;
-        }
-
-        if ("file_search".equals(tool.getToolName())) {
-            return FILE_SEARCH_SCHEMA;
-        }
-
-        if ("knowledge_stats".equals(tool.getToolName())
-                || "time_now".equals(tool.getToolName())) {
-            return EMPTY_SCHEMA;
-        }
-
-        if ("web_search".equals(tool.getToolName())) {
-            return WEB_SEARCH_SCHEMA;
-        }
-
-        throw new IllegalArgumentException(
-                "未配置工具参数 Schema: "
-                        + tool.getToolName()
-        );
     }
 }

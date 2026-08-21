@@ -2,9 +2,11 @@ package com.yansheng.aiknowledgebase;
 
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
+import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
+import com.yansheng.aiknowledgebase.utils.UserContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -104,5 +106,26 @@ class RetrievalServiceImplTest {
         retrievalService.invalidate(100L);
 
         verify(redisTemplate).delete(anyCollection());
+    }
+
+    @Test
+    void shouldScopeSearchByUserWhenLoggedIn() {
+        // 登录用户:检索必须走"按用户过滤"路径(防横向越权)
+        UserEntity user = new UserEntity();
+        user.setId(7L);
+        user.setUsername("u7");
+        UserContext.set(user);
+        try {
+            when(valueOperations.get(anyString())).thenReturn(null);
+            when(vectorSearchService.searchForUser(eq("测试查询"), anyInt(), eq(7L)))
+                    .thenReturn(List.of(new SearchResult(1L, 1L, "内容A", 0.1)));
+
+            retrievalService.retrieveTopK("测试查询");
+
+            verify(vectorSearchService).searchForUser(eq("测试查询"), anyInt(), eq(7L));
+            verify(vectorSearchService, never()).search(anyString(), anyInt());
+        } finally {
+            UserContext.remove();
+        }
     }
 }

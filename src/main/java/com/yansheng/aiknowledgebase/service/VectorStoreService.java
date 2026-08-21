@@ -21,4 +21,9 @@ public interface VectorStoreService {
      * 用于按用户/文件范围隔离检索结果。
      */
     List<SearchResult> search(float[] vector, int topK, String filter);
+
+    /**
+     * 按文件删除向量(级联删除/同名覆盖时调用,防止"删了还能搜到"的数据残留)。
+     */
+    void deleteByFileId(Long fileId);
 }

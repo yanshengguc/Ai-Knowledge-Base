@@ -9,6 +9,7 @@ import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.OssService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
+import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.service.impl.FileServiceImpl;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import org.junit.jupiter.api.AfterEach;
@@ -37,6 +38,7 @@ class FileServiceImplTest {
     private ChunkMapper chunkMapper;
     private Executor executor;
     private RetrievalService retrievalService;
+    private VectorStoreService vectorStoreService;
     private FileServiceImpl fileService;
 
     @BeforeEach
@@ -48,6 +50,7 @@ class FileServiceImplTest {
         chunkMapper = mock(ChunkMapper.class);
         executor = mock(Executor.class);
         retrievalService = mock(RetrievalService.class);
+        vectorStoreService = mock(VectorStoreService.class);
 
         // 让"异步"任务立即同步执行,便于断言回调逻辑
         doAnswer(inv -> {
@@ -56,7 +59,7 @@ class FileServiceImplTest {
         }).when(executor).execute(any());
 
         fileService = new FileServiceImpl(documentService, ossService, knowledgeMapper,
-                fileMapper, chunkMapper, executor, retrievalService);
+                fileMapper, chunkMapper, executor, retrievalService, vectorStoreService);
 
         UserEntity user = new UserEntity();
         user.setId(1L);
@@ -108,10 +111,11 @@ class FileServiceImplTest {
         FileEntity entity = fileService.uploadFile(pdf(), 10L);
         assertNotNull(entity);
 
-        // 新版本成功后:旧版切片/记录/OSS 被清理,新记录置 SUCCESS
+        // 新版本成功后:旧版切片/记录/OSS/向量 被清理,新记录置 SUCCESS
         verify(chunkMapper).deleteByFileId(99L);
         verify(fileMapper).deleteById(99L);
         verify(ossService).delete("http://oss/old/report.pdf");
+        verify(vectorStoreService).deleteByFileId(99L);
         verify(fileMapper).updateStatus(any(), eq("SUCCESS"));
     }
 

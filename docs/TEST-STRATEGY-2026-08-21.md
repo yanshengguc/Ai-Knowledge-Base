@@ -193,3 +193,28 @@ FileSearchChainVerifyTest / FunctionCallingReActVerifyTest / RerankSmokeTest / T
 ```
 
 **结论:前后端接口层面对应良好;但"测试全绿"只证明已覆盖的逻辑正确,以上 4 个未覆盖项 + 前端 F1 地雷仍可能在真实使用中暴露。**
+
+---
+
+## 附 3:全流程实测 + 修复记录(2026-08-21 晚)
+
+### 实测方法
+
+启动真实后端(含 local 配置的 MySQL/Redis/DashScope/DashVector/OSS),用 curl 跑完整用户旅程:
+注册→登录→建知识→上传真实 PDF→轮询 SUCCESS→SSE 流式问答→非流式问答→越权(用户B读/删A)→匿名→删除→清理。
+**上传→解析→切片→批量向量化→检索→生成全链路 1 秒内 SUCCESS,SSE 流式正常。**
+
+### 实测确认的 3 个 bug(已修复)
+
+| # | Bug | 实测证据 | 修复 | 验证 |
+|---|---|---|---|---|
+| **A** | **web 检索未按用户隔离** | 用户 A 问答 references 混入其他文件的 fileId(16/17/12)——全库检索 | `RetrievalServiceImpl` 登录用户走 `searchForUser`(file_id 过滤) | 复验:references 只含自己文件 ✅ |
+| **B** | **POST /knowledge {action:list} 返回 500 系统异常**(F1 地雷,语义错误) | 实测返回"系统异常,请稍后重试" | `addKnowledge` 校验标题/内容非空 → 明确"标题不能为空" | 复验:明确拒绝 ✅ |
+| **C** | **级联删除不清理向量库**(删了还能搜到) | 代码审查:deleteFile/deleteKnowledge 无向量删除调用 | `VectorStoreService.deleteByFileId`(按 filter 查 id → 按 ids 删,因 DashVector delete 不支持 filter)+ 3 处调用(删文件/删知识/同名覆盖清旧) | 复验:删除后不再召回 ✅ |
+
+### 修复过程踩到的坑(记录)
+
+- **DashVector delete 不支持 filter**:官方文档参数表只有 ids/id/partition/deleteAll——按 filter 删是静默无效的。正确姿势:**先 filter 查询拿主键(chunkId),再按 ids 删**(零向量 + filter 查询只取主键,无需 embedding 依赖)。
+- 删除生效后**立即查询仍有短暂可见**(最终一致),测试用 15s 轮询断言消失。
+- 新增 4 个测试:`RetrievalServiceImplTest.shouldScopeSearchByUserWhenLoggedIn`、`KnowledgeAddValidationTest`(3 例)、`VectorStoreDeleteTest`(真实 DashVector,专用 fileId=9999991 防污染)、`FileServiceImplTest` 补向量清理断言。
+- 全量常规回归:**75 个测试 0 失败**(70 + 新增 5)。

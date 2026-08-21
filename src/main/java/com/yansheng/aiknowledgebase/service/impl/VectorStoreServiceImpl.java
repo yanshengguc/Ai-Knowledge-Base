@@ -6,6 +6,7 @@ import com.aliyun.dashvector.DashVectorCollection;
 import com.aliyun.dashvector.models.Doc;
 import com.aliyun.dashvector.models.DocOpResult;
 import com.aliyun.dashvector.models.Vector;
+import com.aliyun.dashvector.models.requests.DeleteDocRequest;
 import com.aliyun.dashvector.models.requests.InsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
@@ -105,6 +106,48 @@ public class VectorStoreServiceImpl implements VectorStoreService {
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量批量插入失败: " + response.getMessage());
+        }
+    }
+
+    @Override
+    public void deleteByFileId(Long fileId) {
+        if (fileId == null) {
+            return;
+        }
+        try {
+            // 1. 查出该文件的所有向量主键(chunkId):
+            //    DashVector query 必须带向量,用零向量 + filter 只取该文件范围(主键已足够)
+            int dim = collection.getCollectionMeta().getDimension();
+            List<Float> zeroVector = new ArrayList<>(dim);
+            for (int i = 0; i < dim; i++) {
+                zeroVector.add(0f);
+            }
+            Response<List<Doc>> queryResp = collection.query(QueryDocRequest.builder()
+                    .vector(Vector.builder().value(zeroVector).build())
+                    .topk(100)
+                    .filter("file_id = " + fileId)
+                    .build());
+            if (!queryResp.isSuccess() || queryResp.getOutput() == null || queryResp.getOutput().isEmpty()) {
+                log.info("向量清理:该文件无向量或查询失败, fileId={}", fileId);
+                return;
+            }
+            List<String> ids = new ArrayList<>();
+            for (Doc doc : queryResp.getOutput()) {
+                ids.add(doc.getId());
+            }
+
+            // 2. 按主键删除(DashVector delete 只支持按主键 ids,不支持 filter)
+            Response<List<DocOpResult>> delResp = collection.delete(
+                    DeleteDocRequest.builder().ids(ids).build());
+            if (!delResp.isSuccess()) {
+                log.warn("向量删除失败(不影响主流程), fileId={}, ids={}, message={}",
+                        fileId, ids.size(), delResp.getMessage());
+            } else {
+                log.info("已清理向量, fileId={}, count={}", fileId, ids.size());
+            }
+        } catch (Exception e) {
+            // 向量删除失败不阻断业务删除(可后续重跑清理)
+            log.warn("向量删除异常, fileId={}, error={}", fileId, e.getMessage());
         }
     }
 

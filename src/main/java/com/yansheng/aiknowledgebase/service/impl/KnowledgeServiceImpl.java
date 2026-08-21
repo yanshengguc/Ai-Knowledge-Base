@@ -11,6 +11,7 @@ import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
+import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
@@ -31,6 +32,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final KnowledgeMapper knowledgeMapper;
     private final FileMapper fileMapper;
     private final ChunkMapper chunkMapper;
+    private final VectorStoreService vectorStoreService;
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     private final Random random = new Random();
@@ -41,11 +43,14 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             "else " +
             "return 0 " +
             "end";
-    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper, FileMapper fileMapper, ChunkMapper chunkMapper, RedisTemplate<String, Object> redisTemplate) {
+    public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper, FileMapper fileMapper, ChunkMapper chunkMapper,
+                                VectorStoreService vectorStoreService,
+                                RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
         this.fileMapper = fileMapper;
         this.chunkMapper = chunkMapper;
+        this.vectorStoreService = vectorStoreService;
         this.redisTemplate = redisTemplate;
 
     }
@@ -185,6 +190,13 @@ Thread.sleep(100);
 
     @Override
     public void addKnowledge(KnowledgeAddDTO dto) {
+        // 参数校验:防"POST /knowledge {action:list}"这类非法请求写脏数据(空知识)
+        if (dto == null || dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
+            throw new BusinessException("标题不能为空");
+        }
+        if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
+            throw new BusinessException("内容不能为空");
+        }
         KnowledgeEntity knowledgeEntity = new KnowledgeEntity();
         UserEntity userEntity = UserContext.get();
         knowledgeEntity.setTitle(dto.getTitle());
@@ -246,6 +258,10 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         int rows=knowledgeMapper.delete(id);
         if(rows<=0){
             throw new BusinessException("删除失败");
+        }
+        // 清理向量库(防"删了还能搜到"):每个文件按 file_id 删 DashVector
+        for (FileEntity file : files) {
+            vectorStoreService.deleteByFileId(file.getId());
         }
         String key= RedisKey.knowledge(id);
         redisTemplate.delete(key);

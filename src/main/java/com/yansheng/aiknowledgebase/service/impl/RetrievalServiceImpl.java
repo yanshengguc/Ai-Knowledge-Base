@@ -61,7 +61,11 @@ public class RetrievalServiceImpl implements RetrievalService {
         }
 
         // 1. 粗召回(向量检索,多召回一些留给重排)
-        List<SearchResult> rawResults = vectorSearchService.search(queryText, topK * 3);
+        //    多用户隔离:web 请求带用户上下文时,只在该用户拥有的文件范围内召回(防横向越权)
+        Long userId = UserContext.getUserId();
+        List<SearchResult> rawResults = (userId != null)
+                ? vectorSearchService.searchForUser(queryText, topK * 3, userId)
+                : vectorSearchService.search(queryText, topK * 3);
 
         // 2. 阈值过滤(去掉明显不相关的噪声邻居)
         List<SearchResult> filtered = rawResults.stream()

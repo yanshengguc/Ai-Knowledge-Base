@@ -11,6 +11,7 @@ import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.FileService;
 import com.yansheng.aiknowledgebase.service.OssService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
+import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.utils.ByteArrayMultipartFile;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.FileVO;
@@ -40,6 +41,8 @@ public class FileServiceImpl implements FileService {
     private final Executor docProcessExecutor;
     /** 检索结果缓存失效:知识内容更新后,让旧检索结果过期 */
     private final RetrievalService retrievalService;
+    /** 向量库清理:删除/覆盖时同步删 DashVector 数据,防"删了还能搜到" */
+    private final VectorStoreService vectorStoreService;
 
     public FileServiceImpl(DocumentService documentService,
                            OssService ossService,
@@ -47,7 +50,8 @@ public class FileServiceImpl implements FileService {
                            FileMapper fileMapper,
                            ChunkMapper chunkMapper,
                            @Qualifier("docProcessExecutor") Executor docProcessExecutor,
-                           RetrievalService retrievalService) {
+                           RetrievalService retrievalService,
+                           VectorStoreService vectorStoreService) {
         this.documentService = documentService;
         this.ossService = ossService;
         this.knowledgeMapper = knowledgeMapper;
@@ -55,6 +59,7 @@ public class FileServiceImpl implements FileService {
         this.chunkMapper = chunkMapper;
         this.docProcessExecutor = docProcessExecutor;
         this.retrievalService = retrievalService;
+        this.vectorStoreService = vectorStoreService;
     }
 
     @Override
@@ -183,11 +188,12 @@ entity.setStatus(FileStatus.PROCESSING.name());
                 documentService.handleDocument(
                         new ByteArrayMultipartFile(content, fileName, contentType),
                         fileId);
-                // 新版本处理成功 → 清理旧版本(切片 → 记录 → OSS 对象)
+                // 新版本处理成功 → 清理旧版本(切片 → 记录 → OSS 对象 → 向量)
                 for (FileEntity old : sameNameOldFiles) {
                     chunkMapper.deleteByFileId(old.getId());
                     fileMapper.deleteById(old.getId());
                     ossService.delete(old.getFileUrl());
+                    vectorStoreService.deleteByFileId(old.getId());
                     log.info("旧版本已清理,fileId={}", old.getId());
                 }
                 fileMapper.updateStatus(fileId, FileStatus.SUCCESS.name());
@@ -216,10 +222,11 @@ entity.setStatus(FileStatus.PROCESSING.name());
         if (knowledge == null || user == null || !user.getUsername().equals(knowledge.getAuthor())) {
             throw new BusinessException("无权删除该文件");
         }
-        // 级联:先删切片 → 再删记录 → 最后删 OSS 对象(失败降级)
+        // 级联:先删切片 → 再删记录 → 最后删 OSS 对象(失败降级)+ 清理向量库(防"删了还能搜到")
         chunkMapper.deleteByFileId(id);
         fileMapper.deleteById(id);
         ossService.delete(file.getFileUrl());
+        vectorStoreService.deleteByFileId(id);
         log.info("文件已删除,fileId={},knowledgeId={}", id, file.getKnowledgeId());
     }
 }

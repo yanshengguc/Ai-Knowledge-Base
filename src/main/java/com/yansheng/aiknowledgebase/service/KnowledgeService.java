@@ -20,4 +20,9 @@ public interface KnowledgeService {
      * 笔记 = 特殊文件(不入 OSS),内容同步切片+向量化,立刻可被检索。
      */
     void createNote(Long knowledgeId, String title, String content);
+
+    /**
+     * 一键导出当前用户全部知识 + 文件/笔记清单为 Markdown(数据主权:用户可随时带走自己的数据)。
+     */
+    String exportMarkdown();
 }

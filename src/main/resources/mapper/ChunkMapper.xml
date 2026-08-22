@@ -55,4 +55,19 @@
         DELETE FROM knowledge_chunk
         WHERE file_id = #{fileId}
     </delete>
+
+    <!-- BM25 全文检索(混合检索第二路):ngram 中文分词 + 按用户文件范围过滤 -->
+    <select id="selectByFullText"
+            resultType="com.yansheng.aiknowledgebase.entity.SearchResult">
+        SELECT c.id AS chunkId,
+               c.file_id AS fileId,
+               c.content AS content,
+               MATCH(c.content) AGAINST (#{query} IN NATURAL LANGUAGE MODE) AS score
+        FROM knowledge_chunk c
+        JOIN knowledge_file f ON c.file_id = f.id
+        WHERE f.user_id = #{userId}
+          AND MATCH(c.content) AGAINST (#{query} IN NATURAL LANGUAGE MODE) > 0
+        ORDER BY score DESC
+        LIMIT #{limit}
+    </select>
 </mapper>

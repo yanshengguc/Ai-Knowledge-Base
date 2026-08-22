@@ -56,3 +56,7 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
     INDEX idx_file_id (file_id),
     FOREIGN KEY (file_id) REFERENCES knowledge_file(id) ON DELETE CASCADE
 );
+
+-- 混合检索 BM25 路(8/22):ngram 中文全文索引,补向量检索对精确匹配/专有名词的短板
+-- 已存在索引时执行会报错,可先 DROP INDEX ft_content ON knowledge_chunk; 再执行
+CREATE FULLTEXT INDEX ft_content ON knowledge_chunk(content) WITH PARSER ngram;

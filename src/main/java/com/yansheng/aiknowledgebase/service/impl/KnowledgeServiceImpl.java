@@ -309,5 +309,40 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
                 note.getId(), knowledgeId, title);
     }
 
+    @Override
+    public String exportMarkdown() {
+        // 数据主权:导出当前用户全部知识 + 文件/笔记清单
+        Long userId = UserContext.getUserId();
+        List<KnowledgeEntity> knowledges = knowledgeMapper.selectByUserId(userId);
+        StringBuilder sb = new StringBuilder();
+        sb.append("# 知识库导出\n\n");
+        sb.append("- 导出时间: ").append(LocalDateTime.now()).append("\n");
+        sb.append("- 知识条目数: ").append(knowledges.size()).append("\n\n");
+
+        for (KnowledgeEntity k : knowledges) {
+            sb.append("## ").append(k.getTitle()).append("\n\n");
+            sb.append("**分类**: ").append(k.getCategory() == null ? "-" : k.getCategory())
+                    .append(" | **作者**: ").append(k.getAuthor()).append("\n\n");
+            if (k.getContent() != null && !k.getContent().isBlank()) {
+                sb.append(k.getContent()).append("\n\n");
+            }
+            List<FileEntity> files = fileMapper.selectFileByKnowledgeId(k.getId());
+            if (files != null && !files.isEmpty()) {
+                sb.append("### 文件与笔记(").append(files.size()).append(")\n\n");
+                for (FileEntity f : files) {
+                    sb.append("- ").append(f.getFileName())
+                            .append(" [").append(f.getStatus()).append("]");
+                    if (f.getFileUrl() != null) {
+                        sb.append(" <").append(f.getFileUrl()).append(">");
+                    }
+                    sb.append("\n");
+                }
+                sb.append("\n");
+            }
+        }
+        sb.append("---\n*由 Ai-Knowledge-Base 导出*");
+        return sb.toString();
+    }
+
 
 }

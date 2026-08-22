@@ -8,10 +8,9 @@ import type {
   Result,
 } from '@/types/api'
 
-export function getKnowledgeList() {
-  return request.post<unknown, Result<KnowledgeVO[]>>('/knowledge', { action: 'list' })
-}
-
+// 知识列表用 GET /knowledge(getKnowledgeList2,List.vue 使用)
+// 注意:POST /knowledge 是"新增知识"接口,曾有一个误传 {action:'list'} 的死代码函数
+// 会把 list 请求当成新增知识(已删除,防止误用写脏数据)
 export function getKnowledgeList2() {
   return request.get<unknown, Result<KnowledgeVO[]>>('/knowledge')
 }

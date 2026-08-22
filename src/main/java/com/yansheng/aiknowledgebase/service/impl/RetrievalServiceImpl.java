@@ -1,6 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
@@ -14,8 +15,11 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -32,6 +36,7 @@ public class RetrievalServiceImpl implements RetrievalService {
     private final VectorSearchService vectorSearchService;
     private final RerankService rerankService;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ChunkMapper chunkMapper;
 
     @Value("${retrieval.top-k}")
     private int topK;
@@ -42,12 +47,17 @@ public class RetrievalServiceImpl implements RetrievalService {
     @Value("${retrieval.rerank.enabled:true}")
     private boolean rerankEnabled;
 
+    @Value("${retrieval.hybrid.enabled:true}")
+    private boolean hybridEnabled;
+
     public RetrievalServiceImpl(VectorSearchService vectorSearchService,
                                 RerankService rerankService,
-                                RedisTemplate<String, Object> redisTemplate) {
+                                RedisTemplate<String, Object> redisTemplate,
+                                ChunkMapper chunkMapper) {
         this.vectorSearchService = vectorSearchService;
         this.rerankService = rerankService;
         this.redisTemplate = redisTemplate;
+        this.chunkMapper = chunkMapper;
     }
 
     @Override
@@ -67,12 +77,30 @@ public class RetrievalServiceImpl implements RetrievalService {
                 ? vectorSearchService.searchForUser(queryText, topK * 3, userId)
                 : vectorSearchService.search(queryText, topK * 3);
 
-        // 2. 阈值过滤(去掉明显不相关的噪声邻居)
+        // 2. 阈值过滤(去掉明显不相关的噪声邻居)——只对向量路(score 是距离,越小越相关)
         List<SearchResult> filtered = rawResults.stream()
                 .filter(r -> r.getScore() <= similarityThreshold)
                 .collect(Collectors.toList());
 
-        // 3. 重排(精排):粗召回 → 交叉编码器重打分 → 取 topK;失败降级按原分排序
+        // 3. 混合检索:BM25 全文检索并入(精确匹配/专有名词兜底,按用户文件范围)
+        //    BM25 的 score 是相关度(越大越相关),语义与向量距离相反,不过阈值,直接并入去重
+        if (hybridEnabled && userId != null) {
+            List<SearchResult> bm25Results = chunkMapper.selectByFullText(userId, queryText, topK * 3);
+            if (bm25Results != null && !bm25Results.isEmpty()) {
+                Map<Long, SearchResult> merged = new LinkedHashMap<>();
+                for (SearchResult r : filtered) {
+                    merged.put(r.getChunkId(), r);
+                }
+                for (SearchResult r : bm25Results) {
+                    merged.putIfAbsent(r.getChunkId(), r);
+                }
+                filtered = new ArrayList<>(merged.values());
+                log.info("混合检索:向量 {} 条 + BM25 {} 条 → 合并 {} 条, userId={}",
+                        rawResults.size(), bm25Results.size(), filtered.size(), userId);
+            }
+        }
+
+        // 4. 重排(精排):粗召回 → 交叉编码器重打分 → 取 topK;失败降级按原分排序
         List<SearchResult> finalResults;
         if (rerankEnabled && !filtered.isEmpty()) {
             finalResults = rerankService.rerank(queryText, filtered, topK);

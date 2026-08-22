@@ -2,7 +2,10 @@
   <div class="knowledge-list">
     <div class="page-header">
       <h2>{{ t('nav.knowledge') }}</h2>
-      <el-button type="primary" :icon="Plus" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
+      <div>
+        <el-button :icon="Download" @click="onExport">导出</el-button>
+        <el-button type="primary" :icon="Plus" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
+      </div>
     </div>
 
     <!-- 工具条:搜索 + 分类筛选 -->
@@ -99,17 +102,33 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { Plus, Delete, Search } from '@element-plus/icons-vue'
+import { Plus, Delete, Search, Download } from '@element-plus/icons-vue'
 import {
   addKnowledge,
   deleteKnowledge,
   getKnowledgeList2 as fetchList,
 } from '@/api/modules/knowledge'
+import request from '@/api/request'
 import type { KnowledgeVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
 import { categoryTagType } from '@/utils/category'
 
 const router = useRouter()
+
+/** 一键导出(数据主权):下载当前用户全部知识为 Markdown */
+async function onExport() {
+  try {
+    const blob = await request.get<unknown, any>('/knowledge/export', { responseType: 'blob' })
+    const url = URL.createObjectURL(blob as Blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `knowledge-export-${new Date().toISOString().slice(0, 10)}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    // 拦截器已提示
+  }
+}
 const { t } = useI18n()
 const list = ref<KnowledgeVO[]>([])
 const page = ref(1)

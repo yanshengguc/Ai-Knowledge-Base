@@ -3,6 +3,7 @@ package com.yansheng.aiknowledgebase;
 
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
@@ -28,6 +29,7 @@ class RetrievalServiceImplTest {
     private RedisTemplate<String, Object> redisTemplate;
     @SuppressWarnings("unchecked")
     private ValueOperations<String, Object> valueOperations;
+    private ChunkMapper chunkMapper;
     private RetrievalServiceImpl retrievalService;
 
     @BeforeEach
@@ -37,12 +39,14 @@ class RetrievalServiceImplTest {
         rerankService = mock(RerankService.class);
         redisTemplate = mock(RedisTemplate.class);
         valueOperations = mock(ValueOperations.class);
+        chunkMapper = mock(ChunkMapper.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper);
         // 因为 @Value 注入的字段在纯 new 出来的对象里不会自动赋值，手动塞进去
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
         ReflectionTestUtils.setField(retrievalService, "rerankEnabled", false);
+        ReflectionTestUtils.setField(retrievalService, "hybridEnabled", true);
     }
 
     @Test
@@ -124,6 +128,32 @@ class RetrievalServiceImplTest {
 
             verify(vectorSearchService).searchForUser(eq("测试查询"), anyInt(), eq(7L));
             verify(vectorSearchService, never()).search(anyString(), anyInt());
+        } finally {
+            UserContext.remove();
+        }
+    }
+
+    @Test
+    void shouldMergeBm25ResultsWhenHybridEnabled() {
+        // 混合检索:登录用户 + 向量有结果 → BM25 并入(精确匹配兜底)
+        UserEntity user = new UserEntity();
+        user.setId(7L);
+        user.setUsername("u7");
+        UserContext.set(user);
+        try {
+            when(valueOperations.get(anyString())).thenReturn(null);
+            when(vectorSearchService.searchForUser(eq("AIFLOWTEST2026"), anyInt(), eq(7L)))
+                    .thenReturn(List.of(new SearchResult(1L, 1L, "向量内容", 0.1)));
+            // BM25 召回一条向量没召回的(专有名词场景)
+            when(chunkMapper.selectByFullText(eq(7L), eq("AIFLOWTEST2026"), anyInt()))
+                    .thenReturn(List.of(new SearchResult(2L, 2L, "精确匹配内容", 12.0)));
+
+            List<SearchResult> result = retrievalService.retrieveTopK("AIFLOWTEST2026");
+
+            verify(chunkMapper).selectByFullText(eq(7L), eq("AIFLOWTEST2026"), anyInt());
+            // 合并后应同时包含向量路和 BM25 路结果
+            assertTrue(result.stream().anyMatch(r -> r.getChunkId() == 1L));
+            assertTrue(result.stream().anyMatch(r -> r.getChunkId() == 2L));
         } finally {
             UserContext.remove();
         }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
 
@@ -24,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证 2026-08-17 越权修复真实生效,断言数据正确性而不只是"抛没抛异常"
  */
 @SpringBootTest
+@ActiveProfiles("local")
 class KnowledgeAccessControlTest {
 
     @Autowired

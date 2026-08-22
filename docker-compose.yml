@@ -1,0 +1,67 @@
+# ============================================================
+# AKB 一键部署(mysql + redis + 后端 + 前端)
+# 用法:
+#   1. cp .env.example .env 并填真实值(不提交)
+#   2. docker compose up -d --build
+#   3. 访问 http://<服务器IP>:18000
+# 注意:首次启动 mysql 会自动执行 docs/schema.sql 建表(含 FULLTEXT 索引)
+# ============================================================
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请设置 .env 中的 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ai_knowledge_base
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docs/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      DB_URL: jdbc:mysql://mysql:3306/ai_knowledge_base
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHVECTOR_API_KEY: ${DASHVECTOR_API_KEY:-}
+      DASHVECTOR_ENDPOINT: ${DASHVECTOR_ENDPOINT:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?请设置 .env 中的 JWT_SECRET_KEY}
+      OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-}
+      OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
+      SSE_TIMEOUT_MS: ${SSE_TIMEOUT_MS:-300000}
+    ports:
+      - "${BACKEND_PORT:-18082}:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-18000}:80"
+
+volumes:
+  mysql-data:

@@ -26,6 +26,10 @@ public class ChatController {
     private final ChatService chatService;
     private final RateLimitService rateLimitService;
 
+    /** SSE 超时(毫秒):DeepSeek 长回答可能超过 2 分钟,部署后可按需调大 */
+    @org.springframework.beans.factory.annotation.Value("${chat.sse-timeout-ms:300000}")
+    private long sseTimeoutMs;
+
     public ChatController(ChatService chatService, RateLimitService rateLimitService) {
         this.chatService = chatService;
         this.rateLimitService = rateLimitService;
@@ -69,7 +73,7 @@ public class ChatController {
         // 频率限制(独立组件,与 chat 共用计数)
         rateLimitService.check(userId, "chat", MAX_PER_MINUTE);
 
-        SseEmitter emitter = new SseEmitter(120_000L);
+        SseEmitter emitter = new SseEmitter(sseTimeoutMs);
         chatService.streamAsk(userId, message,
                 token -> safeSend(emitter, SseEmitter.event().name("token").data(token)),
                 refs -> {

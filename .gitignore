@@ -36,3 +36,7 @@ src/main/resources/application-local.properties
 # personal helper docs (not committed)
 docs/DAY42-REVIEW-PLAN.md
 docs/HANDOVER-2026-08-14.md
+
+### 部署环境变量(含密钥,不入库) ###
+.env
+!.env.example

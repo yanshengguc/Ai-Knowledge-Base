@@ -10,6 +10,7 @@ import com.yansheng.aiknowledgebase.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -18,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证 2026-08-17 密码明文修复真实生效
  */
 @SpringBootTest
+@ActiveProfiles("local")
 class UserSecurityTest {
 
     @Autowired

@@ -20,6 +20,10 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (response) => {
+    // 二进制下载(如导出)直接返回 blob,不走 Result 解包
+    if (response.config.responseType === 'blob') {
+      return response.data as any
+    }
     const res = response.data as Result
     // 业务错误(Result.code !== 200)
     if (res && res.code !== 200) {

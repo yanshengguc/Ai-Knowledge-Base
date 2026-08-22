@@ -52,5 +52,20 @@ public class KnowledgeController {
         return Result.success();
     }
 
+    /** 一键导出当前用户全部知识 + 文件/笔记清单为 Markdown(数据主权) */
+    @GetMapping("/knowledge/export")
+    public org.springframework.http.ResponseEntity<byte[]> exportKnowledge() {
+        String md = knowledgeService.exportMarkdown();
+        String filename = "knowledge-export-"
+                + java.time.LocalDateTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+                + ".md";
+        return org.springframework.http.ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + filename + "\"")
+                .contentType(org.springframework.http.MediaType.TEXT_MARKDOWN)
+                .body(md.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
 }
 

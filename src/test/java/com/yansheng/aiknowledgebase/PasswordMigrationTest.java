@@ -4,6 +4,7 @@ package com.yansheng.aiknowledgebase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *       BCrypt matches 无法验证明文 → 登录会报"密码错误",此迁移修复。
  */
 @SpringBootTest
+@ActiveProfiles("local")
 class PasswordMigrationTest {
 
     @Autowired

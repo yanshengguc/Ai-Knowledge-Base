@@ -5,11 +5,13 @@ import com.yansheng.aiknowledgebase.common.RedisKey;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
+import com.yansheng.aiknowledgebase.entity.FileStatus;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
+import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
@@ -33,6 +35,7 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     private final FileMapper fileMapper;
     private final ChunkMapper chunkMapper;
     private final VectorStoreService vectorStoreService;
+    private final DocumentService documentService;
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     private final Random random = new Random();
@@ -45,12 +48,14 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             "end";
     public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper, FileMapper fileMapper, ChunkMapper chunkMapper,
                                 VectorStoreService vectorStoreService,
+                                DocumentService documentService,
                                 RedisTemplate<String, Object> redisTemplate) {
 
         this.knowledgeMapper = knowledgeMapper;
         this.fileMapper = fileMapper;
         this.chunkMapper = chunkMapper;
         this.vectorStoreService = vectorStoreService;
+        this.documentService = documentService;
         this.redisTemplate = redisTemplate;
 
     }
@@ -265,6 +270,43 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         }
         String key= RedisKey.knowledge(id);
         redisTemplate.delete(key);
+    }
+
+    @Override
+    public void createNote(Long knowledgeId, String title, String content) {
+        // 写优先:笔记 = 特殊文件(不入 OSS),内容同步切片+向量化,写完立刻可检索
+        if (title == null || title.trim().isEmpty()) {
+            throw new BusinessException("笔记标题不能为空");
+        }
+        if (content == null || content.trim().isEmpty()) {
+            throw new BusinessException("笔记内容不能为空");
+        }
+        Long userId = UserContext.getUserId();
+        KnowledgeEntity knowledge = knowledgeMapper.selectById(knowledgeId);
+        if (knowledge == null) {
+            throw new BusinessException("不存在");
+        }
+        if (!userId.equals(knowledge.getUserId())) {
+            throw new BusinessException("权限不足");
+        }
+
+        FileEntity note = new FileEntity();
+        note.setUserId(userId);
+        note.setKnowledgeId(knowledgeId);
+        note.setFileName(title.trim());
+        note.setFileType("text/markdown");
+        note.setFileSize((long) content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+        note.setFileUrl(null); // 笔记无 OSS 对象
+        note.setStatus(FileStatus.SUCCESS.name());
+        LocalDateTime now = LocalDateTime.now();
+        note.setCreateTime(now);
+        note.setUpdateTime(now);
+        fileMapper.saveFile(note);
+
+        // 同步索引:切片 → 保存 chunk → 批量向量化入库
+        documentService.indexPlainText(note.getId(), content);
+        log.info("笔记创建并索引完成, noteFileId={}, knowledgeId={}, title={}",
+                note.getId(), knowledgeId, title);
     }
 
 

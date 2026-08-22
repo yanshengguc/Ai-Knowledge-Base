@@ -107,7 +107,7 @@ import {
 } from '@/api/modules/knowledge'
 import type { KnowledgeVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
-import { categoryTagType, COMMON_CATEGORIES } from '@/utils/category'
+import { categoryTagType } from '@/utils/category'
 
 const router = useRouter()
 const { t } = useI18n()

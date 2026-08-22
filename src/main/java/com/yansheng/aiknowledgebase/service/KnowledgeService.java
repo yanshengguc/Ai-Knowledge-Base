@@ -14,4 +14,10 @@ public interface KnowledgeService {
   void addKnowledge(KnowledgeAddDTO dto);
   void  updateKnowledge(Long id, KnowledgeUpdateDTO dto);
   void deleteKnowledge(Long id);
+
+    /**
+     * 写优先:在知识条目下新建 Markdown 笔记。
+     * 笔记 = 特殊文件(不入 OSS),内容同步切片+向量化,立刻可被检索。
+     */
+    void createNote(Long knowledgeId, String title, String content);
 }

@@ -17,6 +17,7 @@
         file_size,
         file_url,
         knowledge_id,
+        status,
         create_time,
         update_time
         )
@@ -27,6 +28,7 @@
         #{fileSize},
         #{fileUrl},
         #{knowledgeId},
+        #{status},
         #{createTime},
         #{updateTime}
         )

@@ -5,6 +5,7 @@
       <h2>{{ detail.title }}</h2>
       <el-tag v-if="detail.category" size="small" effect="plain">{{ detail.category }}</el-tag>
       <el-button type="primary" text :icon="Edit" @click="openEdit">编辑</el-button>
+      <el-button type="success" text :icon="EditPen" @click="openNote">新建笔记</el-button>
     </div>
 
     <div class="detail-content">{{ detail.content || t('upload.noContent') }}</div>
@@ -76,14 +77,30 @@
       <el-button type="primary" :loading="editing" @click="onSaveEdit">{{ t('knowledge.save') }}</el-button>
     </template>
   </el-dialog>
+
+  <!-- 新建笔记弹窗(写优先:内容同步向量化,立刻可检索) -->
+  <el-dialog v-model="noteVisible" title="新建笔记" width="min(560px, 92vw)">
+    <el-form label-width="60px">
+      <el-form-item label="标题">
+        <el-input v-model="noteForm.title" maxlength="100" show-word-limit />
+      </el-form-item>
+      <el-form-item label="内容">
+        <el-input v-model="noteForm.content" type="textarea" :rows="10" placeholder="支持 Markdown,写下你的笔记…保存后立刻可被知识库检索" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="noteVisible = false">取消</el-button>
+      <el-button type="success" :loading="noteSaving" @click="onSaveNote">创建并入库</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft, Edit, UploadFilled } from '@element-plus/icons-vue'
-import { deleteFile, getFileById, getFileList, getKnowledgeDetail, updateKnowledge, uploadFile } from '@/api/modules/knowledge'
+import { ArrowLeft, Edit, EditPen, UploadFilled } from '@element-plus/icons-vue'
+import { createNote, deleteFile, getFileById, getFileList, getKnowledgeDetail, updateKnowledge, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import { Delete } from '@element-plus/icons-vue'
 import type { KnowledgeDetailVO } from '@/types/api'
@@ -254,6 +271,41 @@ async function onSaveEdit() {
   } catch {
   } finally {
     editing.value = false
+  }
+}
+
+// ===== 新建笔记(写优先)=====
+const noteVisible = ref(false)
+const noteSaving = ref(false)
+const noteForm = reactive({ title: '', content: '' })
+
+function openNote() {
+  noteForm.title = ''
+  noteForm.content = ''
+  noteVisible.value = true
+}
+
+async function onSaveNote() {
+  if (!detail.value) return
+  if (!noteForm.title.trim() || !noteForm.content.trim()) {
+    ElMessage.warning('标题和内容不能为空')
+    return
+  }
+  noteSaving.value = true
+  try {
+    await createNote(detail.value.id, {
+      title: noteForm.title.trim(),
+      content: noteForm.content,
+    })
+    ElMessage.success('笔记已创建并入库,现在就能被检索到')
+    noteVisible.value = false
+    // 刷新文件列表(笔记以文件形式出现在列表里)
+    const listRes = await getFileList(detail.value.id)
+    fileList.value = listRes.data || []
+  } catch {
+    // 拦截器已提示
+  } finally {
+    noteSaving.value = false
   }
 }
 </script>

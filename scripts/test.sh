@@ -12,11 +12,12 @@ cd "$(dirname "$0")/.."
 MH="C:/Users/yansheng/.m2/wrapper/dists/apache-maven-3.9.16/0daed3be3ebd1c706f0e69e8b07c6b73f5cc4ea3dfce72a8d0ec2e849ca2ddb0"
 
 echo ">>> AKB 一键回归开始: $(date '+%H:%M:%S')"
+# 显式排除 integration + e2e(真实 LLM 烧钱,单独用 test-e2e.sh 跑)
 java -classpath "$MH/boot/plexus-classworlds-2.11.0.jar" \
   -Dclassworlds.conf="$MH/bin/m2.conf" \
   -Dmaven.home="$MH" \
   -Dmaven.multiModuleProjectDirectory="$(pwd)" \
-  org.codehaus.plexus.classworlds.launcher.Launcher test 2>&1 \
+  org.codehaus.plexus.classworlds.launcher.Launcher -DexcludedGroups=integration,e2e test 2>&1 \
   | grep -aE "Tests run:|BUILD|ERROR" | tail -20
 
 echo ">>> 完成: $(date '+%H:%M:%S')"

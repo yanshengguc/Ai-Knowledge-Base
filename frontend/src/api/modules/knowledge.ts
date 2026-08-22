@@ -63,3 +63,8 @@ export function getFileList(knowledgeId: number) {
 export function deleteFile(id: number) {
   return request.delete<unknown, Result<null>>(`/file/${id}`)
 }
+
+/** 写优先:在知识条目下新建 Markdown 笔记(内容同步向量化,立刻可检索) */
+export function createNote(knowledgeId: number, data: { title: string; content: string }) {
+  return request.post<unknown, Result>(`/knowledge/${knowledgeId}/note`, data)
+}

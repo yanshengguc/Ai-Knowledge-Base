@@ -105,7 +105,7 @@ async function onClear() {
   await ElMessageBox.confirm(t('chat.clearConfirm'), t('chat.clearTitle'), { type: 'warning' })
   try {
     await chatStore.clear()
-    ElMessageBox.closeAll()
+    ElMessageBox.close()
   } catch {
     // 取消
   }

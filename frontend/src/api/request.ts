@@ -30,7 +30,8 @@ request.interceptors.response.use(
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }
-    return res
+    // 拦截器解包 Result 返回给业务层,类型上不符合 AxiosResponse,此处 cast
+    return res as any
   },
   (error) => {
     const status = error.response?.status

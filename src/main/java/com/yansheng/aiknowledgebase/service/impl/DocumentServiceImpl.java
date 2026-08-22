@@ -74,4 +74,18 @@ public class DocumentServiceImpl implements DocumentService {
                 fileId,
                 chunkEntities.size());
     }
+
+    @Override
+    public void indexPlainText(Long fileId, String text) {
+        if (text == null || text.isBlank()) {
+            throw new BusinessException("笔记内容为空");
+        }
+        log.info("开始索引纯文本笔记,fileId={},textLength={}", fileId, text.length());
+
+        List<String> chunks = documentSplitter.split(text);
+        List<ChunkEntity> chunkEntities = chunkService.saveChunks(fileId, chunks);
+        indexingService.indexChunks(fileId, chunkEntities);
+
+        log.info("笔记索引完成,fileId={},chunkCount={}", fileId, chunkEntities.size());
+    }
 }

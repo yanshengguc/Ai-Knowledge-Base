@@ -44,5 +44,13 @@ public class KnowledgeController {
         return Result.success();
 }
 
+    /** 写优先:在知识条目下新建 Markdown 笔记(内容同步切片+向量化,立刻可检索) */
+    @PostMapping("/knowledge/{id}/note")
+    public Result<Void> createNote(@PathVariable Long id,
+                                   @RequestBody com.yansheng.aiknowledgebase.dto.NoteDTO dto) {
+        knowledgeService.createNote(id, dto.getTitle(), dto.getContent());
+        return Result.success();
+    }
+
 }
 

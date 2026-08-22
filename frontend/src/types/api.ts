@@ -21,6 +21,7 @@ export interface KnowledgeVO {
   title: string
   category?: string
   author?: string
+  content?: string
   createTime?: string
   updateTime?: string
 }

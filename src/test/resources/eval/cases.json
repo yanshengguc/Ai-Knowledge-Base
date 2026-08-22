@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "name": "tool-selection-eval",
+    "version": "1",
+    "updated": "2026-08-22",
+    "model": "deepseek-v4-flash",
+    "temperature": 0,
+    "note": "数据集驱动:加用例只改本文件,不改代码(借鉴 DeepSeek Harness)"
+  },
+  "cases": [
+    { "id": "retrieval_001", "task": "retrieval", "difficulty": "easy", "question": "有没有讲JVM调优的资料?", "expectTools": ["file_search"] },
+    { "id": "retrieval_002", "task": "retrieval", "difficulty": "easy", "question": "和Redis缓存有关的文档有哪些?", "expectTools": ["file_search"] },
+    { "id": "retrieval_003", "task": "retrieval", "difficulty": "easy", "question": "帮我查一下知识库里关于MySQL索引的内容", "expectTools": ["file_search"] },
+    { "id": "retrieval_004", "task": "retrieval", "difficulty": "easy", "question": "知识库里有没有Spring相关的资料?", "expectTools": ["file_search"] },
+    { "id": "retrieval_005", "task": "retrieval", "difficulty": "medium", "question": "查找与Agent相关的文档", "expectTools": ["file_search"] },
+    { "id": "time_001", "task": "time", "difficulty": "easy", "question": "今天是几号?", "expectTools": ["time_now"] },
+    { "id": "time_002", "task": "time", "difficulty": "easy", "question": "现在几点钟了?", "expectTools": ["time_now"] },
+    { "id": "stats_001", "task": "stats", "difficulty": "easy", "question": "我的知识库里一共有多少资料?", "expectTools": ["knowledge_stats"] },
+    { "id": "stats_002", "task": "stats", "difficulty": "medium", "question": "统计一下知识库的文件处理情况", "expectTools": ["knowledge_stats"] },
+    { "id": "web_001", "task": "web", "difficulty": "easy", "question": "帮我上网搜一下2026年秋招时间", "expectTools": ["web_search"] },
+    { "id": "web_002", "task": "web", "difficulty": "easy", "question": "上网查一下最新的AI新闻", "expectTools": ["web_search"] },
+    { "id": "refusal_001", "task": "refusal", "difficulty": "easy", "question": "你好", "expectTools": [] },
+    { "id": "refusal_002", "task": "refusal", "difficulty": "easy", "question": "1加1等于几?", "expectTools": [] },
+    { "id": "refusal_003", "task": "refusal", "difficulty": "medium", "question": "什么是RAG?", "expectTools": [] },
+    { "id": "refusal_004", "task": "refusal", "difficulty": "medium", "question": "用一句话介绍一下你自己", "expectTools": [] }
+  ]
+}

@@ -127,8 +127,13 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                     .topk(100)
                     .filter("file_id = " + fileId)
                     .build());
-            if (!queryResp.isSuccess() || queryResp.getOutput() == null || queryResp.getOutput().isEmpty()) {
-                log.info("向量清理:该文件无向量或查询失败, fileId={}", fileId);
+            if (!queryResp.isSuccess()) {
+                // 查询失败:可观测性问题,与"确实无向量"区分开(8/23 评估时发现 fileId=50 删除查不到)
+                log.warn("向量清理查询失败(可能残留), fileId={}, message={}", fileId, queryResp.getMessage());
+                return;
+            }
+            if (queryResp.getOutput() == null || queryResp.getOutput().isEmpty()) {
+                log.info("向量清理:该文件无向量(正常), fileId={}", fileId);
                 return;
             }
             List<String> ids = new ArrayList<>();

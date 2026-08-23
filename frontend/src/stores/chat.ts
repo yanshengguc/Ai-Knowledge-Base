@@ -10,7 +10,8 @@ export interface MessageItem {
   loading?: boolean
 }
 
-const SSE_URL = '/api/chat/stream'
+// SSE 流式接口地址:与 axios baseURL 同源(来自 .env.*),开发走 vite 代理,生产走 nginx 反代
+const SSE_URL = `${import.meta.env.VITE_API_BASE ?? '/api'}/chat/stream`
 
 export const useChatStore = defineStore('chat', {
   state: () => ({

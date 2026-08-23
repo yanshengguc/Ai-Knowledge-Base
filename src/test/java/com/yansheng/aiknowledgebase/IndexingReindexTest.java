@@ -30,7 +30,7 @@ class IndexingReindexTest {
         embeddingService = mock(EmbeddingService.class);
         vectorStoreService = mock(VectorStoreService.class);
         chunkMapper = mock(ChunkMapper.class);
-        indexingService = new IndexingServiceImpl(embeddingService, vectorStoreService, chunkMapper);
+        indexingService = new IndexingServiceImpl(embeddingService, vectorStoreService, chunkMapper, 20);
     }
 
     private ChunkEntity chunk(Long id, String content) {

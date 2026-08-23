@@ -7,6 +7,7 @@ import com.yansheng.aiknowledgebase.service.IndexingService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -21,7 +22,7 @@ public class IndexingServiceImpl implements IndexingService {
      * 每批向量化的切片数:批量接口一次请求处理一批,大幅减少网络往返。
      * (Spring AI 内部会再按模型 API 限制自动拆分,此处只是控制单次组装量)
      */
-    private static final int BATCH_SIZE = 20;
+    private final int batchSize;
 
     private final EmbeddingService embeddingService;
     private final VectorStoreService vectorStoreService;
@@ -30,10 +31,12 @@ public class IndexingServiceImpl implements IndexingService {
     public IndexingServiceImpl(
             EmbeddingService embeddingService,
             VectorStoreService vectorStoreService,
-            ChunkMapper chunkMapper) {
+            ChunkMapper chunkMapper,
+            @Value("${indexing.batch-size:20}") int batchSize) {
         this.embeddingService = embeddingService;
         this.vectorStoreService = vectorStoreService;
         this.chunkMapper = chunkMapper;
+        this.batchSize = batchSize;
     }
 
     // 注意：这里不加 @Transactional
@@ -54,8 +57,8 @@ public class IndexingServiceImpl implements IndexingService {
         int failCount = 0;
 
         // 分批处理:每批 批量向量化 + 批量入库(一次 HTTP 往返),失败回退逐条,保证单 chunk 失败不影响整体
-        for (int from = 0; from < chunkList.size(); from += BATCH_SIZE) {
-            List<ChunkEntity> batch = chunkList.subList(from, Math.min(from + BATCH_SIZE, chunkList.size()));
+        for (int from = 0; from < chunkList.size(); from += batchSize) {
+            List<ChunkEntity> batch = chunkList.subList(from, Math.min(from + batchSize, chunkList.size()));
 
             // 跳过缺少 id 的切片(数据库未回填,无法作为向量 id)
             List<ChunkEntity> valid = new ArrayList<>();

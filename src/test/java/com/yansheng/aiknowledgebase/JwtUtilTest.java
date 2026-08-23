@@ -44,8 +44,12 @@ class JwtUtilTest {
     @Test
     void testTamperedTokenRejected() {
         String token = jwtUtil.generateToken(1L, "yan");
-        // 篡改签名部分(改最后一位),签名校验必须失败
-        String tampered = token.substring(0, token.length() - 1) + (token.endsWith("a") ? "b" : "a");
+        // 篡改签名段首字符:首字符 6 位全部有效,且替换字符必须选不同 Base64 组——
+        // 同组字符(索引低 2 位是 padding 位)解码后字节相同,篡改等于没改(原实现改末位即踩此坑,~6% 概率 flaky)
+        String[] parts = token.split("\\.", 3);
+        char first = parts[2].charAt(0);
+        char replacement = (first >= 'A' && first <= 'D') ? 'E' : 'A';
+        String tampered = parts[0] + "." + parts[1] + "." + replacement + parts[2].substring(1);
 
         assertThrows(JwtException.class, () -> jwtUtil.parseToken(tampered),
                 "篡改 token 必须被拒绝,不能解析出任何身份");

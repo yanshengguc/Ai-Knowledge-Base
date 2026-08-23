@@ -1,5 +1,6 @@
 package com.yansheng.aiknowledgebase.service.splitter;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,13 +13,13 @@ public class SimpleTextSplitter implements DocumentSplitter {
     private final int chunkSize;
     private final int overlap;
 
-
-    public SimpleTextSplitter() {
-        this(500, 100);
-    }
-
-
-    public SimpleTextSplitter(int chunkSize, int overlap) {
+    /**
+     * Spring 构造注入:切片参数来自配置(splitter.chunk-size / splitter.overlap),
+     * 与 retrieval.top-k 等检索参数同一套配置治理方式。
+     */
+    public SimpleTextSplitter(
+            @Value("${splitter.chunk-size:500}") int chunkSize,
+            @Value("${splitter.overlap:100}") int overlap) {
 
         if (chunkSize <= 0) {
             throw new IllegalArgumentException("chunkSize必须大于0");

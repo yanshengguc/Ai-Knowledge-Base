@@ -15,6 +15,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,24 +26,39 @@ import java.util.List;
 @Service
 public class FunctionCallingServiceImpl implements FunctionCallingService {
 
+    private final OpenAiChatModel openAiChatModel;
+
     /**
-     * Agent Loop 死循环防护:工具调用最多执行 MAX_STEPS 轮,超限强制终止
+     * Agent Loop 死循环防护:工具调用最多执行 maxSteps 轮,超限强制终止
      * (面试:死循环怎么掐 = 最大步数 + 进展校验 + 人工介入,这里是第一重)
      */
-    private static final int MAX_STEPS = 5;
+    private final int maxSteps;
 
-    private final OpenAiChatModel openAiChatModel;
-    private final ToolRegistry toolRegistry;
-    private final ObjectMapper objectMapper;
+    /**
+     * 工具回调集合:工具在注册中心构造期已固定,这里构造时构建一次缓存,
+     * 避免每次 execute() 重复适配(原先每次调用都重建)。
+     */
+    private final List<ToolCallback> toolCallbacks;
 
     public FunctionCallingServiceImpl(
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${agent.max-steps:5}") int maxSteps) {
 
         this.openAiChatModel = openAiChatModel;
-        this.toolRegistry = toolRegistry;
-        this.objectMapper = objectMapper;
+        this.maxSteps = maxSteps;
+
+        List<ToolCallback> callbacks = new ArrayList<>();
+        for (Tool tool : toolRegistry.getAllTools()) {
+            // Schema 由每个工具自带(开闭原则:新增工具不改编排层)
+            callbacks.add(new ToolCallbackAdapter(
+                    tool,
+                    objectMapper,
+                    tool.getInputSchema()
+            ));
+        }
+        this.toolCallbacks = List.copyOf(callbacks);
     }
 
     @Override
@@ -53,30 +69,8 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
         }
 
         /*
-         * 1. 获取注册中心里的所有工具
-         */
-        List<Tool> tools = toolRegistry.getAllTools();
-
-        /*
-         * 2. Tool → Spring AI ToolCallback
-         */
-        List<ToolCallback> toolCallbacks = new ArrayList<>();
-
-        for (Tool tool : tools) {
-
-            // Schema 由每个工具自带(开闭原则:新增工具不改编排层)
-            ToolCallback callback =
-                    new ToolCallbackAdapter(
-                            tool,
-                            objectMapper,
-                            tool.getInputSchema()
-                    );
-
-            toolCallbacks.add(callback);
-        }
-
-        /*
-         * 3. 把 ToolCallback 配置到本次模型请求
+         * 1. 工具回调已构造期缓存(工具集合运行期不变)
+         * 2. 把 ToolCallback 配置到本次模型请求
          *    关闭框架的"自动工具执行",改为手动控制循环 —— 这样才能加 max_steps 死循环防护
          */
         ToolCallingChatOptions options =
@@ -86,7 +80,7 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
                         .build();
 
         /*
-         * 4. Agent Loop:模型 → 工具 → 观察 → 再决策
+         * 3. Agent Loop:模型 → 工具 → 观察 → 再决策
          *    (面试:这就是"循环工程"——自动化+工具+验证,外加 max_steps 死循环防护)
          */
         List<Message> messages = new ArrayList<>();
@@ -94,7 +88,7 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
         int step = 0;
         String finalAnswer = null;
-        while (step < MAX_STEPS) {
+        while (step < maxSteps) {
 
             ChatResponse response = openAiChatModel.call(new Prompt(messages, options));
             AssistantMessage assistantMsg = response.getResult().getOutput();
@@ -119,10 +113,10 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
         }
 
         /*
-         * 5. 死循环防护:超限强制终止(不返回空,给用户明确提示)
+         * 4. 死循环防护:超限强制终止(不返回空,给用户明确提示)
          */
         if (finalAnswer == null) {
-            finalAnswer = "任务已达到最大执行步数(" + MAX_STEPS + "),已强制终止。建议拆分为更小的子问题重试。";
+            finalAnswer = "任务已达到最大执行步数(" + maxSteps + "),已强制终止。建议拆分为更小的子问题重试。";
         }
 
         return finalAnswer;

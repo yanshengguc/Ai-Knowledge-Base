@@ -48,7 +48,7 @@ public class KnowledgeController {
     @PostMapping("/knowledge/{id}/note")
     public Result<Void> createNote(@PathVariable Long id,
                                    @RequestBody com.yansheng.aiknowledgebase.dto.NoteDTO dto) {
-        knowledgeService.createNote(id, dto.getTitle(), dto.getContent());
+        knowledgeService.createNote(id, dto.getTitle(), dto.getContent(), dto.getSource());
         return Result.success();
     }
 

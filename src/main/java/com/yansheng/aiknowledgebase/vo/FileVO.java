@@ -13,6 +13,8 @@ public class FileVO {
         private String fileUrl;
         private Long knowledgeId;
         private String status;
+        /** 文件 MIME 类型;笔记来源编码于此(text/markdown;source=ai-chat|manual) */
+        private String fileType;
         private LocalDateTime updateTime;
 
 

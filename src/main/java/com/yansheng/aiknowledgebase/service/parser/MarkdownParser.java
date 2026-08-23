@@ -16,7 +16,13 @@ public class MarkdownParser implements DocumentParser {
     @Override
     public String parse(MultipartFile file) {
         try {
-            return new String(file.getBytes(), StandardCharsets.UTF_8);
+            String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+            // 去 BOM:Windows 记事本等编辑器保存的 md 常带 UTF-8 BOM,
+            // 不去掉会把 \uFEFF 带进首个切片,污染分词与向量化
+            if (!content.isEmpty() && content.charAt(0) == '\uFEFF') {
+                content = content.substring(1);
+            }
+            return content;
         } catch (Exception e) {
             throw new BusinessException("Markdown 解析失败");
         }

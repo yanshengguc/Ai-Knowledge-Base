@@ -26,6 +26,16 @@
               </el-collapse-item>
             </el-collapse>
           </div>
+
+          <!-- 存为笔记(AI 回答沉淀,人机确认闭环) -->
+          <div
+            v-if="msg.role === 'assistant' && msg.content && !msg.loading"
+            class="msg-actions"
+          >
+            <el-button size="small" text :icon="CollectionTag" @click="openSaveNote(idx)">
+              {{ t('chat.saveNote') }}
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -59,17 +69,25 @@
       </div>
     </div>
   </div>
+
+  <!-- AI 回答存为笔记(可编辑 + 选目标知识条目) -->
+  <SaveAsNoteDialog
+    v-model:visible="saveNoteVisible"
+    :answer="saveNoteAnswer"
+    :question="saveNoteQuestion"
+  />
 </template>
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
+import { CollectionTag, Delete } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
 import { renderMarkdown } from '@/utils/markdown'
 import { useI18n } from 'vue-i18n'
+import SaveAsNoteDialog from './components/SaveAsNoteDialog.vue'
 
 const chatStore = useChatStore()
 const { t } = useI18n()
@@ -77,6 +95,19 @@ const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const webSearchOn = ref(false)
 const messageListRef = ref<HTMLElement>()
+
+// 存为笔记:记录触发的那条回答与对应问题
+const saveNoteVisible = ref(false)
+const saveNoteAnswer = ref('')
+const saveNoteQuestion = ref('')
+
+function openSaveNote(idx: number) {
+  saveNoteAnswer.value = messages.value[idx]?.content || ''
+  // 同一轮的 user 消息(向上找最近一条 user)
+  const q = messages.value[idx - 1]
+  saveNoteQuestion.value = q && q.role === 'user' ? q.content : ''
+  saveNoteVisible.value = true
+}
 
 // 刷新后从后端恢复会话历史(Redis 存 chat:{userId})
 onMounted(async () => {
@@ -217,6 +248,12 @@ function scrollToBottom() {
     max-height: 100px;
     overflow-y: auto;
   }
+}
+
+.msg-actions {
+  margin-top: $space-2;
+  padding-top: $space-2;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
 .input-area {

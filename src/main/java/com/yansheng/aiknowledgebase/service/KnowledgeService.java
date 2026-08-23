@@ -18,8 +18,9 @@ public interface KnowledgeService {
     /**
      * 写优先:在知识条目下新建 Markdown 笔记。
      * 笔记 = 特殊文件(不入 OSS),内容同步切片+向量化,立刻可被检索。
+     * source:笔记来源(如 "ai-chat"),null 表示用户手写,来源随 fileType 透出供前端标记。
      */
-    void createNote(Long knowledgeId, String title, String content);
+    void createNote(Long knowledgeId, String title, String content, String source);
 
     /**
      * 一键导出当前用户全部知识 + 文件/笔记清单为 Markdown(数据主权:用户可随时带走自己的数据)。

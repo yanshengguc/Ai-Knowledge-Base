@@ -44,6 +44,8 @@ export interface FileVO {
   fileSize?: number
   knowledgeId?: number
   status?: string
+  /** MIME 类型;笔记来源编码于此(text/markdown;source=ai-chat|manual) */
+  fileType?: string
   updateTime?: string
 }
 

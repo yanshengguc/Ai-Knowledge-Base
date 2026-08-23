@@ -91,7 +91,7 @@ class RetrievalQualityEvalTest {
             knowledgeId = findKnowledgeId(containerTitle);
 
             for (EvalDoc doc : dataset.docs) {
-                knowledgeService.createNote(knowledgeId, doc.title, doc.content);
+                knowledgeService.createNote(knowledgeId, doc.title, doc.content, null);
             }
 
             // doc.id → note fileId(按文件名对齐),及反查表用于可读输出

@@ -63,7 +63,10 @@ export function deleteFile(id: number) {
   return request.delete<unknown, Result<null>>(`/file/${id}`)
 }
 
-/** 写优先:在知识条目下新建 Markdown 笔记(内容同步向量化,立刻可检索) */
-export function createNote(knowledgeId: number, data: { title: string; content: string }) {
+/** 写优先:在知识条目下新建 Markdown 笔记(内容同步向量化,立刻可检索);source=ai-chat 时标记 AI 来源 */
+export function createNote(
+  knowledgeId: number,
+  data: { title: string; content: string; source?: string },
+) {
   return request.post<unknown, Result>(`/knowledge/${knowledgeId}/note`, data)
 }

@@ -292,7 +292,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
     }
 
     @Override
-    public void createNote(Long knowledgeId, String title, String content) {
+    public void createNote(Long knowledgeId, String title, String content, String source) {
         // 写优先:笔记 = 特殊文件(不入 OSS),内容同步切片+向量化,写完立刻可检索
         if (title == null || title.trim().isEmpty()) {
             throw new BusinessException("笔记标题不能为空");
@@ -313,7 +313,9 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         note.setUserId(userId);
         note.setKnowledgeId(knowledgeId);
         note.setFileName(title.trim());
-        note.setFileType("text/markdown");
+        // 来源编码进 fileType:普通笔记 text/markdown;AI 对话保存 text/markdown;source=ai-chat
+        // (前端列表据此显示 AI 徽标;不额外加列,避免动表结构)
+        note.setFileType("text/markdown;source=" + (source == null || source.isBlank() ? "manual" : source.trim()));
         note.setFileSize((long) content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
         note.setFileUrl(null); // 笔记无 OSS 对象
         note.setStatus(FileStatus.SUCCESS.name());

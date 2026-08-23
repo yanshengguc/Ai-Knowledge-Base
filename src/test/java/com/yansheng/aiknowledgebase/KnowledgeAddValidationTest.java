@@ -76,8 +76,8 @@ class KnowledgeAddValidationTest {
 
     @Test
     void noteEmptyTitleOrContentShouldBeRejected() {
-        assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, " ", "内容"));
-        assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, "标题", null));
+        assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, " ", "内容", null));
+        assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, "标题", null, null));
         verify(documentService, never()).indexPlainText(any(), any());
     }
 
@@ -93,7 +93,7 @@ class KnowledgeAddValidationTest {
         knowledge.setUserId(1L);
         when(knowledgeMapper.selectById(10L)).thenReturn(knowledge);
 
-        knowledgeService.createNote(10L, "我的笔记", "这是一篇关于 RAG 的笔记内容,记录我的学习心得。");
+        knowledgeService.createNote(10L, "我的笔记", "这是一篇关于 RAG 的笔记内容,记录我的学习心得。", null);
 
         // 归属校验通过 + 同步索引(写优先:写完立刻可检索)
         verify(fileMapper).saveFile(any());
@@ -104,6 +104,6 @@ class KnowledgeAddValidationTest {
         other.setId(2L);
         other.setUsername("hacker");
         UserContext.set(other);
-        assertThrows(BusinessException.class, () -> knowledgeService.createNote(10L, "hack", "x"));
+        assertThrows(BusinessException.class, () -> knowledgeService.createNote(10L, "hack", "x", null));
     }
 }

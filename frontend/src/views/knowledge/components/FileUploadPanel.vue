@@ -103,11 +103,14 @@ function stopPolling() {
 }
 onBeforeUnmount(stopPolling)
 
+// 与后端 FileServiceImpl 白名单保持一致(accept 只过滤选择器,拖拽文件靠这里的校验兜底)
+const ALLOWED_EXTS = ['pdf', 'docx', 'md']
+
 function onFileChange(file: any) {
   const raw = file.raw as File
   if (!raw) return
   const ext = raw.name.split('.').pop()?.toLowerCase()
-  if (ext !== 'pdf' && ext !== 'docx') {
+  if (!ext || !ALLOWED_EXTS.includes(ext)) {
     ElMessage.error(t('upload.formatHint'))
     return
   }

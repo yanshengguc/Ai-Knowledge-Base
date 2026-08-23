@@ -36,6 +36,19 @@ class ParserFactoryTest {
         assertThrows(BusinessException.class, () -> factory.getParser(file("病毒.exe")));
     }
 
+    @Test
+    void markdownBomIsStripped() {
+        // Windows 记事本保存的 md 带 UTF-8 BOM,解析必须去掉,否则 \uFEFF 污染首个切片
+        MarkdownParser parser = new MarkdownParser();
+        byte[] withBom = new byte[3 + 5];
+        withBom[0] = (byte) 0xEF;
+        withBom[1] = (byte) 0xBB;
+        withBom[2] = (byte) 0xBF;
+        System.arraycopy("hello".getBytes(), 0, withBom, 3, 5);
+        String parsed = parser.parse(new MockMultipartFile("file", "note.md", "text/markdown", withBom));
+        assertEquals("hello", parsed);
+    }
+
     private org.springframework.web.multipart.MultipartFile file(String name) {
         return new MockMultipartFile("file", name, "text/plain", "hello".getBytes());
     }

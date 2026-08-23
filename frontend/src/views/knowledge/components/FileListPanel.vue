@@ -2,7 +2,11 @@
   <div v-if="files.length" class="upload-section">
     <h3>{{ t('upload.fileList') }}</h3>
     <div v-for="f in files" :key="f.id" class="file-row">
-      <span class="file-name">{{ f.fileName }}</span>
+      <span class="file-name">
+        {{ f.fileName }}
+        <!-- AI 来源标记:自增强循环防线——检索命中时可分辨内容出处 -->
+        <el-tag v-if="isAiSourced(f)" size="small" type="warning" effect="plain" class="ai-tag">AI</el-tag>
+      </span>
       <div class="file-right">
         <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
         <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">{{ t('common.delete') }}</el-button>
@@ -32,6 +36,11 @@ function fileTagType(status?: string) {
   if (status === 'SUCCESS') return 'success'
   if (status === 'FAILED') return 'danger'
   return 'warning'
+}
+
+// AI 来源:后端把来源编码进 fileType(text/markdown;source=ai-chat)
+function isAiSourced(f: FileVO) {
+  return !!f.fileType && f.fileType.includes('source=ai-chat')
 }
 
 async function onDeleteFile(f: FileVO) {
@@ -78,6 +87,10 @@ async function onDeleteFile(f: FileVO) {
     white-space: nowrap;
     margin-right: $space-3;
     flex: 1;
+
+    .ai-tag {
+      margin-left: $space-1;
+    }
   }
 
   .file-right {

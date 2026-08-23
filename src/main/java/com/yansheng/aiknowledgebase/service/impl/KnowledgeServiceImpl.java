@@ -39,7 +39,6 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Getter
     private final RedisTemplate<String, Object> redisTemplate;
     private final Random random = new Random();
-    private final String lockValue = UUID.randomUUID().toString();
     private static final String UNLOCK_SCRIPT = "if redis.call('get', KEYS[1]) == ARGV[1] " +
             "then " +
             "return redis.call('del', KEYS[1]) " +
@@ -85,28 +84,15 @@ public class KnowledgeServiceImpl implements KnowledgeService {
     @Override
     public KnowledgeDetailVO getKnowledgeById(Long id) throws InterruptedException {
 
-        String key= RedisKey.knowledge(id);
-Object obj=null;
-        try {
-            obj=redisTemplate.opsForValue().get(key);
-            log.debug("Redis查询: {}", obj);
-        }catch (Exception e){
-            log.warn("Redis异常: {}", e.getMessage());
-        }
-        if( "NULL".equals(obj)){
-            throw new BusinessException("不存在");
-        }
-        if (obj != null) {
+        String key = RedisKey.knowledge(id);
+
+        KnowledgeDetailVO cached = readCache(key);
+        if (cached != null) {
             log.info("走缓存");
-            // 归属校验(修复越权:知道 id 即可查看任意知识)
-            KnowledgeDetailVO cachedVO = (KnowledgeDetailVO) obj;
-            UserEntity userEntity = UserContext.get();
-            if (!userEntity.getUsername().equals(cachedVO.getAuthor())) {
-                throw new BusinessException("权限不足");
-            }
-            return cachedVO;
+            return cached;
         }
-        String lockKey = "lock:"+key;
+
+        String lockKey = "lock:" + key;
         String lockValue = UUID.randomUUID().toString();
         Boolean success = redisTemplate.opsForValue().setIfAbsent(
                 lockKey,
@@ -117,28 +103,21 @@ Object obj=null;
 
         if (Boolean.TRUE.equals(success)) {
             try {
-                obj=redisTemplate.opsForValue().get(key);
-                if( "NULL".equals(obj)){
-                    throw new BusinessException("不存在");
-                }
-                if (obj != null) {
+                // 双重检查:等锁期间缓存可能已被其他线程写入
+                cached = readCache(key);
+                if (cached != null) {
                     log.info("走缓存");
-                    // 归属校验(修复越权)
-                    KnowledgeDetailVO cachedVO2 = (KnowledgeDetailVO) obj;
-                    if (!UserContext.get().getUsername().equals(cachedVO2.getAuthor())) {
-                        throw new BusinessException("权限不足");
-                    }
-                    return cachedVO2;
+                    return cached;
                 }
                 log.info("走MYSQL");
                 KnowledgeEntity entity = knowledgeMapper.selectById(id);
 
-                if(entity ==null){try {
-                    redisTemplate.opsForValue().set(key,"NULL",5,TimeUnit.MINUTES);
-                }catch (Exception e){
-                    log.warn("Redis写入异常");
-                }
-
+                if (entity == null) {
+                    try {
+                        redisTemplate.opsForValue().set(key, "NULL", 5, TimeUnit.MINUTES);
+                    } catch (Exception e) {
+                        log.warn("Redis写入异常");
+                    }
                     throw new BusinessException("不存在");
                 }
                 KnowledgeDetailVO VO = new KnowledgeDetailVO();
@@ -149,49 +128,72 @@ Object obj=null;
                 VO.setCreateTime(entity.getCreateTime());
                 VO.setUpdateTime(entity.getUpdateTime());
                 // 归属校验(修复越权)
-                if (!UserContext.get().getUsername().equals(entity.getAuthor())) {
+                if (!UserContext.get().getUsername().equals(VO.getAuthor())) {
                     throw new BusinessException("权限不足");
                 }
                 try {
-                    redisTemplate.opsForValue().set(key,VO,31+random.nextInt(5), TimeUnit.MINUTES);
-                }catch (Exception e){
+                    redisTemplate.opsForValue().set(key, VO, 31 + random.nextInt(5), TimeUnit.MINUTES);
+                } catch (Exception e) {
                     log.warn("Redis写入异常");
                 }
 
                 return VO;
 
-            }finally {
+            } finally {
                 redisTemplate.execute(
-                        new
-                                DefaultRedisScript<>(UNLOCK_SCRIPT,
-                                Long.class
-                        ),
+                        new DefaultRedisScript<>(UNLOCK_SCRIPT, Long.class),
                         Collections.singletonList(lockKey),
                         lockValue
                 );
-}
-            }else{
+            }
+        } else {
             log.info("等待锁");
             try {
-Thread.sleep(100);
-            }catch (InterruptedException e){
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new RuntimeException(e);
             }
-            for(int i=0;i<3;i++){
-
+            for (int i = 0; i < 3; i++) {
                 Thread.sleep(100);
-
-                obj = redisTemplate.opsForValue().get(key);
-
-                if(obj != null){
-                    return (KnowledgeDetailVO)obj;
+                // 修复:等锁重试同样要走哨兵判断 + 归属校验
+                // (原实现直接强转返回,既绕过归属校验,遇到 "NULL" 哨兵还会 CCE)
+                KnowledgeDetailVO waited = readCache(key);
+                if (waited != null) {
+                    return waited;
                 }
-
             }
             throw new BusinessException("系统繁忙");
         }
+    }
+
+    /**
+     * 统一的缓存读取:NULL 哨兵判断 + 归属校验,返回 null 表示未命中需回源。
+     * 所有读缓存路径必须收敛到这里,防止某条并发分支漏掉归属校验或误强转哨兵。
+     */
+    private KnowledgeDetailVO readCache(String key) {
+        Object obj;
+        try {
+            obj = redisTemplate.opsForValue().get(key);
+            log.debug("Redis查询: {}", obj);
+        } catch (Exception e) {
+            log.warn("Redis异常: {}", e.getMessage());
+            return null;
         }
+        if ("NULL".equals(obj)) {
+            throw new BusinessException("不存在");
+        }
+        if (obj == null) {
+            return null;
+        }
+        // 归属校验(修复越权:知道 id 即可查看任意知识)
+        KnowledgeDetailVO cachedVO = (KnowledgeDetailVO) obj;
+        UserEntity userEntity = UserContext.get();
+        if (!userEntity.getUsername().equals(cachedVO.getAuthor())) {
+            throw new BusinessException("权限不足");
+        }
+        return cachedVO;
+    }
 
     @Override
     public void addKnowledge(KnowledgeAddDTO dto) {

@@ -110,7 +110,10 @@ public class ChatServiceImpl implements ChatService {
             prompt = appendWebSearchContext(prompt, question);
         }
 
-        // 2. 流式生成:逐 token 推给前端,收集完整答案
+        // 2. 先落 user 消息再开始生成:流中断时历史不会出现"有答无问"
+        historyService.append(userId, "user", question);
+
+        // 3. 流式生成:逐 token 推给前端,收集完整答案
         StringBuilder fullAnswer = new StringBuilder();
         generationService.generateStream(prompt).subscribe(
                 token -> {
@@ -123,10 +126,11 @@ public class ChatServiceImpl implements ChatService {
                         historyService.append(userId, "assistant", fullAnswer.toString());
                     }
                     log.error("流式生成失败,userId={}", userId, error);
+                    // 失败也要发结束信号:onDone 负责 complete SSE,不发前端会挂到超时
+                    onDone.accept(searchResults);
                 },
                 () -> {
-                    // 3. 完成:保存本轮(user + assistant)到历史 + 写入长期记忆
-                    historyService.append(userId, "user", question);
+                    // 4. 完成:保存 assistant 到历史 + 写入长期记忆
                     historyService.append(userId, "assistant", fullAnswer.toString());
                     String memoryContent = "用户问过：" + question + "\n回答要点：" +
                             (fullAnswer.length() > 100 ? fullAnswer.substring(0, 100) : fullAnswer.toString());

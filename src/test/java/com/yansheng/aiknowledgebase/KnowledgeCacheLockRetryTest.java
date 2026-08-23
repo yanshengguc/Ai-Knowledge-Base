@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase;
 
 
 import com.yansheng.aiknowledgebase.common.RedisKey;
+import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.when;
  * 修复前该分支直接 (KnowledgeDetailVO) obj 返回:
  *  - 读到他人缓存 → 越权返回他人知识
  *  - 读到 "NULL" 哨兵 → ClassCastException
+ * 另覆盖重试耗尽后的降级路径:直查 DB 而非抛"系统繁忙"。
  */
 class KnowledgeCacheLockRetryTest {
 
@@ -41,8 +43,9 @@ class KnowledgeCacheLockRetryTest {
     private final RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
     @SuppressWarnings("unchecked")
     private final ValueOperations<String, Object> valueOperations = mock(ValueOperations.class);
+    private final KnowledgeMapper knowledgeMapper = mock(KnowledgeMapper.class);
     private final KnowledgeServiceImpl knowledgeService = new KnowledgeServiceImpl(
-            mock(KnowledgeMapper.class), mock(FileMapper.class), mock(ChunkMapper.class),
+            knowledgeMapper, mock(FileMapper.class), mock(ChunkMapper.class),
             mock(VectorStoreService.class), mock(DocumentService.class), redisTemplate);
 
     private UserEntity userA;
@@ -110,5 +113,38 @@ class KnowledgeCacheLockRetryTest {
         UserContext.set(userA);
         KnowledgeDetailVO vo = knowledgeService.getKnowledgeById(KB_ID);
         assertEquals(userA.getUsername(), vo.getAuthor());
+    }
+
+    private KnowledgeEntity entityOf(String author) {
+        KnowledgeEntity entity = new KnowledgeEntity();
+        entity.setId(KB_ID);
+        entity.setTitle("t");
+        entity.setContent("c");
+        entity.setAuthor(author);
+        return entity;
+    }
+
+    @Test
+    void lockTimeoutDegradesToDbInsteadOfError() throws Exception {
+        // 缓存始终未命中、锁始终抢不到:重试耗尽后应降级直查 DB(而非抛"系统繁忙"),
+        // 且降级路径同样要走归属校验
+        when(valueOperations.get(RedisKey.knowledge(KB_ID))).thenReturn(null);
+        when(knowledgeMapper.selectById(KB_ID)).thenReturn(entityOf(userA.getUsername()));
+
+        UserContext.set(userA);
+        KnowledgeDetailVO vo = knowledgeService.getKnowledgeById(KB_ID);
+        assertEquals(userA.getUsername(), vo.getAuthor());
+    }
+
+    @Test
+    void lockTimeoutDegradeReturnsNotFoundWhenDbMiss() throws Exception {
+        // 降级路径查库也为空:报"不存在"(缓存未写哨兵,由持锁线程负责)
+        when(valueOperations.get(RedisKey.knowledge(KB_ID))).thenReturn(null);
+        when(knowledgeMapper.selectById(KB_ID)).thenReturn(null);
+
+        UserContext.set(userA);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> knowledgeService.getKnowledgeById(KB_ID));
+        assertEquals("不存在", ex.getMessage());
     }
 }

@@ -4,198 +4,67 @@
       <el-button :icon="ArrowLeft" text @click="router.push('/knowledge')">{{ t('common.back') }}</el-button>
       <h2>{{ detail.title }}</h2>
       <el-tag v-if="detail.category" size="small" effect="plain">{{ detail.category }}</el-tag>
-      <el-button type="primary" text :icon="Edit" @click="openEdit">编辑</el-button>
-      <el-button type="success" text :icon="EditPen" @click="openNote">新建笔记</el-button>
+      <el-button type="primary" text :icon="Edit" @click="editVisible = true">编辑</el-button>
+      <el-button type="success" text :icon="EditPen" @click="noteVisible = true">新建笔记</el-button>
     </div>
 
     <div class="detail-content">{{ detail.content || t('upload.noContent') }}</div>
 
-    <!-- 已有文件列表 -->
-    <div v-if="fileList.length" class="upload-section">
-      <h3>{{ t('upload.fileList') }}</h3>
-      <div v-for="f in fileList" :key="f.id" class="file-row">
-        <span class="file-name">{{ f.fileName }}</span>
-        <div class="file-right">
-          <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
-          <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">{{ t('common.delete') }}</el-button>
-        </div>
-      </div>
-    </div>
+    <!-- 已有文件列表(删除后通知父级同步列表与上传轮询) -->
+    <FileListPanel :files="fileList" @deleted="onFileDeleted" />
 
-    <!-- 文件上传 -->
-    <div class="upload-section">
-      <h3>{{ t('upload.title') }}</h3>
-      <el-upload
-        :auto-upload="false"
-        :limit="1"
-        :disabled="uploading || !!uploadedFile"
-        accept=".pdf,.docx"
-        :on-change="onFileChange"
-        :on-remove="() => (selectedFile = null)"
-        drag
-      >
-        <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-        <div class="el-upload__text">{{ t('upload.dragText') }}<em>{{ t('upload.clickSelect') }}</em></div>
-        <template #tip>
-          <div class="el-upload__tip">{{ t('upload.formatHint') }},{{ t('upload.sizeHint') }}</div>
-        </template>
-      </el-upload>
-      <div class="upload-actions">
-        <el-button
-          type="primary"
-          :loading="uploading"
-          :disabled="uploading || !selectedFile || !!uploadedFile"
-          style="margin-top: 12px"
-          @click="onUpload"
-        >
-          {{ t('upload.uploadAndProcess') }}
-        </el-button>
-        <el-tag v-if="uploadedFile" :type="fileStatusType" effect="light" class="file-status">
-          {{ fileStatusText }}
-        </el-tag>
-        <el-progress v-if="uploading" :percentage="uploadProgress" class="upload-progress" />
-      </div>
-    </div>
+    <!-- 文件上传(选择/校验/轮询内聚,处理完成通知父级刷新列表) -->
+    <FileUploadPanel ref="uploadPanelRef" :knowledge-id="detail.id" @file-processed="loadFileList" />
   </div>
   <el-skeleton v-else animated :rows="6" />
 
-  <!-- 编辑弹窗 -->
-  <el-dialog v-model="editVisible" :title="t('knowledge.editTitle')" width="min(520px, 92vw)">
-    <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="60px">
-      <el-form-item :label="t('knowledge.name')" prop="title">
-        <el-input v-model="editForm.title" />
-      </el-form-item>
-      <el-form-item :label="t('knowledge.category')" prop="category">
-        <el-input v-model="editForm.category" :placeholder="t('knowledge.categoryPlaceholder')" />
-      </el-form-item>
-      <el-form-item :label="t('knowledge.content')" prop="content">
-        <el-input v-model="editForm.content" type="textarea" :rows="6" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="editVisible = false">{{ t('common.cancel') }}</el-button>
-      <el-button type="primary" :loading="editing" @click="onSaveEdit">{{ t('knowledge.save') }}</el-button>
-    </template>
-  </el-dialog>
+  <!-- 编辑弹窗(保存后父级刷新详情) -->
+  <EditKnowledgeDialog v-if="detail" v-model:visible="editVisible" :detail="detail" @saved="reloadDetail" />
 
   <!-- 新建笔记弹窗(写优先:内容同步向量化,立刻可检索) -->
-  <el-dialog v-model="noteVisible" title="新建笔记" width="min(560px, 92vw)">
-    <el-form label-width="60px">
-      <el-form-item label="标题">
-        <el-input v-model="noteForm.title" maxlength="100" show-word-limit />
-      </el-form-item>
-      <el-form-item label="内容">
-        <el-input v-model="noteForm.content" type="textarea" :rows="10" placeholder="支持 Markdown,写下你的笔记…保存后立刻可被知识库检索" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <el-button @click="noteVisible = false">取消</el-button>
-      <el-button type="success" :loading="noteSaving" @click="onSaveNote">创建并入库</el-button>
-    </template>
-  </el-dialog>
+  <NoteCreateDialog v-if="detail" v-model:visible="noteVisible" :knowledge-id="detail.id" @created="loadFileList" />
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
-import { ArrowLeft, Edit, EditPen, UploadFilled } from '@element-plus/icons-vue'
-import { createNote, deleteFile, getFileById, getFileList, getKnowledgeDetail, updateKnowledge, uploadFile } from '@/api/modules/knowledge'
-import type { FileVO } from '@/types/api'
-import { Delete } from '@element-plus/icons-vue'
-import type { KnowledgeDetailVO } from '@/types/api'
+import { ArrowLeft, Edit, EditPen } from '@element-plus/icons-vue'
+import { getFileList, getKnowledgeDetail } from '@/api/modules/knowledge'
+import type { FileVO, KnowledgeDetailVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
+import FileListPanel from './components/FileListPanel.vue'
+import FileUploadPanel from './components/FileUploadPanel.vue'
+import EditKnowledgeDialog from './components/EditKnowledgeDialog.vue'
+import NoteCreateDialog from './components/NoteCreateDialog.vue'
 
+// 父组件只负责:详情/文件列表数据持有 + 子组件编排(弹窗开合、事件路由)
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+
 const detail = ref<KnowledgeDetailVO | null>(null)
-const selectedFile = ref<File | null>(null)
-const uploading = ref(false)
-const uploadProgress = ref(0)
-const uploadedFile = ref<FileVO | null>(null)
 const fileList = ref<FileVO[]>([])
 const editVisible = ref(false)
-const editing = ref(false)
-const editFormRef = ref<FormInstance>()
-const editForm = reactive({ title: '', category: '', content: '' })
-const editRules: FormRules = {
-  title: [{ required: true, message: t('knowledge.nameRequired'), trigger: 'blur' }],
-  content: [{ required: true, message: t('knowledge.contentRequired'), trigger: 'blur' }],
-}
-let pollTimer: number | undefined
+const noteVisible = ref(false)
+const uploadPanelRef = ref<InstanceType<typeof FileUploadPanel> | null>(null)
 
-const fileStatusText = computed(() => {
-  if (!uploadedFile.value) return ''
-  const st = uploadedFile.value.status
-  if (st === 'SUCCESS') return t('upload.success') + ' ✅'
-  if (st === 'FAILED') return t('upload.failed') + ' ❌'
-  return t('upload.processing') + '...'
-})
-const fileStatusType = computed(() => {
-  const st = uploadedFile.value?.status
-  if (st === 'SUCCESS') return 'success'
-  if (st === 'FAILED') return 'danger'
-  return 'warning'
-})
-
-function startPolling(fileId: number) {
-  stopPolling()
-  pollTimer = window.setInterval(async () => {
-    try {
-      const res = await getFileById(fileId)
-      uploadedFile.value = res.data
-      if (res.data.status === 'SUCCESS' || res.data.status === 'FAILED') {
-        stopPolling()
-        if (res.data.status === 'SUCCESS') ElMessage.success(t('upload.docSuccess'))
-        else ElMessage.error(t('upload.docFailed'))
-        // 刷新文件列表
-        if (detail.value) {
-          const listRes = await getFileList(detail.value.id)
-          fileList.value = listRes.data || []
-        }
-      }
-    } catch {
-      stopPolling()
-    }
-  }, 2000)
+async function loadFileList() {
+  if (!detail.value) return
+  const res = await getFileList(detail.value.id)
+  fileList.value = res.data || []
 }
 
-function fileStatusLabel(status?: string) {
-  if (status === 'SUCCESS') return t('upload.success')
-  if (status === 'FAILED') return t('upload.failed')
-  return t('upload.processing')
-}
-function fileTagType(status?: string) {
-  if (status === 'SUCCESS') return 'success'
-  if (status === 'FAILED') return 'danger'
-  return 'warning'
+async function reloadDetail() {
+  if (!detail.value) return
+  const res = await getKnowledgeDetail(detail.value.id)
+  detail.value = res.data
 }
 
-async function onDeleteFile(f: FileVO) {
-  await ElMessageBox.confirm(t('upload.deleteConfirm', { name: f.fileName }), t('upload.title'), {
-    type: 'warning',
-  })
-  try {
-    await deleteFile(f.id)
-    ElMessage.success(t('upload.deleteSuccess'))
-    fileList.value = fileList.value.filter((x) => x.id !== f.id)
-    if (uploadedFile.value?.id === f.id) {
-      stopPolling()
-      uploadedFile.value = null
-    }
-  } catch {
-    // 用户取消或失败,拦截器已提示
-  }
+function onFileDeleted(fileId: number) {
+  fileList.value = fileList.value.filter((x) => x.id !== fileId)
+  // 删除的若是轮询中的文件,停掉轮询并清空上传状态
+  uploadPanelRef.value?.resetIf(fileId)
 }
-
-function stopPolling() {
-  if (pollTimer) {
-    window.clearInterval(pollTimer)
-    pollTimer = undefined
-  }
-}
-
 
 onMounted(async () => {
   const id = Number(route.params.id)
@@ -204,110 +73,11 @@ onMounted(async () => {
     const res = await getKnowledgeDetail(id)
     detail.value = res.data
     // 加载已有文件列表(刷新后仍显示)
-    const fileRes = await getFileList(id)
-    fileList.value = fileRes.data || []
+    await loadFileList()
   } catch {
     // 拦截器已提示
   }
 })
-
-function onFileChange(file: any) {
-  const raw = file.raw as File
-  if (!raw) return
-  const ext = raw.name.split('.').pop()?.toLowerCase()
-  if (ext !== 'pdf' && ext !== 'docx') {
-    ElMessage.error(t('upload.formatHint'))
-    return
-  }
-  if (raw.size > 20 * 1024 * 1024) {
-    ElMessage.error(t('upload.sizeError'))
-    return
-  }
-  selectedFile.value = raw
-}
-
-async function onUpload() {
-  if (!selectedFile.value || !detail.value) return
-  uploading.value = true
-  try {
-    uploadProgress.value = 0
-    const res = await uploadFile(detail.value.id, selectedFile.value, (p) => (uploadProgress.value = p))
-    const fileId = (res.data as FileVO)?.id
-    ElMessage.success(t('upload.uploadSuccess'))
-    selectedFile.value = null
-    if (fileId) {
-      uploadedFile.value = { id: fileId, status: 'PROCESSING' }
-      startPolling(fileId)
-    }
-  } catch {
-  } finally {
-    uploading.value = false
-  }
-}
-onBeforeUnmount(stopPolling)
-
-function openEdit() {
-  if (!detail.value) return
-  editForm.title = detail.value.title
-  editForm.category = detail.value.category || ''
-  editForm.content = detail.value.content || ''
-  editVisible.value = true
-}
-
-async function onSaveEdit() {
-  if (!editFormRef.value || !detail.value) return
-  await editFormRef.value.validate()
-  editing.value = true
-  try {
-    await updateKnowledge(detail.value.id, {
-      title: editForm.title,
-      content: editForm.content,
-      category: editForm.category || undefined,
-    })
-    ElMessage.success(t('knowledge.editSuccess'))
-    editVisible.value = false
-    const res = await getKnowledgeDetail(detail.value.id)
-    detail.value = res.data
-  } catch {
-  } finally {
-    editing.value = false
-  }
-}
-
-// ===== 新建笔记(写优先)=====
-const noteVisible = ref(false)
-const noteSaving = ref(false)
-const noteForm = reactive({ title: '', content: '' })
-
-function openNote() {
-  noteForm.title = ''
-  noteForm.content = ''
-  noteVisible.value = true
-}
-
-async function onSaveNote() {
-  if (!detail.value) return
-  if (!noteForm.title.trim() || !noteForm.content.trim()) {
-    ElMessage.warning('标题和内容不能为空')
-    return
-  }
-  noteSaving.value = true
-  try {
-    await createNote(detail.value.id, {
-      title: noteForm.title.trim(),
-      content: noteForm.content,
-    })
-    ElMessage.success('笔记已创建并入库,现在就能被检索到')
-    noteVisible.value = false
-    // 刷新文件列表(笔记以文件形式出现在列表里)
-    const listRes = await getFileList(detail.value.id)
-    fileList.value = listRes.data || []
-  } catch {
-    // 拦截器已提示
-  } finally {
-    noteSaving.value = false
-  }
-}
 </script>
 
 <style scoped lang="scss">
@@ -340,56 +110,5 @@ async function onSaveNote() {
   line-height: 1.8;
   white-space: pre-wrap;
   box-shadow: $shadow-card;
-}
-
-.upload-section {
-  margin-top: $space-6;
-  background: $color-bg-card;
-  border-radius: $radius-md;
-  padding: $space-6;
-  box-shadow: $shadow-card;
-
-  h3 {
-    margin-bottom: $space-4;
-  }
-}
-
-.upload-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: $space-3;
-
-  .file-status {
-    margin-top: 12px;
-  }
-}
-
-.upload-progress {
-  width: 200px;
-}
-
-.file-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: $space-2 0;
-  border-bottom: 1px solid $color-border;
-
-  .file-name {
-    color: $color-text;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    margin-right: $space-3;
-    flex: 1;
-  }
-
-  .file-right {
-    display: flex;
-    align-items: center;
-    gap: $space-2;
-    flex-shrink: 0;
-  }
 }
 </style>

@@ -110,9 +110,8 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     return cached;
                 }
                 log.info("走MYSQL");
-                KnowledgeEntity entity = knowledgeMapper.selectById(id);
-
-                if (entity == null) {
+                KnowledgeDetailVO vo = loadFromDb(id);
+                if (vo == null) {
                     try {
                         redisTemplate.opsForValue().set(key, "NULL", 5, TimeUnit.MINUTES);
                     } catch (Exception e) {
@@ -120,24 +119,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                     }
                     throw new BusinessException("不存在");
                 }
-                KnowledgeDetailVO VO = new KnowledgeDetailVO();
-                VO.setId(entity.getId());
-                VO.setTitle(entity.getTitle());
-                VO.setContent(entity.getContent());
-                VO.setAuthor(entity.getAuthor());
-                VO.setCreateTime(entity.getCreateTime());
-                VO.setUpdateTime(entity.getUpdateTime());
-                // 归属校验(修复越权)
-                if (!UserContext.get().getUsername().equals(VO.getAuthor())) {
-                    throw new BusinessException("权限不足");
-                }
                 try {
-                    redisTemplate.opsForValue().set(key, VO, 31 + random.nextInt(5), TimeUnit.MINUTES);
+                    redisTemplate.opsForValue().set(key, vo, 31 + random.nextInt(5), TimeUnit.MINUTES);
                 } catch (Exception e) {
                     log.warn("Redis写入异常");
                 }
 
-                return VO;
+                return vo;
 
             } finally {
                 redisTemplate.execute(
@@ -147,24 +135,53 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 );
             }
         } else {
-            log.info("等待锁");
-            try {
+            log.info("等待锁: id={}", id);
+            Thread.sleep(100);
+            for (int i = 1; i <= 3; i++) {
                 Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
-            }
-            for (int i = 0; i < 3; i++) {
-                Thread.sleep(100);
-                // 修复:等锁重试同样要走哨兵判断 + 归属校验
-                // (原实现直接强转返回,既绕过归属校验,遇到 "NULL" 哨兵还会 CCE)
+                // 等锁重试同样要走哨兵判断 + 归属校验(readCache 统一入口)
                 KnowledgeDetailVO waited = readCache(key);
                 if (waited != null) {
+                    log.info("等锁后命中缓存: id={}, attempt={}/3", id, i);
                     return waited;
                 }
+                log.debug("等锁重试: id={}, attempt={}/3", id, i);
             }
-            throw new BusinessException("系统繁忙");
+            /*
+             * 降级:等锁 ~400ms 仍未拿到缓存(持锁线程可能异常或慢查询)。
+             * 互斥锁是防击穿手段,不是正确性依赖——宁可极少数请求直查 DB,
+             * 不能让用户拿到"系统繁忙"。降级不写缓存,避免与持锁线程写回互相覆盖。
+             */
+            log.warn("锁等待超时,降级直查数据库: id={}", id);
+            KnowledgeDetailVO degraded = loadFromDb(id);
+            if (degraded == null) {
+                throw new BusinessException("不存在");
+            }
+            return degraded;
         }
+    }
+
+    /**
+     * 回源查库(不带缓存写入,调用方自行决定是否写缓存)。
+     * 返回 null 表示不存在;归属校验不通过直接抛权限不足。
+     */
+    private KnowledgeDetailVO loadFromDb(Long id) {
+        KnowledgeEntity entity = knowledgeMapper.selectById(id);
+        if (entity == null) {
+            return null;
+        }
+        KnowledgeDetailVO vo = new KnowledgeDetailVO();
+        vo.setId(entity.getId());
+        vo.setTitle(entity.getTitle());
+        vo.setContent(entity.getContent());
+        vo.setAuthor(entity.getAuthor());
+        vo.setCreateTime(entity.getCreateTime());
+        vo.setUpdateTime(entity.getUpdateTime());
+        // 归属校验(修复越权)
+        if (!UserContext.get().getUsername().equals(vo.getAuthor())) {
+            throw new BusinessException("权限不足");
+        }
+        return vo;
     }
 
     /**

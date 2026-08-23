@@ -109,8 +109,9 @@ if (file.getSize() > maxSize) {
 String originalName = file.getOriginalFilename();
 if (originalName == null
         || !(originalName.toLowerCase().endsWith(".pdf")
-             || originalName.toLowerCase().endsWith(".docx"))) {
-    throw new BusinessException("仅支持 pdf/docx 格式文件");
+             || originalName.toLowerCase().endsWith(".docx")
+             || originalName.toLowerCase().endsWith(".md"))) {
+    throw new BusinessException("仅支持 pdf/docx/md 格式文件");
 }
         log.info("开始上传文件,userId={},knowledgeId={},fileName={}",
                 userId,

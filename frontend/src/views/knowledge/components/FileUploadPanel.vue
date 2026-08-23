@@ -5,7 +5,7 @@
       :auto-upload="false"
       :limit="1"
       :disabled="uploading || !!uploadedFile"
-      accept=".pdf,.docx"
+      accept=".pdf,.docx,.md"
       :on-change="onFileChange"
       :on-remove="() => (selectedFile = null)"
       drag

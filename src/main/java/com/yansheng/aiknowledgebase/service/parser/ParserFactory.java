@@ -9,15 +9,19 @@ public class ParserFactory {
 
     private static final String PDF = ".pdf";
     private static final String WORD = ".docx";
+    private static final String MARKDOWN = ".md";
 
     private final PdfParser pdfParser;
     private final WordParser wordParser;
+    private final MarkdownParser markdownParser;
 
 
     public ParserFactory(PdfParser pdfParser,
-                         WordParser wordParser) {
+                         WordParser wordParser,
+                         MarkdownParser markdownParser) {
         this.pdfParser = pdfParser;
         this.wordParser = wordParser;
+        this.markdownParser = markdownParser;
     }
 
     public DocumentParser getParser(MultipartFile file) {
@@ -31,6 +35,9 @@ public class ParserFactory {
         }
         if (fileName.endsWith(WORD)) {
             return wordParser;
+        }
+        if (fileName.endsWith(MARKDOWN)) {
+            return markdownParser;
         }
         throw new BusinessException("暂不支持该文件类型");
     }

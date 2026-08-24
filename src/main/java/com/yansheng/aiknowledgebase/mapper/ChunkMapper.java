@@ -11,6 +11,9 @@ public interface ChunkMapper {
     List<ChunkEntity> selectByFileId(Long fileId);
     int deleteByFileId(Long fileId);
 
+    /** 切片引用溯源:按 chunkId 批量取切片元数据(chunkIndex 定位原文位置) */
+    List<ChunkEntity> selectByIds(@Param("ids") List<Long> ids);
+
     /**
      * BM25 全文检索(混合检索的第二路,补向量检索对精确匹配/专有名词的短板)。
      * MySQL FULLTEXT + ngram 中文分词,按用户文件范围过滤。

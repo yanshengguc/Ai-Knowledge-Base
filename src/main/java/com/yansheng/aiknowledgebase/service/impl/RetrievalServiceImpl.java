@@ -121,10 +121,27 @@ public class RetrievalServiceImpl implements RetrievalService {
         return finalResults;
     }
 
-    /** 填充来源文件名(引用面板展示出处);同 fileId 只查一次,topK 规模下至多几次点查 */
+    /** 填充引用元数据(文件名 + 切片序号);批量点查,topK 规模下至多一两条 SQL */
     private void fillFileNames(List<SearchResult> results) {
         if (results == null || results.isEmpty()) return;
         Map<Long, String> nameCache = new LinkedHashMap<>();
+        // chunkIndex 补齐:向量检索(DashVector)不回传 chunk_index,按 chunkId 批量查库补齐
+        List<Long> missingIndex = results.stream()
+                .filter(r -> r.getChunkId() != null && r.getChunkIndex() == null)
+                .map(SearchResult::getChunkId)
+                .distinct()
+                .collect(Collectors.toList());
+        if (!missingIndex.isEmpty()) {
+            try {
+                chunkMapper.selectByIds(missingIndex).forEach(chunk -> {
+                    results.stream()
+                            .filter(r -> chunk.getId().equals(r.getChunkId()))
+                            .forEach(r -> r.setChunkIndex(chunk.getChunkIndex()));
+                });
+            } catch (Exception e) {
+                log.warn("补齐切片序号失败(引用面板退化为仅文件名): {}", e.getMessage());
+            }
+        }
         for (SearchResult r : results) {
             if (r.getFileId() == null || nameCache.containsKey(r.getFileId())) continue;
             try {

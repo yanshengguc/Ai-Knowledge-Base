@@ -57,6 +57,8 @@ export interface SearchResult {
   score: number
   /** 来源文件名(检索出口填充,引用面板展示出处) */
   fileName?: string
+  /** 切片在文件内的序号(引用溯源;旧缓存条目可能缺失) */
+  chunkIndex?: number
 }
 
 export interface ChatResponse {

@@ -4,6 +4,7 @@ import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.common.RedisKey;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.FileStatus;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -357,12 +359,43 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
                         sb.append(" <").append(f.getFileUrl()).append(">");
                     }
                     sb.append("\n");
+                    // 笔记正文:内容就在 MySQL(切片),导出带上——数据主权不只清单,还要拿得走内容
+                    if (isNote(f) && FileStatus.SUCCESS.name().equals(f.getStatus())) {
+                        String noteContent = readNoteContent(f.getId());
+                        if (!noteContent.isBlank()) {
+                            sb.append("\n").append(indentBlockquote(noteContent)).append("\n\n");
+                        }
+                    }
                 }
                 sb.append("\n");
             }
         }
         sb.append("---\n*由 Ai-Knowledge-Base 导出*");
         return sb.toString();
+    }
+
+    private boolean isNote(FileEntity f) {
+        String type = f.getFileType();
+        return type != null && type.startsWith("text/markdown");
+    }
+
+    /** 笔记正文 = 该文件全部切片按序拼接(笔记经 indexPlainText 落库,内容只在 chunk 表) */
+    private String readNoteContent(Long fileId) {
+        List<ChunkEntity> chunks = chunkMapper.selectByFileId(fileId);
+        if (chunks == null || chunks.isEmpty()) {
+            return "";
+        }
+        return chunks.stream()
+                .sorted(Comparator.comparingInt(ChunkEntity::getChunkIndex))
+                .map(ChunkEntity::getContent)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** 笔记正文缩进为引用块:与文件清单行视觉区分,导出的 md 仍是一份合法 Markdown */
+    private String indentBlockquote(String content) {
+        return Arrays.stream(content.strip().split("\n", -1))
+                .map(line -> "> " + line)
+                .collect(Collectors.joining("\n"));
     }
 
 

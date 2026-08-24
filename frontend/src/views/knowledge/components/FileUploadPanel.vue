@@ -134,19 +134,19 @@ async function onUpload() {
   uploading.value = true
   uploadedFile.value = null // 开始新一轮,清掉上一次的状态显示
   try {
-    uploadProgress.value = 0
-    const res = await uploadFile(props.knowledgeId, selectedFile.value, (p) => (uploadProgress.value = p))
-    const fileId = (res.data as FileVO)?.id
-    ElMessage.success(t('upload.uploadSuccess'))
-    selectedFile.value = null
-    if (fileId) {
-      uploadedFile.value = { id: fileId, status: 'PROCESSING' }
-      startPolling(fileId)
+      uploadProgress.value = 0
+      const res = await uploadFile(props.knowledgeId, selectedFile.value, (p) => (uploadProgress.value = p))
+      const fileId = (res.data as FileVO)?.id
+      ElMessage.success(t('upload.uploadSuccess'))
+      selectedFile.value = null // 上传请求已受理,清空选中;连续传文件时无需手动移除上一个
+      if (fileId) {
+        uploadedFile.value = { id: fileId, status: 'PROCESSING' }
+        startPolling(fileId)
+      }
+    } catch {
+    } finally {
+      uploading.value = false
     }
-  } catch {
-  } finally {
-    uploading.value = false
-  }
 }
 </script>
 

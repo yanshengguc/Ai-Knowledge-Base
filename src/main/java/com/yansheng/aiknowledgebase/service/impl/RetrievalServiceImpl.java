@@ -70,6 +70,8 @@ public class RetrievalServiceImpl implements RetrievalService {
         List<SearchResult> cached = readCache(cacheKey);
         if (cached != null) {
             log.info("检索缓存命中, key={}", cacheKey);
+            // 旧缓存条目无 fileName(字段后加),命中也补一遍,引用面板不退化为"资料 N"
+            fillFileNames(cached);
             return cached;
         }
 

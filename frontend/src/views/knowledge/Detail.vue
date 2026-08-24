@@ -16,7 +16,12 @@
     <!-- 文件上传(选择/校验/轮询内聚,处理完成通知父级刷新列表) -->
     <FileUploadPanel ref="uploadPanelRef" :knowledge-id="detail.id" @file-processed="loadFileList" />
   </div>
-  <el-skeleton v-else animated :rows="6" />
+  <el-skeleton v-else-if="!loadFailed" animated :rows="6" />
+  <!-- 加载失败(权限不足/不存在):给明确反馈 + 出口,不再永远骨架屏 -->
+  <div v-else class="detail-error">
+    <el-empty :description="t('knowledge.loadFailed')" />
+    <el-button type="primary" @click="router.push('/knowledge')">{{ t('common.back') }}</el-button>
+  </div>
 
   <!-- 编辑弹窗(保存后父级刷新详情) -->
   <EditKnowledgeDialog v-if="detail" v-model:visible="editVisible" :detail="detail" @saved="reloadDetail" />
@@ -44,6 +49,7 @@ const { t } = useI18n()
 
 const detail = ref<KnowledgeDetailVO | null>(null)
 const fileList = ref<FileVO[]>([])
+const loadFailed = ref(false)
 const editVisible = ref(false)
 const noteVisible = ref(false)
 const uploadPanelRef = ref<InstanceType<typeof FileUploadPanel> | null>(null)
@@ -75,7 +81,8 @@ onMounted(async () => {
     // 加载已有文件列表(刷新后仍显示)
     await loadFileList()
   } catch {
-    // 拦截器已提示
+    // 拦截器已提示;标记失败退出骨架屏,否则权限不足时永远加载中
+    loadFailed.value = true
   }
 })
 </script>
@@ -86,6 +93,14 @@ onMounted(async () => {
 .detail {
   max-width: 800px;
   margin: 0 auto;
+}
+
+.detail-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: $space-4;
+  padding-top: $space-12;
 }
 
 .detail-header {

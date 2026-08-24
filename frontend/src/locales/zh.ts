@@ -57,6 +57,8 @@ export default {
     uncategorized: '未分类',
     empty: '还没有知识',
     emptyHint: '点击右上角"新建"创建第一条知识',
+    loadFailed: '加载失败(不存在或无权限)',
+    deleteBlockedProcessing: '文件处理中,完成后才能删除',
     nameRequired: '请输入标题',
     contentRequired: '请输入内容',
     categoryPlaceholder: '如:面试 / 学习 / 工作 / 读书笔记',

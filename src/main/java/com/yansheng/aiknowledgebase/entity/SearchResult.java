@@ -10,6 +10,8 @@ public class SearchResult {
     Long chunkId;
     String content;
     Double score;
+    /** 来源文件名(检索出口统一填充,供前端引用面板展示出处) */
+    String fileName;
     public SearchResult(){}
     public SearchResult(Long fileId, Long chunkId, String content, Double score) {
         this.fileId = fileId;

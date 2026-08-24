@@ -73,8 +73,9 @@ export const useChatStore = defineStore('chat', {
             if (!dataLine) continue
             const data = dataLine.slice(5).trim()
             if (!data || data === '[DONE]') continue
-            // 尝试按事件名区分:refs 事件是 JSON 数组,否则为 token 文本
-            if (evt.includes('event: refs')) {
+            // 按事件名区分:refs 事件是 JSON 数组,其余为 token 文本。
+            // 注意 Spring SseEmitter 输出的是 "event:refs"(无空格),不能用 includes('event: refs')
+            if (/^event:\s*refs$/m.test(evt)) {
               try {
                 assistantMsg.references = JSON.parse(data)
               } catch {

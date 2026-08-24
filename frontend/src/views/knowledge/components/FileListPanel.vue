@@ -1,7 +1,7 @@
 <template>
   <div v-if="files.length" class="upload-section">
     <h3>{{ t('upload.fileList') }}</h3>
-    <div v-for="f in files" :key="f.id" class="file-row">
+    <div v-for="f in files" :key="f.id" class="file-row" :class="{ 'is-processing': f.status === 'PROCESSING' }">
       <span class="file-name">
         {{ f.fileName }}
         <!-- AI 来源标记:自增强循环防线——检索命中时可分辨内容出处 -->
@@ -9,7 +9,17 @@
       </span>
       <div class="file-right">
         <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
-        <el-button size="small" type="danger" text :icon="Delete" @click="onDeleteFile(f)">{{ t('common.delete') }}</el-button>
+        <!-- 处理中禁删:状态机未到终态,此时删会留下孤儿 chunk/向量 -->
+        <el-tooltip :content="f.status === 'PROCESSING' ? t('upload.deleteBlockedProcessing') : t('common.delete')" placement="top">
+          <el-button
+            class="delete-btn"
+            size="small"
+            circle
+            :icon="Delete"
+            :disabled="f.status === 'PROCESSING'"
+            @click="onDeleteFile(f)"
+          />
+        </el-tooltip>
       </div>
     </div>
   </div>
@@ -80,6 +90,10 @@ async function onDeleteFile(f: FileVO) {
   padding: $space-2 0;
   border-bottom: 1px solid $color-border;
 
+  &:last-child {
+    border-bottom: none;
+  }
+
   .file-name {
     color: $color-text;
     overflow: hidden;
@@ -98,6 +112,21 @@ async function onDeleteFile(f: FileVO) {
     align-items: center;
     gap: $space-2;
     flex-shrink: 0;
+  }
+
+  // 删除按钮悬停才显示:平时完全隐形,列表安静;处理中行整体降透明度暗示不可操作
+  .delete-btn {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    margin-left: 0;
+  }
+
+  &:hover .delete-btn:not(:disabled) {
+    opacity: 1;
+  }
+
+  &.is-processing {
+    opacity: 0.75;
   }
 }
 </style>

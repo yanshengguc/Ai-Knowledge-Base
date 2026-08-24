@@ -81,7 +81,8 @@ public class ChatServiceImpl implements ChatService {
             String webContext = webSearchTool.execute(java.util.Map.of("query", question));
             log.info("联网搜索完成,注入上下文,question={}", question);
             return prompt + "\n\n【联网搜索结果】\n" + webContext
-                    + "\n请结合以上最新联网信息回答;若与知识库内容冲突,以联网搜索结果为准。";
+                    + "\n请结合以上最新联网信息回答;若与知识库内容冲突,以联网搜索结果为准。"
+                    + "\n不要在回答中生成[来源:xxx]之类的引用标记,直接给出内容即可。";
         } catch (Exception e) {
             // 搜索失败降级:纯知识库回答,不中断对话
             log.warn("联网搜索失败,降级为纯知识库回答: {}", e.getMessage());

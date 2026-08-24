@@ -4,6 +4,8 @@ package com.yansheng.aiknowledgebase;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
+import com.yansheng.aiknowledgebase.mapper.FileMapper;
+import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
@@ -30,6 +32,7 @@ class RetrievalServiceImplTest {
     @SuppressWarnings("unchecked")
     private ValueOperations<String, Object> valueOperations;
     private ChunkMapper chunkMapper;
+    private FileMapper fileMapper;
     private RetrievalServiceImpl retrievalService;
 
     @BeforeEach
@@ -40,8 +43,9 @@ class RetrievalServiceImplTest {
         redisTemplate = mock(RedisTemplate.class);
         valueOperations = mock(ValueOperations.class);
         chunkMapper = mock(ChunkMapper.class);
+        fileMapper = mock(FileMapper.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper, fileMapper);
         // 因为 @Value 注入的字段在纯 new 出来的对象里不会自动赋值，手动塞进去
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
@@ -88,6 +92,35 @@ class RetrievalServiceImplTest {
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).getChunkId());
+    }
+
+    @Test
+    void shouldFillFileNamesForReferences() {
+        // 引用面板展示出处:检索出口统一填充 fileName;同 fileId 只查一次
+        List<SearchResult> mockResults = Arrays.asList(
+                new SearchResult(1L, 1L, "内容A", 0.10),
+                new SearchResult(1L, 2L, "内容A2", 0.20), // 同文件第二个 chunk
+                new SearchResult(2L, 3L, "内容B", 0.30)
+        );
+        FileEntity f1 = new FileEntity();
+        f1.setId(1L);
+        f1.setFileName("RAG笔记.md");
+        FileEntity f2 = new FileEntity();
+        f2.setId(2L);
+        f2.setFileName("Java基础.pdf");
+
+        when(valueOperations.get(anyString())).thenReturn(null);
+        when(vectorSearchService.search(eq("测试"), anyInt())).thenReturn(mockResults);
+        when(fileMapper.selectById(1L)).thenReturn(f1);
+        when(fileMapper.selectById(2L)).thenReturn(f2);
+
+        List<SearchResult> result = retrievalService.retrieveTopK("测试");
+
+        assertEquals(3, result.size());
+        assertEquals("RAG笔记.md", result.get(0).getFileName());
+        assertEquals("RAG笔记.md", result.get(1).getFileName()); // 同文件复用一次查询
+        assertEquals("Java基础.pdf", result.get(2).getFileName());
+        verify(fileMapper, times(1)).selectById(1L);
     }
 
     @Test

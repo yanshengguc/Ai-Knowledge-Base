@@ -11,6 +11,17 @@ public class PromptServiceImpl implements PromptService {
 
     private static final int MAX_CONTEXT_LENGTH = 3000; // TODO: 简单字符数上限，后续用真实token计数库精细化
 
+    /**
+     * 输出规范(所有模板共用):资料是素材不是答案。
+     * 背景:用户文档里常含代码/JSON 示例,LLM 检索到后会整段照搬进回答,观感很差;
+     * 明确"不复述原文、用自己的话组织"后实测收敛。
+     */
+    private static final String OUTPUT_RULES = """
+            【输出要求】
+            1. 用自己的话组织答案,简洁清晰;不要把参考资料中的原文、代码块、JSON 示例整段复述进回答。
+            2. 需要展示代码时,只保留与问题直接相关的最小片段。
+            3. 不要在回答中生成[来源:资料N]之类的引用标记——系统会在回答下方单独展示引用来源,正文里写了会重复。""";
+
     @Override
     public String buildPrompt(String question, List<SearchResult> retrievedResults) {
         return buildChatPrompt(question, retrievedResults, List.of());
@@ -72,7 +83,8 @@ public class PromptServiceImpl implements PromptService {
                         【用户问题】
                         %s
                         请基于参考资料回答；资料中没有的内容如实说明，不要编造。
-                        """, contextBuilder.toString(), question);
+                        %s
+                        """, contextBuilder.toString(), question, OUTPUT_RULES);
             }
             return String.format("""
                     【长期记忆】
@@ -83,7 +95,8 @@ public class PromptServiceImpl implements PromptService {
                     【用户问题】
                     %s
                     请结合长期记忆和参考资料回答；资料中没有的内容如实说明，不要编造。
-                    """, memoryBuilder.toString(), contextBuilder.toString(), question);
+                    %s
+                    """, memoryBuilder.toString(), contextBuilder.toString(), question, OUTPUT_RULES);
         }
         if (!hasMemories) {
             return String.format("""
@@ -95,7 +108,8 @@ public class PromptServiceImpl implements PromptService {
                     【用户问题】
                     %s
                     请基于对话历史和参考资料回答；资料中没有的内容如实说明，不要编造。
-                    """, historyBuilder.toString(), contextBuilder.toString(), question);
+                    %s
+                    """, historyBuilder.toString(), contextBuilder.toString(), question, OUTPUT_RULES);
         }
         return String.format("""
                 【对话历史】
@@ -108,6 +122,7 @@ public class PromptServiceImpl implements PromptService {
                 【用户问题】
                 %s
                 请结合对话历史和长期记忆回答；资料中没有的内容如实说明，不要编造。
-                """, historyBuilder.toString(), memoryBuilder.toString(), contextBuilder.toString(), question);
+                %s
+                """, historyBuilder.toString(), memoryBuilder.toString(), contextBuilder.toString(), question, OUTPUT_RULES);
     }
 }

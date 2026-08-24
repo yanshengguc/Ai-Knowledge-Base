@@ -37,6 +37,7 @@ public class RetrievalServiceImpl implements RetrievalService {
     private final RerankService rerankService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ChunkMapper chunkMapper;
+    private final com.yansheng.aiknowledgebase.mapper.FileMapper fileMapper;
 
     @Value("${retrieval.top-k}")
     private int topK;
@@ -53,11 +54,13 @@ public class RetrievalServiceImpl implements RetrievalService {
     public RetrievalServiceImpl(VectorSearchService vectorSearchService,
                                 RerankService rerankService,
                                 RedisTemplate<String, Object> redisTemplate,
-                                ChunkMapper chunkMapper) {
+                                ChunkMapper chunkMapper,
+                                com.yansheng.aiknowledgebase.mapper.FileMapper fileMapper) {
         this.vectorSearchService = vectorSearchService;
         this.rerankService = rerankService;
         this.redisTemplate = redisTemplate;
         this.chunkMapper = chunkMapper;
+        this.fileMapper = fileMapper;
     }
 
     @Override
@@ -111,8 +114,28 @@ public class RetrievalServiceImpl implements RetrievalService {
                     .collect(Collectors.toList());
         }
 
+        fillFileNames(finalResults);
         writeCache(cacheKey, finalResults);
         return finalResults;
+    }
+
+    /** 填充来源文件名(引用面板展示出处);同 fileId 只查一次,topK 规模下至多几次点查 */
+    private void fillFileNames(List<SearchResult> results) {
+        if (results == null || results.isEmpty()) return;
+        Map<Long, String> nameCache = new LinkedHashMap<>();
+        for (SearchResult r : results) {
+            if (r.getFileId() == null || nameCache.containsKey(r.getFileId())) continue;
+            try {
+                com.yansheng.aiknowledgebase.entity.FileEntity f = fileMapper.selectById(r.getFileId());
+                nameCache.put(r.getFileId(), f != null ? f.getFileName() : null);
+            } catch (Exception e) {
+                log.warn("填充引用文件名失败, fileId={}", r.getFileId());
+                nameCache.put(r.getFileId(), null);
+            }
+        }
+        for (SearchResult r : results) {
+            if (r.getFileId() != null) r.setFileName(nameCache.get(r.getFileId()));
+        }
     }
 
     @Override

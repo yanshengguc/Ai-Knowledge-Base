@@ -57,6 +57,8 @@ export default {
     uncategorized: 'Uncategorized',
     empty: 'No knowledge yet',
     emptyHint: 'Click "New" at top right to create your first item',
+    loadFailed: 'Failed to load (not found or no permission)',
+    deleteBlockedProcessing: 'File is processing; delete after it finishes',
     nameRequired: 'Please enter a title',
     contentRequired: 'Please enter content',
     categoryPlaceholder: 'e.g. Interview / Study / Work / Notes',

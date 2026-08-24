@@ -3,11 +3,10 @@
     <h3>{{ t('upload.title') }}</h3>
     <el-upload
       :auto-upload="false"
-      :limit="1"
-      :disabled="uploading || !!uploadedFile"
+      :disabled="uploadLocked"
+      :show-file-list="false"
       accept=".pdf,.docx,.md"
       :on-change="onFileChange"
-      :on-remove="() => (selectedFile = null)"
       drag
     >
       <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
@@ -16,6 +15,13 @@
         <div class="el-upload__tip">{{ t('upload.formatHint') }},{{ t('upload.sizeHint') }}</div>
       </template>
     </el-upload>
+
+    <!-- 已选文件反馈:拖拽/选择后立即可见(否则用户不知道选没选上) -->
+    <div v-if="selectedFile" class="selected-file">
+      <span class="name">{{ selectedFile.name }}</span>
+      <span class="size">{{ (selectedFile.size / 1024).toFixed(1) }} KB</span>
+      <el-button text size="small" :icon="Close" :disabled="uploading" @click="selectedFile = null" />
+    </div>
     <div class="upload-actions">
       <el-button
         type="primary"
@@ -37,7 +43,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { UploadFilled } from '@element-plus/icons-vue'
+import { Close, UploadFilled } from '@element-plus/icons-vue'
 import { getFileById, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
@@ -67,6 +73,8 @@ const fileStatusType = computed(() => {
   if (st === 'FAILED') return 'danger'
   return 'warning'
 })
+// 仅"上传请求中/后台处理中"锁定;处理完成后允许继续选新文件(原来 !!uploadedFile 会永久禁用)
+const uploadLocked = computed(() => uploading.value || uploadedFile.value?.status === 'PROCESSING')
 
 /** 父级删除文件时调用:若删除的正是轮询中的文件,停止轮询并清空状态 */
 function resetIf(fileId: number) {
@@ -124,6 +132,7 @@ function onFileChange(file: any) {
 async function onUpload() {
   if (!selectedFile.value) return
   uploading.value = true
+  uploadedFile.value = null // 开始新一轮,清掉上一次的状态显示
   try {
     uploadProgress.value = 0
     const res = await uploadFile(props.knowledgeId, selectedFile.value, (p) => (uploadProgress.value = p))
@@ -169,5 +178,29 @@ async function onUpload() {
 
 .upload-progress {
   width: 200px;
+}
+
+.selected-file {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-top: $space-2;
+  padding: $space-1 $space-3;
+  background: $color-bg;
+  border: 1px dashed $color-border;
+  border-radius: $radius-sm;
+  font-size: $font-size-sm;
+
+  .name {
+    color: $color-text;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .size {
+    color: $color-text-muted;
+    flex-shrink: 0;
+  }
 }
 </style>

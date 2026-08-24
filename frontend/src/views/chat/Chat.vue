@@ -20,7 +20,7 @@
               <el-collapse-item
                 v-for="(ref, ri) in msg.references.slice(0, 3)"
                 :key="ri"
-                :title="`${t('chat.material')} ${ri + 1}`"
+                :title="ref.fileName || `${t('chat.material')} ${ri + 1}`"
               >
                 <div class="ref-content markdown-body" v-html="renderMarkdown(ref.content)" />
               </el-collapse-item>
@@ -204,7 +204,8 @@ function scrollToBottom() {
 
 .msg-content {
   line-height: 1.7;
-  white-space: pre-wrap;
+  // 不用 pre-wrap:markdown 已渲染成 HTML,pre-wrap 会把标签间换行也显示,
+  // 与 <p> 的 margin 叠加成双倍空行
 }
 
 .msg-loading {

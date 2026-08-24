@@ -55,6 +55,8 @@ export interface SearchResult {
   fileId?: number
   content: string
   score: number
+  /** 来源文件名(检索出口填充,引用面板展示出处) */
+  fileName?: string
 }
 
 export interface ChatResponse {

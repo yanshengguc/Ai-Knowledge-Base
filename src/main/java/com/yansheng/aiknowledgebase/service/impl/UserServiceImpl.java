@@ -38,6 +38,7 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户不存在");
         }
         UserVO userVO=new UserVO();
+userVO.setId(userEntity.getId());
 userVO.setUsername(userEntity.getUsername());
 
         return userVO;

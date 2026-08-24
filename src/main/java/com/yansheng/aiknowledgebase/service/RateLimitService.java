@@ -27,7 +27,15 @@ public class RateLimitService {
      * @param maxPerMinute  每分钟上限
      */
     public void check(Long userId, String action, int maxPerMinute) {
-        String rateKey = "rate:" + action + ":" + userId;
+        check(String.valueOf(userId), action, maxPerMinute);
+    }
+
+    /**
+     * 通用限流:identity 可以是 userId,也可以是 "ip:x.x.x.x"(注册等未登录场景)。
+     * key 结构 rate:{action}:{identity},与既有 chat 限流兼容。
+     */
+    public void check(String identity, String action, int maxPerMinute) {
+        String rateKey = "rate:" + action + ":" + identity;
         Long count = redisTemplate.opsForValue().increment(rateKey);
         if (count != null && count == 1L) {
             redisTemplate.expire(rateKey, 1, TimeUnit.MINUTES);

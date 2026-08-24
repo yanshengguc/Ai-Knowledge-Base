@@ -69,8 +69,24 @@ public class FileServiceImpl implements FileService {
         if (entity == null) {
             throw new BusinessException("文件不存在");
         }
-
+        verifyOwnership(entity.getKnowledgeId());
         return toVO(entity);
+    }
+
+    /**
+     * 越权防护(IDOR 修复):文件与文件清单只能由所属知识的作者访问。
+     * 与 deleteFile 的校验口径一致:knowledge.author 必须等于当前登录用户名。
+     */
+    private void verifyOwnership(Long knowledgeId) {
+        KnowledgeEntity knowledge = knowledgeMapper.selectById(knowledgeId);
+        com.yansheng.aiknowledgebase.entity.UserEntity user = UserContext.get();
+        if (knowledge == null) {
+            throw new BusinessException("知识不存在");
+        }
+        if (user == null || user.getUsername() == null
+                || !user.getUsername().equals(knowledge.getAuthor())) {
+            throw new BusinessException("权限不足");
+        }
     }
 
     private FileVO toVO(FileEntity entity) {
@@ -88,6 +104,7 @@ public class FileServiceImpl implements FileService {
 
     @Override
     public List<FileVO> listByKnowledgeId(Long knowledgeId) {
+        verifyOwnership(knowledgeId);
         return fileMapper.selectFileByKnowledgeId(knowledgeId).stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());

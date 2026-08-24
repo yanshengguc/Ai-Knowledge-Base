@@ -2,9 +2,11 @@ package com.yansheng.aiknowledgebase;
 
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
+import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.ManualReActVerifyService;
+import com.yansheng.aiknowledgebase.utils.UserContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -39,12 +41,19 @@ class ManualReActVerifyTest {
 
     @BeforeEach
     void setUpFixtures() {
+        // file_trace 走 getFileById,现含作者归属校验(IDOR 修复),需以作者身份执行
+        UserEntity user = new UserEntity();
+        user.setId(0L);
+        user.setUsername("react-verify");
+        UserContext.set(user);
+
         String title = "react-verify-容器-" + System.currentTimeMillis();
         KnowledgeEntity knowledge = new KnowledgeEntity();
         knowledge.setUserId(0L);
         knowledge.setTitle(title);
         knowledge.setContent("react verify fixture");
         knowledge.setCategory("test");
+        knowledge.setAuthor("react-verify");
         knowledge.setCreateTime(LocalDateTime.now());
         knowledge.setUpdateTime(LocalDateTime.now());
         knowledgeMapper.insert(knowledge);
@@ -67,6 +76,7 @@ class ManualReActVerifyTest {
         if (knowledgeId != null) {
             knowledgeMapper.delete(knowledgeId);
         }
+        UserContext.remove();
     }
 
     private Long insertFixture(String name, long size) {

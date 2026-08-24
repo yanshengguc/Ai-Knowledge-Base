@@ -11,17 +11,18 @@
 - 向量化：DashScope text-embedding-v3（1024 维）→ 存入阿里云 DashVector
 - 语义检索：按余弦距离召回 Top-K 相关 Chunk
 - Redis 缓存治理：Cache Aside、空值缓存防穿透、随机 TTL 防雪崩、Redis 分布式锁（setIfAbsent + 双重检查）防击穿
-- RAG 问答：检索 → Prompt 拼接 → LLM 生成，回答附引用来源；检索为空时 Prompt 条件检查防幻觉
-- Agent 工具链：基于 Spring AI function calling 实现 file_search / file_trace 工具，ReAct 多轮循环
-- 多轮会话记忆：Redis List 原子追加（RPUSH+LTRIM），窗口截断 + TTL，聊天接口 /api/chat
-- 安全加固：数据归属权限隔离（修复越权漏洞）、BCrypt 密码、登录限流、上传类型白名单、密钥环境变量化
-- 测试质量：59+ 自动化用例（越权/缓存/JWT/切片回归），安全攻防实测 15 项
+- RAG 问答：混合检索（向量 + BM25 双路召回 → Rerank 重排）→ LLM 流式生成（SSE），回答附切片级引用溯源；检索为空时 Prompt 条件检查防幻觉
+- Agent 工具链：手写 ReAct 循环（非框架编排），5 个工具（file_search / file_trace / time_now / knowledge_stats / web_search）+ 死循环双保险防护 + MCP Server
+- 三层记忆：工作记忆 / Redis 短期（窗口截断+TTL）/ DashVector 长期（跨会话语义召回 + 治理：去重/过期/容量上限/截断）
+- Token 成本可观测：按用户/模型记账（含流式 Usage 捕获），前端实时展示每轮对话成本
+- 安全加固：数据归属权限隔离（全接口）、BCrypt 密码、登录/注册限流、上传类型白名单、存储侧 XSS 净化、密钥环境变量化
+- 测试质量：137 个自动化用例（越权/缓存/JWT/切片回归/记忆治理），24 项安全攻防实测（6 漏洞修复+生产复测），变异测试 5/5 防假测试
 
 ## 当前状态(2026-08)
 
 - ✅ 后端完整：认证 / 知识 CRUD / 上传处理 / RAG 问答 / Agent 工具 / 会话记忆 / 安全加固
-- 🚧 前端开发中：Vue3 + Vite + TS + Element Plus（登录/知识库/上传/对话页已可跑通，详见 docs/FRONTEND-PLAN-2026-08-18.md）
-- 📚 详细开发记录见 docs/development-log.md（Day1-43）
+- ✅ 已部署生产（阿里云 ECS + Nginx，在线演示：http://120.55.76.141）
+- ✅ 质量保障：137 个自动化测试全量回归、检索质量评估（recall@5/MRR）、24 项安全攻防实测、6 漏洞修复
 
 ## 快速开始
 
@@ -143,10 +144,6 @@ mvn spring-boot:run
 - 接入 Rerank 与 LLM，基于检索结果生成带引用的回答
 - 防幻觉设计：检索闸 + 提示词闸 + 来源标注
 - 按置信分数决策"直答还是触发搜索"，配套评估集验证
-
-## 开发日志
-
-[docs/development-log.md](docs/development-log.md) 记录了逐日的完整开发过程：每天做了什么、踩了哪些坑、每个 Bug 的根因与修复方式，以及对应的面试知识点整理。
 
 ## 许可证
 

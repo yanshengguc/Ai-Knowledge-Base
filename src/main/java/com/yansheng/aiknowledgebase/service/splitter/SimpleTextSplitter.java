@@ -1,13 +1,19 @@
 package com.yansheng.aiknowledgebase.service.splitter;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 
+/**
+ * 固定窗口切片(chunkSize 窗口 + overlap 重叠)。
+ * splitter.mode=simple 时启用;默认走 StructureAwareSplitter(结构感知)。
+ */
 @Component
+@ConditionalOnProperty(name = "splitter.mode", havingValue = "simple")
 public class SimpleTextSplitter implements DocumentSplitter {
 
     private final int chunkSize;

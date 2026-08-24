@@ -13,15 +13,22 @@
           </div>
           <div v-else class="msg-content markdown-body" v-html="renderMarkdown(msg.content)" />
 
-          <!-- 引用来源 -->
+          <!-- 引用来源(文件 + 切片级溯源) -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
             <div class="refs-title">📎 {{ t('chat.references') }}</div>
             <el-collapse>
               <el-collapse-item
                 v-for="(ref, ri) in msg.references.slice(0, 3)"
                 :key="ri"
-                :title="ref.fileName || `${t('chat.material')} ${ri + 1}`"
               >
+                <template #title>
+                  <span class="ref-title">
+                    <span class="ref-file">{{ ref.fileName || `${t('chat.material')} ${ri + 1}` }}</span>
+                    <el-tag v-if="ref.chunkIndex != null" size="small" type="info" class="ref-chunk-tag">
+                      #{{ ref.chunkIndex }}
+                    </el-tag>
+                  </span>
+                </template>
                 <div class="ref-content markdown-body" v-html="renderMarkdown(ref.content)" />
               </el-collapse-item>
             </el-collapse>
@@ -245,6 +252,24 @@ function scrollToBottom() {
     font-size: $font-size-xs;
     color: $color-text-muted;
     margin-bottom: $space-2;
+  }
+
+  .ref-title {
+    display: inline-flex;
+    align-items: center;
+    gap: $space-1;
+    min-width: 0;
+
+    .ref-file {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ref-chunk-tag {
+      flex-shrink: 0;
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   .ref-content {

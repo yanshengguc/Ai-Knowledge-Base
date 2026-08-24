@@ -56,12 +56,23 @@
         WHERE file_id = #{fileId}
     </delete>
 
+    <!-- 引用溯源:按 chunkId 批量取切片元数据 -->
+    <select id="selectByIds" resultType="com.yansheng.aiknowledgebase.entity.ChunkEntity">
+        SELECT id, file_id, chunk_index, content, content_length, create_time, update_time
+        FROM knowledge_chunk
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- BM25 全文检索(混合检索第二路):ngram 中文分词 + 按用户文件范围过滤 -->
     <select id="selectByFullText"
             resultType="com.yansheng.aiknowledgebase.entity.SearchResult">
         SELECT c.id AS chunkId,
                c.file_id AS fileId,
                c.content AS content,
+               c.chunk_index AS chunkIndex,
                MATCH(c.content) AGAINST (#{query} IN NATURAL LANGUAGE MODE) AS score
         FROM knowledge_chunk c
         JOIN knowledge_file f ON c.file_id = f.id

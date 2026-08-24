@@ -60,3 +60,19 @@ CREATE TABLE IF NOT EXISTS knowledge_chunk (
 -- 混合检索 BM25 路(8/22):ngram 中文全文索引,补向量检索对精确匹配/专有名词的短板
 -- 已存在索引时执行会报错,可先 DROP INDEX ft_content ON knowledge_chunk; 再执行
 CREATE FULLTEXT INDEX ft_content ON knowledge_chunk(content) WITH PARSER ngram;
+
+-- Token 用量记录(8/24):对话与 Embedding 的消耗及成本估算
+-- user_id 为 NULL 表示全局/共享消耗(如文档向量化),不归属单个用户
+CREATE TABLE IF NOT EXISTS token_usage (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NULL,
+    model VARCHAR(64) NOT NULL,
+    type VARCHAR(16) NOT NULL COMMENT 'chat/embedding',
+    prompt_tokens INT NOT NULL DEFAULT 0,
+    completion_tokens INT NOT NULL DEFAULT 0,
+    total_tokens INT NOT NULL DEFAULT 0,
+    cost_cny DECIMAL(10,6) DEFAULT 0 COMMENT '估算成本(元),按 token-cost 计价配置,非账单',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_time (user_id, create_time),
+    INDEX idx_type_time (type, create_time)
+);

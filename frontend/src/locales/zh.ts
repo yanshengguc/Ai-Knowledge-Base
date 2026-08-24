@@ -103,6 +103,13 @@ export default {
     saveNoteRequired: '请选择目标条目,标题和内容不能为空',
     saveNoteSuccess: '已保存为笔记(带 AI 来源标记),立刻可被检索',
   },
+  tokenUsage: {
+    today: '今日',
+    monthCost: '本月成本',
+    tipChat: '本月对话',
+    tipEmbedding: '本月向量化(全局)',
+    tipEstimate: '成本为按官网单价估算,非账单',
+  },
   notFound: {
     title: '页面不存在',
     back: '返回知识库',

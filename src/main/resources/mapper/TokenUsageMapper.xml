@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.yansheng.aiknowledgebase.mapper.TokenUsageMapper">
+
+    <insert id="insert" parameterType="com.yansheng.aiknowledgebase.entity.TokenUsageEntity"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into token_usage
+        (user_id, model, type, prompt_tokens, completion_tokens, total_tokens, cost_cny)
+        values
+        (#{userId}, #{model}, #{type}, #{promptTokens}, #{completionTokens}, #{totalTokens}, #{costCny})
+    </insert>
+
+    <select id="selectChatSummaryByUserId" resultType="java.util.HashMap">
+        select
+            coalesce(sum(total_tokens), 0)                                    as totalTokens,
+            coalesce(sum(cost_cny), 0)                                        as totalCost,
+            coalesce(sum(case when create_time >= curdate() then total_tokens else 0 end), 0)            as todayTokens,
+            coalesce(sum(case when create_time >= curdate() then cost_cny else 0 end), 0)                as todayCost,
+            coalesce(sum(case when create_time >= date_format(now(), '%Y-%m-01') then total_tokens else 0 end), 0) as monthTokens,
+            coalesce(sum(case when create_time >= date_format(now(), '%Y-%m-01') then cost_cny else 0 end), 0)     as monthCost,
+            coalesce(sum(prompt_tokens), 0)                                   as promptTokens,
+            coalesce(sum(completion_tokens), 0)                               as completionTokens
+        from token_usage
+        where user_id = #{userId} and type = 'chat'
+    </select>
+
+    <select id="selectEmbeddingSummary" resultType="java.util.HashMap">
+        select
+            coalesce(sum(total_tokens), 0)    as totalTokens,
+            coalesce(sum(cost_cny), 0)        as totalCost,
+            coalesce(sum(case when create_time >= curdate() then total_tokens else 0 end), 0) as todayTokens,
+            coalesce(sum(case when create_time >= date_format(now(), '%Y-%m-01') then total_tokens else 0 end), 0) as monthTokens
+        from token_usage
+        where type = 'embedding'
+    </select>
+
+    <select id="selectDailyTrend" resultType="java.util.HashMap">
+        select
+            date_format(create_time, '%Y-%m-%d') as day,
+            coalesce(sum(total_tokens), 0)       as tokens,
+            coalesce(sum(cost_cny), 0)           as cost
+        from token_usage
+        where create_time >= date_sub(curdate(), interval #{days} day)
+          and (user_id = #{userId} or type = 'embedding')
+        group by date_format(create_time, '%Y-%m-%d')
+        order by day
+    </select>
+
+</mapper>

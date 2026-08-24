@@ -8,6 +8,7 @@ import com.yansheng.aiknowledgebase.service.LongTermMemoryService;
 import com.yansheng.aiknowledgebase.service.GenerationService;
 import com.yansheng.aiknowledgebase.service.PromptService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
+import com.yansheng.aiknowledgebase.service.TokenUsageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -24,19 +25,22 @@ public class ChatServiceImpl implements ChatService {
     private final ConversationHistoryService historyService;
     private final WebSearchTool webSearchTool;
     private final LongTermMemoryService longTermMemoryService;
+    private final TokenUsageService tokenUsageService;
 
     public ChatServiceImpl(RetrievalService retrievalService,
                            PromptService promptService,
                            GenerationService generationService,
                            ConversationHistoryService historyService,
                            WebSearchTool webSearchTool,
-                           LongTermMemoryService longTermMemoryService) {
+                           LongTermMemoryService longTermMemoryService,
+                           TokenUsageService tokenUsageService) {
         this.retrievalService = retrievalService;
         this.promptService = promptService;
         this.generationService = generationService;
         this.historyService = historyService;
         this.webSearchTool = webSearchTool;
         this.longTermMemoryService = longTermMemoryService;
+        this.tokenUsageService = tokenUsageService;
     }
 
     @Override
@@ -58,8 +62,9 @@ public class ChatServiceImpl implements ChatService {
             prompt = appendWebSearchContext(prompt, question);
         }
 
-        // 4. 生成回答
-        String answer = generationService.generate(prompt);
+        // 4. 生成回答(回调记录 token 用量)
+        String answer = generationService.generate(prompt,
+                (p, c) -> tokenUsageService.recordChat(userId, p, c));
 
         // 5. 保存本轮对话到历史 + 写入长期记忆(问题+回答摘要,供跨会话召回)
         historyService.append(userId, "user", question);
@@ -114,9 +119,11 @@ public class ChatServiceImpl implements ChatService {
         // 2. 先落 user 消息再开始生成:流中断时历史不会出现"有答无问"
         historyService.append(userId, "user", question);
 
-        // 3. 流式生成:逐 token 推给前端,收集完整答案
+        // 3. 流式生成:逐 token 推给前端,收集完整答案(流结束回调记录 token 用量)
         StringBuilder fullAnswer = new StringBuilder();
-        generationService.generateStream(prompt).subscribe(
+        generationService.generateStream(prompt,
+                        (p, c) -> tokenUsageService.recordChat(userId, p, c))
+                .subscribe(
                 token -> {
                     fullAnswer.append(token);
                     onToken.accept(token);

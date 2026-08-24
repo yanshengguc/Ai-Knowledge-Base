@@ -87,4 +87,19 @@ class UserSecurityTest {
                 () -> userService.register(buildRegisterDTO(username, "pass-2")));
         assertEquals("用户已经存在", ex.getMessage());
     }
+
+    @Test
+    void testRegisterEmptyPasswordRejected() {
+        // 安全修复回归:空密码注册曾被攻防脚本实测利用(空密码可注册并登录)
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> userService.register(buildRegisterDTO("sec-emptypw-" + System.currentTimeMillis(), "")));
+        assertEquals("密码不能为空", ex.getMessage());
+    }
+
+    @Test
+    void testRegisterBlankUsernameRejected() {
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> userService.register(buildRegisterDTO("   ", "pass-1")));
+        assertEquals("用户名不能为空", ex.getMessage());
+    }
 }

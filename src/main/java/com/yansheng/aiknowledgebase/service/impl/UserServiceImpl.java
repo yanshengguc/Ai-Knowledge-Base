@@ -45,7 +45,13 @@ userVO.setUsername(userEntity.getUsername());
 
     @Override
     public void register(UserRegisterDTO dto) {
-UserEntity userEntity=userMapper.getUserByName(dto.getUsername());
+        if (dto.getUsername() == null || dto.getUsername().isBlank()) {
+            throw new BusinessException("用户名不能为空");
+        }
+        if (dto.getPassword() == null || dto.getPassword().isBlank()) {
+            throw new BusinessException("密码不能为空");
+        }
+        UserEntity userEntity=userMapper.getUserByName(dto.getUsername());
 if(userEntity!=null){
     throw new BusinessException("用户已经存在");
 }

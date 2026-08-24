@@ -1,0 +1,107 @@
+# AI-Knowledge-Base 项目交接文档
+
+> 更新: 2026-08-24 20:30 | 当前生产版本 = commit `8a32b09`
+
+## 1. 项目概览
+
+个人 AI 知识库（RAG + Agent），前后端同仓库：
+- 仓库: `C:\Users\yansheng\IdeaProjects\Ai-Knowledge-Base`
+- 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DashScope LLM(qwen 系列, V4-Flash)
+- 前端: Vue 3 + TypeScript + Vite + Element Plus（`frontend/` 目录，v-html 渲染 markdown 已套 DOMPurify）
+- 访问: http://120.55.76.141 （Nginx 静态 + 反代 /api → 127.0.0.1:8080）
+
+## 2. 生产环境
+
+| 项 | 值 |
+|---|---|
+| 服务器 | 阿里云 ECS 120.55.76.141, cn-hangzhou, 2C2G, Ubuntu 22.04, 年付至 2027-08-24 |
+| 服务 | systemd `aikb`（`java -Xmx512m -jar /opt/aikb/app.jar`, env 在 `/etc/aikb/aikb.env`） |
+| MySQL | 库 ai_knowledge_base, 用户 aikb, buffer_pool=128M, performance_schema=OFF |
+| 4GB swap | 有；**严禁在服务器上 mvn package / npm build**（会 OOM），本地构建后传 jar |
+
+**部署流程**（scripts/deploy.py, paramiko SSH）:
+1. 本地 `mvn package -DskipTests`（注意：本地若跑着 56382 靶机会锁 jar，先停）
+2. 设密码：`Set-Content "$env:USERPROFILE\.aikb_deploy_pass" '密码' -NoNewline`；设 `$env:DEPLOY_PASSWORD`
+3. `python scripts\deploy.py cmd "cp /opt/aikb/app.jar /opt/aikb/app.jar.bak-日期"` 备份
+4. `python scripts\deploy.py put "target\Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar" "/opt/aikb/app.jar.new"`
+5. `deploy.py cmd 'mv /opt/aikb/app.jar.new /opt/aikb/app.jar && systemctl restart aikb && sleep 15 && systemctl is-active aikb && curl -s http://127.0.0.1:8080/actuator/health'`
+6. `python scripts\verify_deploy.py`（8 项验收，须 8/8 PASS）
+7. 用完删密码文件 `Remove-Item "$env:USERPROFILE\.aikb_deploy_pass"`（**现已删除，下次部署需重新写入**）
+
+注意: PowerShell 无 heredoc，git commit 多行用多个 `-m`。
+
+## 3. 最近四笔提交（本次会话产出）
+
+| commit | 内容 |
+|---|---|
+| `4dbf4f3` | 长期记忆治理：去重(相似度阈值)/过期(TTL)/容量上限/超长截断，配置化于 application.properties（memory.governance.*） |
+| `3265dd1` | 测试加固：新增 27 个 P0 用例；删除 9 个零断言假测试(FileSearchChainVerify 等 5 个类)；一键回归脚本 |
+| `f0c2c2a` | 空密码可注册登录漏洞修复（register 非空校验） |
+| `8a32b09` | 安全加固 5 漏洞：文件接口 IDOR×2（getFileById/listByKnowledgeId 补作者归属校验）、用户接口 IDOR（/user/{id} 仅自查）、标题 XSS 入库净化（script 块连内容删）、注册按 IP 限流 5 次/分（RateLimitService 支持通用身份维度）；getUserById 回填 id |
+
+## 4. 安全状态（攻防实测）
+
+工具: `scripts/security_attack.py`，24 项检查，退出码=漏洞数。
+**当前: 6 个漏洞全部修复，生产实测拦截正常。**
+
+运行方式（本地靶机为例）:
+```
+# 起靶机: java -jar target\*.jar --server.port=56382 --spring.profiles.active=local
+$env:ATTACK_BASE="http://127.0.0.1:56382/api"   # 必须带 /api 后缀！
+python scripts\security_attack.py
+```
+
+遗留观察项（低风险，未修）:
+- 登录报错区分"用户不存在/密码错误"（可枚举账号名）——修法：统一返回"用户名或密码错误"
+- file_trace 工具内部走 getFileById，现已自动继承作者校验（ReAct 测试需以作者身份执行，已改）
+
+## 5. 测试体系
+
+- 全量: `mvn test`（当前 **137/137 绿**，含 e2e，约 7 分钟，会真实调 LLM/向量库产生少量费用）
+- e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
+- 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest
+- **约定: 任何代码改动必须全量回归 137 全绿才可提交部署**
+- 坑: MockMvc 断言中文需 `new String(resp.getBytes(ISO_8859_1), UTF_8)` 重解码；BusinessException 是 HTTP 200 + body code 500，断言要看 body 层
+- ManualReActVerifyTest 用自建 fixture（knowledge+file 临时插入清理），勿再改回硬编码 fileId
+
+## 6. 硬约束（改动前必读）
+
+- 中间件全部 async/await，禁 callback 风格
+- Redis 反序列化用 BasicPolymorphicTypeValidator 白名单（com.yansheng., java.util., java.time.）
+- 知识/文件访问必须带作者归属校验（author == 当前用户名）——本次 IDOR 修复即补齐此口径，新接口勿遗漏
+- 上传白名单仅 .pdf/.docx/.md；PROCESSING 状态文件禁删
+- LLM 主内容不得含原始 JSON/代码块/[source: ...] 标记
+- SSE 事件匹配用正则 `/^event:\s*refs$/m`（兼容带/不带空格）
+- Controller 必须 /api 前缀；配置集中 application.properties；前端 API 地址走 .env
+- BusinessException → HTTP 200 + {"code":500,...}，验证脚本看 body code 不看 HTTP 状态
+
+## 7. 待办与建议
+
+近期可做:
+- [ ] 登录错误信息统一（低风险遗留项，5 分钟）
+- [ ] 服务器 /opt/aikb 下 3 个备份 jar（~330MB），稳定运行几天后清理
+- [ ] 注册开关 register.enabled（之前讨论过: 部署后防陌生人注册，尚未实现）
+
+低优先 backlog:
+- 结构感知切片 / 知识图谱 / 后端分页 / .doc 老格式支持
+- 简历方向: Python+LangGraph 多 Agent 复刻版（强化"场景"维度）
+
+## 8. 常用命令速查
+
+```powershell
+# 全量回归（改代码后必跑）
+mvn test
+
+# 起本地靶机
+java -jar target\Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar --server.port=56382 --spring.profiles.active=local
+
+# 安全攻防（ATTACK_BASE 必须带 /api）
+$env:ATTACK_BASE="http://127.0.0.1:56382/api"; python scripts\security_attack.py
+
+# 生产验收
+python scripts\verify_deploy.py
+
+# 部署（密码文件就绪后）
+python scripts\deploy.py cmd "<命令>"
+python scripts\deploy.py put "<本地路径>" "<服务器路径>"
+```

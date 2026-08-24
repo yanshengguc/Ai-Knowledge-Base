@@ -17,11 +17,14 @@
 
 | 指标 | 数值 | 怎么测的 |
 |---|---|---|
-| 单元/集成测试 | **59 用例 BUILD SUCCESS**(8/18 全量) | mvn test |
+| 单元/集成测试 | **137 用例 BUILD SUCCESS**(8/24 全量,含 e2e) | mvn test;e2e 子集 scripts/test-e2e.sh |
 | 工具选择准确率 | **100%**(15/15,8/20 Eval Harness) | 15 个真实用例(该调/不该调),ListAppender 统计 |
+| 检索质量 | **recall@5 / MRR 达标**(18 查询/12 篇文档,阈值 0.80/0.70) | RetrievalQualityEvalTest:真实管线注入(切片→Embedding→DashVector→混合检索+Rerank 全链路,非 mock) |
 | 端到端串联 | **9/9**(8/18 MVP) | 注册→问答→删除全流程 curl 实测 |
 | SSE 流式 | token 流完整 + 连接正常关闭(curl exit=0) | 实测 /api/chat/stream |
 | 搜索降级 | 无 key 时降级纯知识库,对话不中断 | 实测 enableWebSearch=true |
+| 长期记忆治理 | 去重/过期/容量/截断四策略(8/24,commit 4dbf4f3) | LongTermMemoryGovernanceTest 4 用例 |
+| Token 成本可观测 | token_usage 按用户/模型记账(8/24 上线) | TokenCostCalculationTest 10 用例 |
 
 > 注:工具选择 100% 是**测试集**结果(用例清晰);真实场景更复杂,已在缺陷清单标注为持续迭代项。
 
@@ -56,8 +59,73 @@
 ```
 ✅ JWT + BCrypt(密钥外置,gitignore)
 ✅ 越权修复(攻防实测通过)
-✅ 登录限流 + 聊天限流
+✅ 登录限流 + 聊天限流 + 注册限流(8/24 新增)
 ✅ 路径白名单 + MCP 端点白名单
 ✅ 推送前敏感扫描(git grep 密钥)
 ✅ 仓库 PRIVATE
 ```
+
+## 六、攻防实测(8/24 · 面试主推故事)
+
+**工具**:`scripts/security_attack.py` —— 24 项检查的脚本化攻防套件(攻击者视角:注册受害者 A + 攻击者 B,B 拿自己的**合法 token** 打 A 的资源;输出逐条 [SAFE]/[VULN]+风险级+请求响应摘要,**退出码=漏洞数**,可进 CI 回归)。
+**复跑方式**:起本地靶机 → `$env:ATTACK_BASE="http://127.0.0.1:56382/api"`(必须带 /api)→ `python scripts/security_attack.py`。**当前 0 漏洞**。
+
+### 6 漏洞发现与修复全记录(commit f0c2c2a + 8a32b09,均已生产复测)
+
+| # | 风险 | 漏洞(怎么发现的) | 攻击请求 → 响应 | 修法 |
+|---|---|---|---|---|
+| 1 | 高 | 文件详情 IDOR:B 的 token `GET /file/{A的id}` | → `200 {"fileName":"私有笔记","fileUrl":"OSS链接..."}` **任意人可拖库** | getFileById 补 verifyOwnership(knowledge.author==当前用户名,与 deleteFile 同口径) |
+| 2 | 高 | 文件清单 IDOR:`GET /file/list/{A的knowledgeId}` | → 200 返回 A 的全部文件(配合#1 逐个拖) | listByKnowledgeId 同上校验 |
+| 3 | 高 | 空密码可注册并登录 | `POST /register {"password":""}` → success;空密码登录 → **拿到 token** | register 补用户名/密码非空校验 |
+| 4 | 中 | 标题存储型 XSS:`<script>alert(1)</script>` 入库原样回显 | 列表接口返回带标签原文(前端 v-html 有 DOMPurify,但存储侧裸奔) | 三处写入点(建知识/更新/笔记)入库前净化:script 块**连内容整块删**+剥其余标签(只剥标签会残留 alert(1) 文本——这是回归测试逮出来的真缺陷) |
+| 5 | 中 | 注册无防刷:0.4 秒批量注册 5 账号 | 5 连发 /register → 5/5 成功 | 按 IP 限流 5 次/分(RateLimitService 扩展通用身份维度;生产经 Nginx 取 X-Forwarded-For 首段) |
+| 6 | 低 | 用户信息可枚举:`GET /user/1` 拿任意用户名 | B 的 token → 200 `{"username":"yan"}` | /user/{id} 仅允许自查 |
+
+**防御有效项(18 项抽查全过)**:JWT 四连(无 token/伪造/篡改 payload/篡改签名全 401)、知识读改删写笔记四向越权全拒、SQL 注入登录无效、`.exe` 白名单拒、2001 字超长拒、非法 JSON 不泄堆栈、actuator 仅 health、role/id 字段注入无法提权。
+**附带加固**:file_trace 工具内部走 getFileById → 自动继承作者校验(工具层纵深)。
+**生产复测**(部署后真实请求 120.55.76.141):B 列 A 清单→权限不足;B 读 A 文件→权限不足;`<script>alert(1)</script>T` 入库→净化为 `T`。✅
+
+**讲法**:「攻击测试我做了两轮:第一轮手工 15 项,发现 3 个 bug;第二轮我把它脚本化成 24 项可回归的套件,用攻击者视角(合法 token 打别人资源)又发现 6 个漏洞——包括两个能拖库的文件 IDOR。全部修复后不只本地复测,还在生产环境上重放攻击确认拦截生效。」
+
+## 七、变异测试(8/24 · 防"假测试")
+
+**方法**:故意往代码里注入真实错误 → 跑对应测试 → **必须爆红**才算有效;改错了还绿 = 假测试,重写。
+**结果 5/5 全红(测试全部有效)**:
+
+| # | 注入的错误 | 模拟的现实事故 | 测试反应 |
+|---|---|---|---|
+| 1 | 计费换算基数 `1_000_000`→`100_000` | 成本账本虚报 10 倍 | TokenCostCalculationTest 5/10 例红 ✅ |
+| 2 | 删除越权校验条件反转 | 任何人可删他人知识 | KnowledgeDeleteCascadeTest 2/3 例红 ✅ |
+| 3 | 上传白名单放行 `.exe` | 恶意文件进 OSS | FileUploadBoundaryTest 2/10 例红 ✅ |
+| 4 | 登录锁定阈值 5→5000 | 永不锁定,无限撞库 | LoginLockoutBoundaryTest 1/2 例红 ✅ |
+| 5 | 限流 off-by-one(`>` 改 `>=`) | 用户第 10 次被误拒 | RateLimitBoundaryTest 2/2 例红 ✅ |
+
+所有注入测试后已 `git checkout` 还原,工作区与提交版本一致。
+**同日清理**:删除 9 个零断言"假测试"(纯 System.out 打印,每轮回归还烧真实 LLM 调用费用)——FileSearchChainVerifyTest / FunctionCallingReActVerifyTest / FunctionCallingServiceTest / EmbeddingTest(5 例) / VectorStoreTest / ToolExtensionVerifyTest 裁 2 例。
+
+**讲法**:「87 到 137 个测试,数量不说明质量——我担心的是'接口 200 就算过'的假测试,所以做了变异测试:故意改错计费基数、反转越权判断,看测试会不会红。5 个错误全部被逮住,同时揪出 9 个零断言用例直接删掉。」
+
+## 八、部署验收(8/24 · 生产上线证据)
+
+**环境**:阿里云 ECS cn-hangzhou 2C2G(Ubuntu 22.04,年付)+ systemd 服务 `aikb`(java -Xmx512m)+ MySQL 8(buffer_pool=128M 低内存调优)+ Redis + Nginx(静态 dist + 反代 /api,**SSE 专用 proxy_buffering off**)+ 4GB swap。
+**公开地址**:http://120.55.76.141(手机可访问,移动端 viewport 适配)
+**部署流程**:`scripts/deploy.py`(paramiko SSH/SFTP,密码经本地临时文件不进代码)→ 备份旧 jar → 上传新 jar(115MB,中转名防半写)→ 原子替换 mv → `systemctl restart` → `scripts/verify_deploy.py` 8 项验收。**严禁在服务器上构建**(2C2G 会 OOM),本地构建传 artifact。
+**安全收敛**:安全组仅开 80/443/22;deploy 后删除本地密码文件。
+
+### 8 项自动化验收输出(8/24 两次部署均 8/8)
+
+```
+[PASS] 匿名访问拦截 (HTTP 401)
+[PASS] 用户注册 (HTTP 200)
+[PASS] 用户登录 (token ok)
+[PASS] 知识条目创建+列表 (id=15, 共1条)
+[PASS] 笔记保存 (HTTP 200)
+[PASS] 知识导出 (HTTP 200, markdown=yes)
+[PASS] 越权访问拦截 (HTTP 200, body=500)
+[PASS] 知识详情查询 (HTTP 200)
+=== 8/8 PASS ===
+```
+
+> 注:验收脚本检查 body 层 code 而非 HTTP 状态(BusinessException 返回 HTTP 200+code 500,只看 HTTP 会误判)。
+
+**上线节奏证据**:8/22 部署调研 → 8/23 生产首次上线 → 8/24 两次迭代部署(记忆治理+安全加固),每次全量回归 137/137 绿 → 提交 → 构建 → 部署 → 8/8 验收 → 生产攻防复测,完整 CI 心智闭环。

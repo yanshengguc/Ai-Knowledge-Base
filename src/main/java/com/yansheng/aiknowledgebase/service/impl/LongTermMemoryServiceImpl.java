@@ -7,6 +7,7 @@ import com.aliyun.dashvector.models.CollectionMeta;
 import com.aliyun.dashvector.models.Doc;
 import com.aliyun.dashvector.models.DocOpResult;
 import com.aliyun.dashvector.models.Vector;
+import com.aliyun.dashvector.models.requests.DeleteDocRequest;
 import com.aliyun.dashvector.models.requests.InsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
@@ -24,7 +25,12 @@ import java.util.Map;
 /**
  * 长期记忆:向量库持久化(跨会话)。
  * 集合 long_term_memory,按 user_id 字段隔离,语义召回。
- * 降级:任何异常不影响主流程(写入失败丢弃、召回失败返回空)。
+ * 治理(remember 写入前单点执行,一次向量查询同时完成):
+ *  - 语义去重:最相似记忆 score >= 阈值 → 跳过写入
+ *  - 过期清理:created_at 超过保留天数 → 批量删除
+ *  - 容量上限:该用户记忆已满 → 滚动淘汰最旧一条(总数稳定在上限)
+ *  - 摘要压缩:单条记忆超长 → 存储层兜底截断
+ * 降级:任何异常不影响主流程(写入失败丢弃、召回失败返回空、治理失败照常写入)。
  */
 @Slf4j
 @Service
@@ -40,6 +46,21 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
 
     @Value("${dashvector.endpoint}")
     private String endpoint;
+
+    @Value("${memory.governance.enabled:true}")
+    private boolean governanceEnabled;
+
+    @Value("${memory.governance.dedup-threshold:0.92}")
+    private float dedupThreshold;
+
+    @Value("${memory.governance.max-per-user:500}")
+    private int maxPerUser;
+
+    @Value("${memory.governance.retention-days:180}")
+    private int retentionDays;
+
+    @Value("${memory.governance.content-max-length:200}")
+    private int contentMaxLength;
 
     private final EmbeddingService embeddingService;
 
@@ -72,11 +93,20 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
         if (userId == null || content == null || content.isBlank()) {
             return;
         }
+        // 摘要压缩:存储层兜底截断,无论调用方传多长,单条记忆不超上限
+        if (content.length() > contentMaxLength) {
+            content = content.substring(0, contentMaxLength);
+        }
         try {
             float[] vector = embeddingService.embed(content);
             List<Float> vectorList = new ArrayList<>();
             for (float v : vector) {
                 vectorList.add(v);
+            }
+            // 写入前治理(去重/过期/容量),复用同一向量不多花一次 embedding
+            if (governanceEnabled && governBeforeWrite(userId, vectorList)) {
+                log.debug("长期记忆去重命中:userId={}, 跳过写入", userId);
+                return;
             }
             String id = userId + "_" + System.currentTimeMillis();
             Doc doc = Doc.builder()
@@ -94,6 +124,80 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
         } catch (Exception e) {
             // 降级:记忆写入失败不影响对话主流程
             log.warn("长期记忆写入异常(降级): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 写入前治理:一次向量查询(topK=容量上限,filter 该用户)同时完成三项检查。
+     * topK=上限的正确性:返回条数 < 上限 → 未满不淘汰;返回条数 >= 上限 → 已满,
+     * 淘汰最旧 1 条再写入,总数稳定在上限。
+     *
+     * @return true 表示与已有记忆高度重复,应跳过写入
+     */
+    private boolean governBeforeWrite(Long userId, List<Float> vectorList) {
+        try {
+            QueryDocRequest request = QueryDocRequest.builder()
+                    .vector(Vector.builder().value(vectorList).build())
+                    .topk(maxPerUser)
+                    .filter("user_id = " + userId)
+                    .outputField("created_at")
+                    .build();
+            Response<List<Doc>> resp = collection.query(request);
+            if (!resp.isSuccess() || resp.getOutput() == null || resp.getOutput().isEmpty()) {
+                return false;
+            }
+            List<Doc> hits = resp.getOutput();
+
+            // 1) 语义去重:与已有记忆最相似的一条超过阈值 → 跳过写入
+            //    DashVector cosine 度量下 score 是距离(1-相似度,越小越相似)
+            float minDistance = Float.MAX_VALUE;
+            for (Doc hit : hits) {
+                minDistance = Math.min(minDistance, hit.getScore());
+            }
+            if (minDistance <= 1f - dedupThreshold) {
+                return true;
+            }
+
+            // 2) 过期清理 + 3) 容量淘汰:收集待删 id(过期优先,未过期的最旧一条作为容量淘汰候选)
+            long expiryBefore = System.currentTimeMillis() - retentionDays * 24L * 3600L * 1000L;
+            List<String> toDelete = new ArrayList<>();
+            String oldestId = null;
+            long oldestTs = Long.MAX_VALUE;
+            for (Doc hit : hits) {
+                long ts = parseCreatedAt(hit);
+                if (ts < expiryBefore) {
+                    toDelete.add(hit.getId());
+                } else if (ts < oldestTs) {
+                    oldestTs = ts;
+                    oldestId = hit.getId();
+                }
+            }
+            int expired = toDelete.size();
+            if (hits.size() >= maxPerUser && oldestId != null) {
+                toDelete.add(oldestId);
+            }
+            if (!toDelete.isEmpty()) {
+                collection.delete(DeleteDocRequest.builder().ids(toDelete).build());
+                log.info("长期记忆治理:userId={}, 检出={}条, 过期删除={}条, 容量淘汰={}",
+                        userId, hits.size(), expired, toDelete.size() - expired);
+            }
+            return false;
+        } catch (Exception e) {
+            // 治理失败不阻塞写入:宁可多存,不可丢记忆
+            log.warn("长期记忆治理异常(跳过治理,继续写入): {}", e.getMessage());
+            return false;
+        }
+    }
+
+    private long parseCreatedAt(Doc doc) {
+        Map<String, Object> fields = doc.getFields();
+        if (fields == null || fields.get("created_at") == null) {
+            return System.currentTimeMillis();
+        }
+        try {
+            return Long.parseLong(String.valueOf(fields.get("created_at")).replace(".0", ""));
+        } catch (NumberFormatException e) {
+            return System.currentTimeMillis();
         }
     }
 

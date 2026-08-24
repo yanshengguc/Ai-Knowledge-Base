@@ -2,7 +2,7 @@
 # ============================================================
 # AKB 深度 E2E 验证(真实调用 LLM/DashScope/DashVector,烧钱+慢)
 # 用法:bash scripts/test-e2e.sh   —— 发布前/周末跑一次即可
-# 包含:评估集(Eval)、ReAct 循环、长记忆、文件搜索链路、重排、工具扩展
+# 包含:评估集(Eval)、ReAct 循环、长记忆、检索质量、重排、工具扩展
 # ============================================================
 set -e
 cd "$(dirname "$0")/.."
@@ -16,7 +16,7 @@ java -classpath "$MH/boot/plexus-classworlds-2.11.0.jar" \
   -Dmaven.home="$MH" \
   -Dmaven.multiModuleProjectDirectory="$(pwd)" \
   org.codehaus.plexus.classworlds.launcher.Launcher \
-  -Dtest='EvalHarnessTest,ManualReActVerifyTest,LongTermMemoryVerifyTest,FileSearchChainVerifyTest,FunctionCallingReActVerifyTest,RerankSmokeTest,ToolExtensionVerifyTest' \
+  -Dtest='EvalHarnessTest,ManualReActVerifyTest,LongTermMemoryVerifyTest,LongTermMemoryGovernanceTest,RetrievalQualityEvalTest,RerankSmokeTest,ToolExtensionVerifyTest' \
   -DexcludedGroups=integration test 2>&1 \
   | grep -aE "Tests run:|BUILD|ERROR" | tail -20
 

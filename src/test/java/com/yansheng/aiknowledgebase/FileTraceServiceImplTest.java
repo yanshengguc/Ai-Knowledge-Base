@@ -2,9 +2,13 @@ package com.yansheng.aiknowledgebase;
 
 
 import com.yansheng.aiknowledgebase.entity.FileEntity;
+import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
+import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
+import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.FileTraceService;
+import com.yansheng.aiknowledgebase.utils.UserContext;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,19 +31,33 @@ class FileTraceServiceImplTest {
     @Autowired
     private FileMapper fileMapper;
 
+    @Autowired
+    private KnowledgeMapper knowledgeMapper;
+
     @Test
     void testExecute_withValidFileId() {
         // 防御式取数:固定 fileId=1 依赖历史数据(体验时可能被删掉),改为动态取库里真实存在的文件;
         // 库为空时跳过而非失败——本用例验证的是"正常路径能跑通",不是"必须有数据"
         FileEntity any = fileMapper.selectFirstFile();
         Assumptions.assumeTrue(any != null, "库中无文件,跳过");
-        Map<String, Object> params = new HashMap<>();
-        params.put("fileId", any.getId());
+        // getFileById 含作者归属校验(IDOR 修复):以该文件所属知识的作者身份执行
+        KnowledgeEntity knowledge = knowledgeMapper.selectById(any.getKnowledgeId());
+        Assumptions.assumeTrue(knowledge != null && knowledge.getAuthor() != null, "文件无归属知识,跳过");
+        UserEntity owner = new UserEntity();
+        owner.setId(knowledge.getUserId());
+        owner.setUsername(knowledge.getAuthor());
+        UserContext.set(owner);
+        try {
+            Map<String, Object> params = new HashMap<>();
+            params.put("fileId", any.getId());
 
-        String result = fileTraceService.execute(params);
+            String result = fileTraceService.execute(params);
 
-        System.out.println("溯源工具返回结果: " + result);
-        assertNotNull(result);
+            System.out.println("溯源工具返回结果: " + result);
+            assertNotNull(result);
+        } finally {
+            UserContext.remove();
+        }
     }
 
     @Test

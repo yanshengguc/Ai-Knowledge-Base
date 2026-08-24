@@ -223,9 +223,13 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
             throw new BusinessException("内容不能为空");
         }
+        String title = sanitizeTitle(dto.getTitle());
+        if (title.isEmpty()) {
+            throw new BusinessException("标题不能为空");
+        }
         KnowledgeEntity knowledgeEntity = new KnowledgeEntity();
         UserEntity userEntity = UserContext.get();
-        knowledgeEntity.setTitle(dto.getTitle());
+        knowledgeEntity.setTitle(title);
         knowledgeEntity.setCategory(dto.getCategory());
         knowledgeEntity.setAuthor(userEntity.getUsername());
         knowledgeEntity.setContent(dto.getContent());
@@ -251,7 +255,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         }
     else {
 
-    knowledgeEntity.setTitle(dto.getTitle());
+    knowledgeEntity.setTitle(sanitizeTitle(dto.getTitle()));
     knowledgeEntity.setCategory(dto.getCategory());
     knowledgeEntity.setContent(dto.getContent());
     LocalDateTime now = LocalDateTime.now();
@@ -302,6 +306,10 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         if (content == null || content.trim().isEmpty()) {
             throw new BusinessException("笔记内容不能为空");
         }
+        String noteTitle = sanitizeTitle(title);
+        if (noteTitle.isEmpty()) {
+            throw new BusinessException("笔记标题不能为空");
+        }
         Long userId = UserContext.getUserId();
         KnowledgeEntity knowledge = knowledgeMapper.selectById(knowledgeId);
         if (knowledge == null) {
@@ -314,7 +322,7 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         FileEntity note = new FileEntity();
         note.setUserId(userId);
         note.setKnowledgeId(knowledgeId);
-        note.setFileName(title.trim());
+        note.setFileName(noteTitle);
         // 来源编码进 fileType:普通笔记 text/markdown;AI 对话保存 text/markdown;source=ai-chat
         // (前端列表据此显示 AI 徽标;不额外加列,避免动表结构)
         note.setFileType("text/markdown;source=" + (source == null || source.isBlank() ? "manual" : source.trim()));
@@ -330,6 +338,20 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         documentService.indexPlainText(note.getId(), content);
         log.info("笔记创建并索引完成, noteFileId={}, knowledgeId={}, title={}",
                 note.getId(), knowledgeId, title);
+    }
+
+    /**
+     * 标题净化(XSS 纵深防御):剥离 HTML 标签后返回 trim 结果。
+     * 标题是纯文本展示位(列表/详情/文件名),渲染端另有 DOMPurify,这里保证存储侧不带活性标签。
+     */
+    private String sanitizeTitle(String title) {
+        if (title == null) {
+            return "";
+        }
+        // script 块连内容一起删(只剥标签会留下 alert(1) 这类脚本文本),再剥其余标签
+        return title.replaceAll("(?i)<script[^>]*>.*?</script>", "")
+                .replaceAll("<[^>]*>", "")
+                .trim();
     }
 
     @Override

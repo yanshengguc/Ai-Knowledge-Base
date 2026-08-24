@@ -82,6 +82,34 @@ class KnowledgeAddValidationTest {
     }
 
     @Test
+    void scriptTagsInTitleStrippedOnCreate() {
+        // XSS 纵深防御:标题是纯文本展示位,入库前剥离 HTML 标签
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setUsername("xss-test");
+        UserContext.set(user);
+
+        KnowledgeAddDTO dto = new KnowledgeAddDTO();
+        dto.setTitle("XSS<script>alert(1)</script>标题");
+        dto.setContent("内容");
+        knowledgeService.addKnowledge(dto);
+
+        org.mockito.ArgumentCaptor<KnowledgeEntity> captor =
+                org.mockito.ArgumentCaptor.forClass(KnowledgeEntity.class);
+        verify(knowledgeMapper).insert(captor.capture());
+        org.junit.jupiter.api.Assertions.assertEquals("XSS标题", captor.getValue().getTitle());
+    }
+
+    @Test
+    void titleOfOnlyTagsRejectedAfterStrip() {
+        KnowledgeAddDTO dto = new KnowledgeAddDTO();
+        dto.setTitle("<img src=x onerror=alert(1)>");
+        dto.setContent("内容");
+        assertThrows(BusinessException.class, () -> knowledgeService.addKnowledge(dto));
+        verify(knowledgeMapper, never()).insert(any());
+    }
+
+    @Test
     void noteEmptyTitleOrContentShouldBeRejected() {
         assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, " ", "内容", null));
         assertThrows(BusinessException.class, () -> knowledgeService.createNote(1L, "标题", null, null));

@@ -50,6 +50,9 @@
           class="web-search-switch"
         />
         <span class="web-search-hint" v-if="webSearchOn">{{ t('chat.webSearchHint') }}</span>
+        <span class="toolbar-right">
+          <TokenUsageStrip />
+        </span>
       </div>
       <div class="input-row">
         <el-input
@@ -88,6 +91,7 @@ import { getChatHistory } from '@/api/modules/chat'
 import { renderMarkdown } from '@/utils/markdown'
 import { useI18n } from 'vue-i18n'
 import SaveAsNoteDialog from './components/SaveAsNoteDialog.vue'
+import TokenUsageStrip from './components/TokenUsageStrip.vue'
 
 const chatStore = useChatStore()
 const { t } = useI18n()
@@ -270,6 +274,12 @@ function scrollToBottom() {
     .web-search-hint {
       font-size: $font-size-xs;
       color: $color-text-secondary;
+    }
+
+    .toolbar-right {
+      margin-left: auto;
+      display: inline-flex;
+      align-items: center;
     }
   }
 

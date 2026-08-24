@@ -6,6 +6,7 @@ import com.yansheng.aiknowledgebase.service.GenerationService;
 import com.yansheng.aiknowledgebase.utils.HttpRetryUtil;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.function.BiConsumer;
 
 @Service
 public class GenerationServiceImpl implements GenerationService {
@@ -38,6 +40,11 @@ public class GenerationServiceImpl implements GenerationService {
 
     @Override
     public reactor.core.publisher.Flux<String> generateStream(String prompt) {
+        return generateStream(prompt, null);
+    }
+
+    @Override
+    public reactor.core.publisher.Flux<String> generateStream(String prompt, BiConsumer<Long, Long> onUsage) {
         if (!StringUtils.hasText(prompt)) {
             throw new IllegalArgumentException("Prompt不能为空");
         }
@@ -47,19 +54,36 @@ public class GenerationServiceImpl implements GenerationService {
         ));
         // 流式调用(不做同步重试:流式重试语义复杂,连接中断由前端重发兜底)
         // 注意:流式响应末尾可能包含空 chunk/usage chunk(result 或 text 为 null),需判空过滤
+        // usage 通常只在最后一个 chunk 携带,用数组暂存,流结束时一次性回调
+        Usage[] captured = new Usage[1];
         return openAiChatModel.stream(fullPrompt)
                 .map(response -> {
+                    Usage usage = response.getMetadata().getUsage();
+                    if (usage != null && usage.getTotalTokens() != null && usage.getTotalTokens() > 0) {
+                        captured[0] = usage;
+                    }
                     var result = response.getResult();
                     if (result == null || result.getOutput() == null || result.getOutput().getText() == null) {
                         return "";
                     }
                     return result.getOutput().getText();
                 })
-                .filter(text -> !text.isEmpty());
+                .filter(text -> !text.isEmpty())
+                .doOnComplete(() -> {
+                    if (onUsage != null && captured[0] != null) {
+                        onUsage.accept(captured[0].getPromptTokens().longValue(),
+                                captured[0].getCompletionTokens().longValue());
+                    }
+                });
     }
 
     @Override
     public String generate(String prompt) {
+        return generate(prompt, null);
+    }
+
+    @Override
+    public String generate(String prompt, BiConsumer<Long, Long> onUsage) {
         if (!StringUtils.hasText(prompt)) {
             throw new IllegalArgumentException("Prompt不能为空");
         }
@@ -70,6 +94,12 @@ public class GenerationServiceImpl implements GenerationService {
                         new UserMessage(prompt)
                 ));
                 ChatResponse response = openAiChatModel.call(fullPrompt);
+                if (onUsage != null && response.getMetadata() != null) {
+                    Usage usage = response.getMetadata().getUsage();
+                    if (usage != null && usage.getPromptTokens() != null) {
+                        onUsage.accept(usage.getPromptTokens().longValue(), usage.getCompletionTokens().longValue());
+                    }
+                }
                 return response.getResult().getOutput().getText();
             }, MAX_RETRIES);
         } catch (RetryExhaustedException | NonRetryableException e) {

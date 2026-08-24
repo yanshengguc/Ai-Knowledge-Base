@@ -103,6 +103,13 @@ export default {
     saveNoteRequired: 'Choose a target entry; title and content are required',
     saveNoteSuccess: 'Saved as note (marked as AI-generated), instantly searchable',
   },
+  tokenUsage: {
+    today: 'Today',
+    monthCost: 'Month cost',
+    tipChat: 'Chat this month',
+    tipEmbedding: 'Embeddings this month (global)',
+    tipEstimate: 'Cost is estimated from public pricing, not a bill',
+  },
   notFound: {
     title: 'Page Not Found',
     back: 'Back to Knowledge',

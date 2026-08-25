@@ -75,7 +75,15 @@ class UserSecurityTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> userService.login(buildLoginDTO(username, "wrong-pass")));
-        assertEquals("密码错误", ex.getMessage());
+        assertEquals("用户名或密码错误", ex.getMessage());
+    }
+
+    @Test
+    void testLoginFailsWithNonExistentUser() {
+        // 安全回归:不存在用户与密码错误必须返回同一文案,防用户名枚举
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> userService.login(buildLoginDTO("sec-nouser-" + System.currentTimeMillis(), "any-pass")));
+        assertEquals("用户名或密码错误", ex.getMessage());
     }
 
     @Test

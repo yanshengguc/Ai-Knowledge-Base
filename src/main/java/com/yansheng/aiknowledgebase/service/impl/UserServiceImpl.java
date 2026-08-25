@@ -74,15 +74,13 @@ userMapper.insert(user);
         }
 
         UserEntity userEntity = userMapper.getUserByName(dto.getUsername());
-        if (userEntity == null) {
-            throw new BusinessException("用户不存在");
-        }
-        if (!passwordEncoder.matches(dto.getPassword(), userEntity.getPassword())) {
+        if (userEntity == null || !passwordEncoder.matches(dto.getPassword(), userEntity.getPassword())) {
+            // 统一错误信息,避免"用户不存在/密码错误"差异被用于枚举有效用户名
             Long cnt = redisTemplate.opsForValue().increment(failKey);
             if (cnt != null && cnt == 1L) {
                 redisTemplate.expire(failKey, LOCK_MINUTES, TimeUnit.MINUTES);
             }
-            throw new BusinessException("密码错误");
+            throw new BusinessException("用户名或密码错误");
         }
         // 登录成功,清除失败计数
         redisTemplate.delete(failKey);

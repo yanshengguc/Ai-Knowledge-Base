@@ -66,10 +66,10 @@ class LoginLockoutBoundaryTest {
 
     @Test
     void fifthFailureLocksAndCorrectPasswordAlsoRejected() {
-        // 第 1~5 次错误密码:门内检查通过(计数 4<5),报"密码错误"
+        // 第 1~5 次错误密码:门内检查通过(计数 4<5),报"用户名或密码错误"(统一文案防枚举)
         for (int i = 1; i <= 5; i++) {
             BusinessException e = assertThrows(BusinessException.class, this::wrongPassword);
-            assertEquals("密码错误", e.getMessage(), "第 " + i + " 次应报密码错误");
+            assertEquals("用户名或密码错误", e.getMessage(), "第 " + i + " 次应报用户名或密码错误");
         }
 
         // 第 6 次:即使密码正确,也必须先撞上锁定(锁检查先于密码校验)

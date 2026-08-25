@@ -249,8 +249,12 @@ def main():
 
     s, r = req("POST", "/user/login", {"username": user_a, "password": "wrong-password"})
     code, msg = body_code(r)
-    record("不存在" not in str(msg), "低", "登录错误区分用户存在性(枚举)",
-           f"对存在用户A用错密码 → {s} {msg} (精确到'密码错误'可枚举账号)")
+    # 统一文案校验:错密码与不存在用户必须返回同一文案,否则可枚举账号
+    s2, r2 = req("POST", "/user/login", {"username": f"nouser-{int(time.time())}", "password": "wrong-password"})
+    code2, msg2 = body_code(r2)
+    same_msg = (str(msg) == str(msg2)) and ("用户名或密码错误" in str(msg))
+    record(same_msg, "低", "登录错误区分用户存在性(枚举)",
+           f"错密码→{s} {msg} / 不存在用户→{s2} {msg2} (文案不一致可枚举账号)")
 
     # ── 八、资源滥用与防刷 ──────────────────────────────
     t0 = time.time()

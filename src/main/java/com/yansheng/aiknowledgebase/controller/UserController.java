@@ -10,6 +10,7 @@ import com.yansheng.aiknowledgebase.service.UserService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,6 +18,8 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     private final UserService userService;
     private final RateLimitService rateLimitService;
+    @Value("${register.enabled:true}")
+    private boolean registerEnabled;
     public UserController(UserService userService, RateLimitService rateLimitService) {
         this.userService = userService;
         this.rateLimitService = rateLimitService;
@@ -34,6 +37,10 @@ public class UserController {
     }
     @PostMapping("/register")
     public Result<Void> register(@RequestBody UserRegisterDTO dto, HttpServletRequest request){
+        // 注册开关:生产可关闭,防陌生人注册(个人知识库场景)
+        if (!registerEnabled) {
+            throw new BusinessException("注册已关闭");
+        }
         // 防刷:注册按客户端 IP 限流(生产经 Nginx 代理,取 X-Forwarded-For 首段)
         rateLimitService.check("ip:" + clientIp(request), "register", 5);
         userService.register(dto);

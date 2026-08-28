@@ -16,7 +16,7 @@
 - Agent 工具链：手写 ReAct 循环（max_steps=5 死循环防护 + 工具失败错误回传自愈），5 个工具（file_search / file_trace / time_now / knowledge_stats / web_search），联网搜索失败自动降级纯知识库
 - MCP Server：Spring AI Streamable HTTP（`/api/mcp-endpoint`），标准 initialize / tools/list / tools/call 全链路
 - 三层记忆：工作记忆 / Redis 短期（窗口截断+TTL，挂了降级查 MySQL）/ DashVector 长期（跨会话语义召回 + 治理：去重阈值 0.92 / 保留 180 天 / 单用户上限 500 条 / 超长截断 200 字，全部配置化）
-- Token 成本可观测：token_usage 按用户/模型记账（含流式 Usage 捕获），前端实时展示每轮成本
+- 成本治理三件套：记账（token_usage 按用户/模型，含流式 Usage 捕获）+ 限流（每用户 10 次/分）+ 每日配额（当日 chat token 达上限拒绝新对话，豁免用户/开关配置化），前端实时展示每轮成本
 - 安全加固：全接口数据归属校验（IDOR 修复后口径）、存储侧 XSS 净化（script 块连内容删）、密钥环境变量化 + 历史泄漏扫描
 
 ## 当前状态与量化指标
@@ -25,7 +25,7 @@
 
 | 指标 | 数值 | 说明 |
 |---|---|---|
-| 自动化测试 | 137/137 绿 | 全量回归含 e2e，真实调 LLM/向量库 |
+| 自动化测试 | 146/146 绿 | 默认回归（e2e 子集由 test-e2e.sh 单独跑，真实调 LLM/向量库） |
 | 安全攻防 | 24 项 0 漏洞 | 6 个真漏洞（含 2 个可拖库的 IDOR）修复后生产复测 |
 | 变异测试 | 5/5 全红 | 故意注入错误验证测试有效性，同时删掉 9 个零断言假测试 |
 | Agent 工具选择 | 15/15 | Eval Harness：该调/不该调用例全对 |
@@ -139,6 +139,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173,proxy 到 56
 | `spring.ai.dashscope.api-key` | 百炼平台 API Key（Embedding / LLM / Rerank） |
 | `dashvector.api-key` / `dashvector.endpoint` | DashVector 向量库凭证 |
 | `REGISTER_ENABLED` | 注册开关（默认 true；生产建议 false 防陌生人注册） |
+| `CHAT_QUOTA_ENABLED` / `CHAT_QUOTA_TOKEN_LIMIT` / `CHAT_QUOTA_EXEMPT_USERS` | 聊天每日配额：开关 / 当日 token 上限（默认 100000）/ 豁免用户逗号分隔（默认作者本人） |
 | `memory.governance.*` | 长期记忆治理：去重阈值 / 保留天数 / 容量上限 / 截断长度 |
 
 **请勿将任何真实密钥提交到仓库。**
@@ -163,8 +164,8 @@ cd frontend && npm install && npm run dev   # http://localhost:5173,proxy 到 56
 | GET | /api/file/list/{knowledgeId} | 知识下文件清单（含处理状态） | 是 |
 | GET | /api/file/{id} | 文件详情（作者归属校验） | 是 |
 | DELETE | /api/file/{id} | 删除文件（仅作者，PROCESSING 禁删） | 是 |
-| POST | /api/chat | 问答（非流式，返回回答 + 引用） | 是 |
-| POST | /api/chat/stream | 问答（SSE 流式，事件含 refs 引用溯源） | 是 |
+| POST | /api/chat | 问答（非流式；受每日配额约束，超限返回友好提示） | 是 |
+| POST | /api/chat/stream | 问答（SSE 流式；受每日配额约束，超限返回 JSON 错误由前端气泡展示） | 是 |
 | GET | /api/chat/history | 对话历史（刷新后恢复） | 是 |
 | POST | /api/chat/clear | 清空会话 | 是 |
 | GET | /api/token-usage/summary | Token 成本汇总（按用户/模型记账） | 是 |
@@ -172,10 +173,11 @@ cd frontend && npm install && npm run dev   # http://localhost:5173,proxy 到 56
 
 ## 测试与安全
 
-- **全量回归**：`mvn test`（约 7 分钟，e2e 会真实调 LLM/向量库产生少量费用）。约定：任何代码改动必须全量 137 绿才可提交部署。
+- **全量回归**：`mvn test`（默认跑批排除 integration/e2e 分组；e2e 子集 `scripts/test-e2e.sh` 真实调 LLM/向量库产生少量费用）。约定：任何代码改动必须全量回归绿才可提交部署。
 - **检索质量评估**：`RetrievalQualityEvalTest`，数据集 `src/test/resources/eval/retrieval-cases.json`（加用例只改 JSON 不动代码），真实管线注入（切片→Embedding→DashVector→混合检索+Rerank），指标 recall@5 / MRR 带回归阈值。
 - **工具选择评估**：`EvalHarnessTest`，15 个"该调/不该调"用例，ListAppender 统计。
 - **安全攻防**：`scripts/security_attack.py`，24 项检查（攻击者视角：B 拿自己的合法 token 打 A 的资源），退出码=漏洞数，当前 0 漏洞。
+- **配额边界**：`ChatDailyQuotaTest`（当日用量 >= 上限即拒 / 多条记录 SUM 聚合口径 / 豁免用户不限 / 开关关闭跳过）。
 - **变异测试**：故意注入计费基数错误 / 越权判断反转 / 白名单放行 .exe 等 5 个真实错误，对应测试必须爆红，验证测试体系不是"接口 200 就算过"。
 - **部署验收**：`scripts/verify_deploy.py` 9 项检查。
 

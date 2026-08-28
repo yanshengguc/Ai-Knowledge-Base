@@ -56,6 +56,15 @@ export const useChatStore = defineStore('chat', {
           throw new Error(`stream failed: ${resp.status}`)
         }
 
+        // 业务错误(BusinessException 走 HTTP 200 + body code 500,如每日配额用尽):
+        // 响应不是事件流,读 JSON 把原因显示在对话气泡里,避免静默卡住
+        const contentType = resp.headers.get('content-type') || ''
+        if (contentType.includes('application/json')) {
+          const result = await resp.json()
+          assistantMsg.content = result.message || '回答失败,请稍后再试。'
+          return
+        }
+
         const reader = resp.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ''

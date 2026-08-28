@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-08-24 20:30 | 当前生产版本 = commit `8a32b09`
+> 更新: 2026-08-29 | 当前生产版本 = commit `fd7a5f0`(8/29 部署:每日配额+连接池+前端 dist 同步)
 
 ## 1. 项目概览
 
@@ -25,10 +25,10 @@
 3. `python scripts\deploy.py cmd "cp /opt/aikb/app.jar /opt/aikb/app.jar.bak-日期"` 备份
 4. `python scripts\deploy.py put "target\Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar" "/opt/aikb/app.jar.new"`
 5. `deploy.py cmd 'mv /opt/aikb/app.jar.new /opt/aikb/app.jar && systemctl restart aikb && sleep 15 && systemctl is-active aikb && curl -s http://127.0.0.1:8080/actuator/health'`
-6. `python scripts\verify_deploy.py`（8 项验收，须 8/8 PASS）
+6. `python scripts\verify_deploy.py`（注册关闭模式 3 项 PASS 即可,其余 5 项本地回归覆盖）
 7. 用完删密码文件 `Remove-Item "$env:USERPROFILE\.aikb_deploy_pass"`（**现已删除，下次部署需重新写入**）
 
-注意: PowerShell 无 heredoc，git commit 多行用多个 `-m`。
+**坑（8/29 实测）**: ①Git Bash 下跑 deploy.py,独立路径参数会被 MSYS 改写成 Windows 路径 → SFTP 报 ENOENT（SSH cmd 不受影响,字符串里的路径没事）。Git Bash 一律前缀 `MSYS_NO_PATHCONV=1`,或回 PowerShell。②新机器需 `pip install paramiko`（历史版本 3.4.1 可用）。③前端改动要另发 dist:tar 打包 frontend/dist → put 到 /tmp → 解压到 **/var/www/aikb**（nginx 静态根,与 jar 不同目录）。
 
 ## 3. 最近四笔提交（本次会话产出）
 
@@ -78,9 +78,10 @@ python scripts\security_attack.py
 ## 7. 待办与建议
 
 近期可做:
-- [ ] 生产播种演示数据:`python scripts/seed_demo.py`（幂等;demo 账号不存在且注册关闭时需按脚本头部说明临时放开 REGISTER_ENABLED;需 deploy 密码文件）
-- [ ] 下一版部署时确认每日配额生效:/etc/aikb/aikb.env 可调 CHAT_QUOTA_TOKEN_LIMIT(默认 100000 tokens/日,体验账号可调低如 20000)与 CHAT_QUOTA_EXEMPT_USERS(默认 yan);demo 账号走默认配额
-- [ ] 服务器 /opt/aikb 下 3 个备份 jar（~330MB），稳定运行几天后清理
+- [x] 生产演示数据已播种（8/29,seed_demo.py 11/11,demo 账号可登录;问答验证 5 条引用）
+- [x] 每日配额生产生效（8/29:CHAT_QUOTA_TOKEN_LIMIT=20000 tokens/日,豁免 yan,在 /etc/aikb/aikb.env 可调）
+- [ ] 服务器 /opt/aikb 下 4 个备份 jar（~460MB），稳定运行几天后清理
+- [ ] 前端 chunk >500kB 警告（vite 构建提示,可做 manualChunks 分包,非紧急）
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;默认回归现为 140 用例 = 旧 137 基线 + 本批新增 3 个）
 
 低优先 backlog:

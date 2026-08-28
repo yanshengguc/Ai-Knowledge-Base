@@ -18,6 +18,11 @@ public class UserContext {
         return user == null ? null : user.getId();
     }
 
+    public static String getUsername() {
+        UserEntity user = THREAD_LOCAL.get();
+        return user == null ? null : user.getUsername();
+    }
+
     public static void remove() {
         THREAD_LOCAL.remove();
     }

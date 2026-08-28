@@ -57,11 +57,11 @@ python scripts\security_attack.py
 
 ## 5. 测试体系
 
-- 全量: `mvn test`（当前 **137/137 绿**，含 e2e，约 7 分钟，会真实调 LLM/向量库产生少量费用）
+- 全量: `mvn test`（当前 **146/146 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用）
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
-- 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest
-- **约定: 任何代码改动必须全量回归 137 全绿才可提交部署**
-- 坑: MockMvc 断言中文需 `new String(resp.getBytes(ISO_8859_1), UTF_8)` 重解码；BusinessException 是 HTTP 200 + body code 500，断言要看 body 层
+- 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest
+- **约定: 任何代码改动必须全量回归全绿才可提交部署**
+- 坑: MockMvc 断言中文需 `new String(resp.getBytes(ISO_8859_1), UTF_8)` 重解码；BusinessException 是 HTTP 200 + body code 500，断言要看 body 层；**本地库曾漏建 token_usage 表（recordChat 吞异常不报错，8/28 补建）——新环境初始化务必执行最新 docs/schema.sql 全量**
 - ManualReActVerifyTest 用自建 fixture（knowledge+file 临时插入清理），勿再改回硬编码 fileId
 
 ## 6. 硬约束（改动前必读）
@@ -79,6 +79,7 @@ python scripts\security_attack.py
 
 近期可做:
 - [ ] 生产播种演示数据:`python scripts/seed_demo.py`（幂等;demo 账号不存在且注册关闭时需按脚本头部说明临时放开 REGISTER_ENABLED;需 deploy 密码文件）
+- [ ] 下一版部署时确认每日配额生效:/etc/aikb/aikb.env 可调 CHAT_QUOTA_TOKEN_LIMIT(默认 100000 tokens/日,体验账号可调低如 20000)与 CHAT_QUOTA_EXEMPT_USERS(默认 yan);demo 账号走默认配额
 - [ ] 服务器 /opt/aikb 下 3 个备份 jar（~330MB），稳定运行几天后清理
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;默认回归现为 140 用例 = 旧 137 基线 + 本批新增 3 个）
 

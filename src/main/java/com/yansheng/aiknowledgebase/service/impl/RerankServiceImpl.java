@@ -114,13 +114,18 @@ public class RerankServiceImpl implements RerankService {
             }
         }
 
-        List<SearchResult> reordered = new ArrayList<>(candidates);
-        // 按重排分数降序(未出现的 index 排最后,保留原相对顺序)
-        reordered.sort((a, b) -> {
-            double sa = scoreMap.getOrDefault(candidates.indexOf(a), -1.0);
-            double sb = scoreMap.getOrDefault(candidates.indexOf(b), -1.0);
-            return Double.compare(sb, sa);
-        });
+        // 按重排分数降序(未出现的 index 排最后,保留原相对顺序)。
+        // 对下标数组排序,comparator 内直接查 Map;原实现每次比较都 List.indexOf 是 O(n²)
+        Integer[] order = new Integer[candidates.size()];
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
+        }
+        java.util.Arrays.sort(order, (ia, ib) ->
+                Double.compare(scoreMap.getOrDefault(ib, -1.0), scoreMap.getOrDefault(ia, -1.0)));
+        List<SearchResult> reordered = new ArrayList<>(candidates.size());
+        for (Integer idx : order) {
+            reordered.add(candidates.get(idx));
+        }
         log.info("重排完成: {} 候选 → 前 {} 个", candidates.size(), Math.min(topN, reordered.size()));
         return truncate(reordered, topN);
     }

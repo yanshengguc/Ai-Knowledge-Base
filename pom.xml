@@ -145,6 +145,12 @@
             <artifactId>lombok</artifactId>
             <scope>provided</scope>
         </dependency>
+        <!-- Apache HttpClient5:classpath 出现后 Boot 的 ClientHttpRequestFactories 自动选 Apache 工厂,
+             RestClient(Spring AI ChatModel 非流式调用)获得连接池,Agent 循环多次 call 复用 TCP/TLS 连接 -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
 
     </dependencies>
     <repositories>

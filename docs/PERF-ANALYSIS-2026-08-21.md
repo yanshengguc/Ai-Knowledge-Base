@@ -156,7 +156,11 @@ public ThreadPoolTaskExecutor docProcessExecutor() {
 | P0-2 文档线程池 | ✅ 已完成 | 新增 `AsyncConfig.docProcessExecutor`(核心2/最大4/队列100/CallerRunsPolicy),`FileServiceImpl` 显式传入,替代 commonPool |
 | P0-3 检索缓存 | ✅ 已完成 | 结果缓存(Redis,userId+归一化 query MD5,TTL 5min)+ query embedding 缓存(TTL 1h,List\<Float\> 序列化规避 float[] 往返坑)+ 上传成功自动失效(`retrievalService.invalidate(userId)`) |
 | P1-2 SQL 日志 | ✅ 已完成 | 移除 `StdOutImpl`,避免批量入库刷屏 |
-| P1-1 连接池 / P1-3 缓存代码 / P1-4 大文件 | ⏳ 待做 | 部署后按需(不影响上线) |
+| P1-1 连接池(RestClient 侧) | ✅ 已完成(8/28) | 引入 httpclient5,ClientHttpRequestFactories 自动切 Apache 池化工厂(连接 15s/读 90s 超时保留);rerank 仍走 JDK HttpClient——每轮对话仅 1 次 rerank 调用,池化收益可忽略,不改造 |
+| P1-3 缓存代码清理 | ◐ 部分完成(8/28) | System.out.println 已清;自旋收敛 / "NULL" 魔术值重构待做(动行为,需配测试单独做) |
+| P1-4 大文件流式 | ⏳ 待做 | 20MB 内 getBytes 读内存;个人库场景风险低,并发上限受线程池队列约束 |
+| P2-1 rerank 比较器 O(n²) | ✅ 已完成(8/28) | comparator 内 List.indexOf → 下标数组排序,排序稳定性语义不变 |
+| P2-4 Hikari 显式配置 | ✅ 已完成(8/28) | maximum-pool-size=8 / minimum-idle=2(2C2G + buffer_pool 128M 收敛口径) |
 
 **验证(跑通流程)**:全量 `mvn test` **68 个测试 0 失败 0 错误**(原 66 + 新增 2:缓存命中、缓存失效),含 `ChunkIndexingIntegrationTest`(批量索引 + 批量入库 + 真实检索)、`EvalHarnessTest`(评估保持 100%)。单测日志可见「检索缓存命中」「已失效用户检索缓存」。
 

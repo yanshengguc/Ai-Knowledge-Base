@@ -199,7 +199,6 @@ DEMO_ASK=1 python scripts/seed_demo.py
 
 已排期的工程优化（按优先级）：
 
-- 统一 HTTP 连接池（Apache HttpClient5，RestClient / Rerank 共用）
 - 大文件流式处理（当前 20MB 内同步读内存）
 - DashVector 检索加用户隔离 filter（collection 增长后的性能与隔离）
 - 知识列表后端分页

@@ -78,13 +78,16 @@ python scripts\security_attack.py
 ## 7. 待办与建议
 
 近期可做:
-- [ ] 登录错误信息统一（低风险遗留项，5 分钟）
+- [ ] 生产播种演示数据:`python scripts/seed_demo.py`（幂等;demo 账号不存在且注册关闭时需按脚本头部说明临时放开 REGISTER_ENABLED;需 deploy 密码文件）
 - [ ] 服务器 /opt/aikb 下 3 个备份 jar（~330MB），稳定运行几天后清理
-- [ ] 注册开关 register.enabled（之前讨论过: 部署后防陌生人注册，尚未实现）
+- [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;默认回归现为 140 用例 = 旧 137 基线 + 本批新增 3 个）
 
 低优先 backlog:
-- 结构感知切片 / 知识图谱 / 后端分页 / .doc 老格式支持
+- 后端分页 / .doc 老格式支持 / DashVector 检索用户隔离 filter / 统一 HTTP 连接池
+- 知识图谱（README 路线图已列;面试前优先"数字+故事"而非新功能）
 - 简历方向: Python+LangGraph 多 Agent 复刻版（强化"场景"维度）
+
+**本地环境变化（2026-08-28）**: Docker Desktop 端口转发损坏（容器内 PONG 但宿主 6379 不可达,重置 WSL/重启均未恢复）;已改在 WSL Ubuntu-24.04 安装并 `service redis-server start` 起 Redis（apt 装了 redis-server 包）,本地靶机/回归均正常。恢复 Docker 转发后两条路径可并存。
 
 ## 8. 常用命令速查
 

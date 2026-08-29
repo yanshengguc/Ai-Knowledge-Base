@@ -18,4 +18,6 @@ public class FileEntity {
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
     private String status;
+    /** 处理失败原因(FAILED 时;SUCCESS 为 null) */
+    private String errorMsg;
 }

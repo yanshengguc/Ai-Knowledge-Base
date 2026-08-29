@@ -224,11 +224,23 @@ entity.setStatus(FileStatus.PROCESSING.name());
                 // 处理失败:旧版本保留(旧数据仍可用),新记录置 FAILED
                 log.error("文件处理失败,fileId={}, 保留旧版本", fileId, e);
                 String reason = e.getMessage() == null ? "处理失败" : e.getMessage();
+                // 码点安全截断:直接 substring 可能切断裂代理对,产生 MySQL 无法接受的字符串
                 if (reason.length() > 500) {
-                    reason = reason.substring(0, 500);
+                    reason = reason.substring(0, reason.offsetByCodePoints(0,
+                            Character.codePointCount(reason, 0, 500)));
                 }
-                // 失败原因落库:用户在文件列表能看到"为什么 FAILED"(否则扫描件被拒时无从下手)
-                fileMapper.updateStatus(fileId, FileStatus.FAILED.name(), reason);
+                // 失败原因落库:用户在文件列表能看到"为什么 FAILED"(否则扫描件被拒时无从下手)。
+                // 二级故障兜底:置 FAILED 自身再失败也不能让状态卡死在 PROCESSING(PROCESSING 禁删,会卡死用户)
+                try {
+                    fileMapper.updateStatus(fileId, FileStatus.FAILED.name(), reason);
+                } catch (Exception statusEx) {
+                    log.error("置 FAILED(带原因)失败,fileId={}, 降级为仅置状态", fileId, statusEx);
+                    try {
+                        fileMapper.updateStatus(fileId, FileStatus.FAILED.name(), null);
+                    } catch (Exception ignore) {
+                        log.error("置 FAILED 完全失败,fileId={} 状态将保持 PROCESSING", fileId, ignore);
+                    }
+                }
             }
         }, docProcessExecutor);
 

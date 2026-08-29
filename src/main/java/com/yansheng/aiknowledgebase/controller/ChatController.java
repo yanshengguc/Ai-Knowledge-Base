@@ -27,16 +27,19 @@ public class ChatController {
     private final ChatService chatService;
     private final RateLimitService rateLimitService;
     private final ChatQuotaService chatQuotaService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     /** SSE 超时(毫秒):DeepSeek 长回答可能超过 2 分钟,部署后可按需调大 */
     @org.springframework.beans.factory.annotation.Value("${chat.sse-timeout-ms:300000}")
     private long sseTimeoutMs;
 
     public ChatController(ChatService chatService, RateLimitService rateLimitService,
-                          ChatQuotaService chatQuotaService) {
+                          ChatQuotaService chatQuotaService,
+                          com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.chatService = chatService;
         this.rateLimitService = rateLimitService;
         this.chatQuotaService = chatQuotaService;
+        this.objectMapper = objectMapper;
     }
 
     /** 多轮对话:结合会话历史 + 知识库检索回答(需登录,会话按用户隔离) */
@@ -84,18 +87,41 @@ public class ChatController {
         chatQuotaService.check(userId, UserContext.getUsername());
 
         SseEmitter emitter = new SseEmitter(sseTimeoutMs);
-        chatService.streamAsk(userId, message,
-                token -> safeSend(emitter, SseEmitter.event().name("token").data(token)),
-                refs -> {
-                    safeSend(emitter, SseEmitter.event().name("refs").data(refs));
-                    // 流结束:引用发完后关闭连接,前端 reader 收到 done
-                    emitter.complete();
-                },
-                dto.isEnableWebSearch());
+        java.util.function.Consumer<com.yansheng.aiknowledgebase.entity.ToolTraceEvent> onTool =
+                dto.isEnableAgent()
+                        ? evt -> safeSend(emitter, SseEmitter.event().name("tool").data(toJson(evt)))
+                        : evt -> { };
+
+        Runnable run = dto.isEnableAgent()
+                ? () -> chatService.streamAskWithAgent(userId, message,
+                        token -> safeSend(emitter, SseEmitter.event().name("token").data(token)),
+                        onTool,
+                        refs -> {
+                            safeSend(emitter, SseEmitter.event().name("refs").data(refs));
+                            // 流结束:引用发完后关闭连接,前端 reader 收到 done
+                            emitter.complete();
+                        })
+                : () -> chatService.streamAsk(userId, message,
+                        token -> safeSend(emitter, SseEmitter.event().name("token").data(token)),
+                        refs -> {
+                            safeSend(emitter, SseEmitter.event().name("refs").data(refs));
+                            emitter.complete();
+                        },
+                        dto.isEnableWebSearch());
+        run.run();
         emitter.onCompletion(emitter::complete);
         emitter.onTimeout(emitter::complete);
         emitter.onError(e -> emitter.complete());
         return emitter;
+    }
+
+    /** ToolTraceEvent → JSON(SSE data 载荷);序列化失败降级为最小信息,不阻塞流 */
+    private String toJson(com.yansheng.aiknowledgebase.entity.ToolTraceEvent evt) {
+        try {
+            return objectMapper.writeValueAsString(evt);
+        } catch (Exception e) {
+            return "{\"step\":" + evt.step() + ",\"tool\":\"" + evt.tool() + "\"}";
+        }
     }
 
     private void safeSend(SseEmitter emitter, SseEmitter.SseEventBuilder builder) {

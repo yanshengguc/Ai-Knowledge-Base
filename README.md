@@ -13,7 +13,7 @@
 - 文档处理流水线：PDFBox / POI 解析 → 结构感知切片（structure 模式：按 Markdown 标题/段落/句子边界，chunk 前置章节标题；simple 模式：chunkSize=500 / overlap=100）→ **批量向量化（分批 20 条，比逐条串行快 5-10 倍）** → 批量写入 DashVector
 - 向量化与存储：DashScope text-embedding-v3（1024 维）→ 阿里云 DashVector
 - RAG 问答：混合检索（向量 + BM25 双路召回 → Rerank 重排），检索结果 Redis 缓存（TTL 5min）+ query embedding 缓存（TTL 1h），上传成功自动失效；SSE 流式生成，回答附切片级引用；检索为空时 Prompt 条件检查防幻觉
-- Agent 工具链：手写 ReAct 循环（max_steps=5 死循环防护 + 工具失败错误回传自愈），5 个工具（file_search / file_trace / time_now / knowledge_stats / web_search），联网搜索失败自动降级纯知识库
+- Agent 工具链：手写 ReAct 循环（max_steps=5 死循环防护 + 工具失败错误回传自愈），5 个工具（file_search / file_trace / time_now / knowledge_stats / web_search），联网搜索失败自动降级纯知识库；**聊天界面可开"🤖 Agent 模式"显式启用循环，工具调用轨迹随 SSE tool 事件实时渲染成时间线**
 - MCP Server：Spring AI Streamable HTTP（`/api/mcp-endpoint`），标准 initialize / tools/list / tools/call 全链路
 - 三层记忆：工作记忆 / Redis 短期（窗口截断+TTL，挂了降级查 MySQL）/ DashVector 长期（跨会话语义召回 + 治理：去重阈值 0.92 / 保留 180 天 / 单用户上限 500 条 / 超长截断 200 字，全部配置化）
 - 成本治理三件套：记账（token_usage 按用户/模型，含流式 Usage 捕获）+ 限流（每用户 10 次/分）+ 每日配额（当日 chat token 达上限拒绝新对话，豁免用户/开关配置化），前端实时展示每轮成本
@@ -165,7 +165,7 @@ cd frontend && npm install && npm run dev   # http://localhost:5173,proxy 到 56
 | GET | /api/file/{id} | 文件详情（作者归属校验） | 是 |
 | DELETE | /api/file/{id} | 删除文件（仅作者，PROCESSING 禁删） | 是 |
 | POST | /api/chat | 问答（非流式；受每日配额约束，超限返回友好提示） | 是 |
-| POST | /api/chat/stream | 问答（SSE 流式；受每日配额约束，超限返回 JSON 错误由前端气泡展示） | 是 |
+| POST | /api/chat/stream | 问答（SSE 流式：token / tool / refs 事件；受每日配额约束，超限返回 JSON 错误由前端气泡展示） | 是 |
 | GET | /api/chat/history | 对话历史（刷新后恢复） | 是 |
 | POST | /api/chat/clear | 清空会话 | 是 |
 | GET | /api/token-usage/summary | Token 成本汇总（按用户/模型记账） | 是 |

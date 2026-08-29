@@ -9,6 +9,12 @@ public class ChatDTO {
      */
     private boolean enableWebSearch;
 
+    /**
+     * 是否启用 Agent 模式(前端"🤖 Agent"开关控制)
+     * true = 走手写 ReAct 循环,模型自主决策调用工具,工具轨迹随 SSE tool 事件推给前端
+     */
+    private boolean enableAgent;
+
     public String getMessage() {
         return message;
     }
@@ -23,5 +29,13 @@ public class ChatDTO {
 
     public void setEnableWebSearch(boolean enableWebSearch) {
         this.enableWebSearch = enableWebSearch;
+    }
+
+    public boolean isEnableAgent() {
+        return enableAgent;
+    }
+
+    public void setEnableAgent(boolean enableAgent) {
+        this.enableAgent = enableAgent;
     }
 }

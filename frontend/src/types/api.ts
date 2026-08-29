@@ -65,3 +65,11 @@ export interface ChatResponse {
   answer: string
   references: SearchResult[]
 }
+
+/** Agent 模式工具调用轨迹(SSE tool 事件载荷) */
+export interface ToolTraceEvent {
+  step: number
+  tool: string
+  args: string
+  summary: string
+}

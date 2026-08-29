@@ -45,4 +45,13 @@ public interface ChatService {
                    java.util.function.Consumer<String> onToken,
                    java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone,
                    boolean enableWebSearch);
+
+    /**
+     * Agent 模式流式问答:走手写 ReAct 循环(模型自主决策调用工具),工具轨迹经 onTool 推给前端时间线。
+     * 与快速路径相比多几次模型调用(成本更高、延迟更长),所以做成用户显式开关而非默认。
+     */
+    void streamAskWithAgent(Long userId, String question,
+                            java.util.function.Consumer<String> onToken,
+                            java.util.function.Consumer<com.yansheng.aiknowledgebase.entity.ToolTraceEvent> onTool,
+                            java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone);
 }

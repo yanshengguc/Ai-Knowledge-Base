@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-08-29 | 当前生产版本 = commit `fd7a5f0`(8/29 部署:每日配额+连接池+前端 dist 同步)
+> 更新: 2026-08-29 | 当前生产版本 = commit `ffbd271`(8/29 第二次部署:Agent 模式可视化上线,含前端 dist)
 
 ## 1. 项目概览
 
@@ -80,8 +80,10 @@ python scripts\security_attack.py
 近期可做:
 - [x] 生产演示数据已播种（8/29,seed_demo.py 11/11,demo 账号可登录;问答验证 5 条引用）
 - [x] 每日配额生产生效（8/29:CHAT_QUOTA_TOKEN_LIMIT=20000 tokens/日,豁免 yan,在 /etc/aikb/aikb.env 可调）
-- [ ] 服务器 /opt/aikb 下 4 个备份 jar（~460MB），稳定运行几天后清理
+- [x] Agent 模式可视化上线（8/29 第二次部署 ffbd271:聊天"🤖 Agent"开关走 ReAct 循环,SSE tool 事件 → 前端工具时间线;Agent 模式 LLM 调用已按 userId 记账;生产实测 time_now 时间线+正确回答）
+- [ ] 服务器 /opt/aikb 下 5 个备份 jar（~580MB），稳定运行几天后清理
 - [ ] 前端 chunk >500kB 警告（vite 构建提示,可做 manualChunks 分包,非紧急）
+- [ ] 备选小打磨:Agent 时间线的工具结果摘要目前是原始 JSON,可按工具定制友好文案
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;默认回归现为 140 用例 = 旧 137 基线 + 本批新增 3 个）
 
 低优先 backlog:

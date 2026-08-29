@@ -9,7 +9,7 @@
 
 - 用户注册 / 登录：JWT 无状态认证 + ThreadLocal UserContext，BCrypt 密码，登录防爆破、注册/IP 与聊天/用户限流，`register.enabled` 注册开关
 - 知识 CRUD + Markdown 笔记：数据归属权限控制（author == 当前用户），一键导出全部知识为 Markdown（数据主权）
-- 文件上传：阿里云 OSS，类型白名单（.pdf/.docx/.md），处理状态机（PROCESSING / SUCCESS / FAILED），PROCESSING 禁删
+- 文件上传：阿里云 OSS，类型白名单（.pdf/.docx/.md），处理状态机（PROCESSING / SUCCESS / FAILED，PROCESSING 禁删）；**扫描版/无文字层 PDF 显式失败，失败原因落库并在前端悬浮展示**
 - 文档处理流水线：PDFBox / POI 解析 → 结构感知切片（structure 模式：按 Markdown 标题/段落/句子边界，chunk 前置章节标题；simple 模式：chunkSize=500 / overlap=100）→ **批量向量化（分批 20 条，比逐条串行快 5-10 倍）** → 批量写入 DashVector
 - 向量化与存储：DashScope text-embedding-v3（1024 维）→ 阿里云 DashVector
 - RAG 问答：混合检索（向量 + BM25 双路召回 → Rerank 重排），检索结果 Redis 缓存（TTL 5min）+ query embedding 缓存（TTL 1h），上传成功自动失效；SSE 流式生成，回答附切片级引用；检索为空时 Prompt 条件检查防幻觉

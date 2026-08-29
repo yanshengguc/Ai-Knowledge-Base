@@ -4,6 +4,7 @@ import com.yansheng.aiknowledgebase.entity.ChatResponse;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.ChatService;
 import com.yansheng.aiknowledgebase.service.ConversationHistoryService;
+import com.yansheng.aiknowledgebase.service.FunctionCallingService;
 import com.yansheng.aiknowledgebase.service.LongTermMemoryService;
 import com.yansheng.aiknowledgebase.service.GenerationService;
 import com.yansheng.aiknowledgebase.service.PromptService;
@@ -26,6 +27,7 @@ public class ChatServiceImpl implements ChatService {
     private final WebSearchTool webSearchTool;
     private final LongTermMemoryService longTermMemoryService;
     private final TokenUsageService tokenUsageService;
+    private final FunctionCallingService functionCallingService;
 
     public ChatServiceImpl(RetrievalService retrievalService,
                            PromptService promptService,
@@ -33,7 +35,8 @@ public class ChatServiceImpl implements ChatService {
                            ConversationHistoryService historyService,
                            WebSearchTool webSearchTool,
                            LongTermMemoryService longTermMemoryService,
-                           TokenUsageService tokenUsageService) {
+                           TokenUsageService tokenUsageService,
+                           FunctionCallingService functionCallingService) {
         this.retrievalService = retrievalService;
         this.promptService = promptService;
         this.generationService = generationService;
@@ -41,6 +44,7 @@ public class ChatServiceImpl implements ChatService {
         this.webSearchTool = webSearchTool;
         this.longTermMemoryService = longTermMemoryService;
         this.tokenUsageService = tokenUsageService;
+        this.functionCallingService = functionCallingService;
     }
 
     @Override
@@ -146,6 +150,37 @@ public class ChatServiceImpl implements ChatService {
                     onDone.accept(searchResults);
                 }
         );
+    }
+
+    @Override
+    public void streamAskWithAgent(Long userId, String question,
+                                   java.util.function.Consumer<String> onToken,
+                                   java.util.function.Consumer<com.yansheng.aiknowledgebase.entity.ToolTraceEvent> onTool,
+                                   java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone) {
+        // 与快速路径同一段前置:检索 + 历史 + 长期记忆 + Prompt(保证两条模式上下文一致)
+        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
+        List<Map<String, String>> history = historyService.getHistory(userId);
+        List<String> memories = longTermMemoryService.recall(userId, question, 3);
+        String prompt = promptService.buildChatPrompt(question, searchResults, history, memories);
+
+        historyService.append(userId, "user", question);
+
+        // ReAct 循环(非流式执行,工具轨迹实时回调);失败容错与快速路径口径一致:部分结果也收尾,不让 SSE 挂死
+        String answer;
+        try {
+            answer = functionCallingService.execute(userId, prompt, onTool);
+        } catch (Exception e) {
+            log.error("Agent 模式执行失败,userId={}", userId, e);
+            answer = "抱歉,Agent 模式执行出错,请稍后重试或关闭 Agent 开关使用普通模式。";
+        }
+
+        historyService.append(userId, "assistant", answer);
+        String memoryContent = "用户问过：" + question + "\n回答要点：" +
+                (answer.length() > 100 ? answer.substring(0, 100) : answer);
+        longTermMemoryService.remember(userId, memoryContent);
+
+        onToken.accept(answer);
+        onDone.accept(searchResults);
     }
 
     @Override

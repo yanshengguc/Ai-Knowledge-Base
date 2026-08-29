@@ -4,12 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yansheng.aiknowledgebase.common.tool.Tool;
 import com.yansheng.aiknowledgebase.common.tool.ToolCallbackAdapter;
 import com.yansheng.aiknowledgebase.common.tool.ToolRegistry;
+import com.yansheng.aiknowledgebase.entity.ToolTraceEvent;
 import com.yansheng.aiknowledgebase.service.FunctionCallingService;
+import com.yansheng.aiknowledgebase.service.TokenUsageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
@@ -21,12 +24,17 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 @Slf4j
 @Service
 public class FunctionCallingServiceImpl implements FunctionCallingService {
 
+    /** 轨迹里参数/结果的展示截断:时间线只要"发生了什么",不要全文 */
+    private static final int TRACE_MAX_LEN = 120;
+
     private final OpenAiChatModel openAiChatModel;
+    private final TokenUsageService tokenUsageService;
 
     /**
      * Agent Loop 死循环防护:工具调用最多执行 maxSteps 轮,超限强制终止
@@ -44,9 +52,11 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
             OpenAiChatModel openAiChatModel,
             ToolRegistry toolRegistry,
             ObjectMapper objectMapper,
+            TokenUsageService tokenUsageService,
             @Value("${agent.max-steps:5}") int maxSteps) {
 
         this.openAiChatModel = openAiChatModel;
+        this.tokenUsageService = tokenUsageService;
         this.maxSteps = maxSteps;
 
         List<ToolCallback> callbacks = new ArrayList<>();
@@ -63,6 +73,11 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
 
     @Override
     public String execute(String prompt) {
+        return execute(null, prompt, event -> { });
+    }
+
+    @Override
+    public String execute(Long userId, String prompt, Consumer<ToolTraceEvent> onTool) {
 
         if (!StringUtils.hasText(prompt)) {
             throw new IllegalArgumentException("Prompt不能为空");
@@ -91,6 +106,7 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
         while (step < maxSteps) {
 
             ChatResponse response = openAiChatModel.call(new Prompt(messages, options));
+            recordUsage(userId, response);
             AssistantMessage assistantMsg = response.getResult().getOutput();
             messages.add(assistantMsg);
 
@@ -102,6 +118,12 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
                     messages.add(ToolResponseMessage.builder()
                             .responses(List.of(new ToolResponseMessage.ToolResponse(toolCall.id(), toolCall.name(), result)))
                             .build());
+                    // 工具轨迹回调:执行完再推,事件里带结果摘要(失败也有摘要,前端时间线如实展示)
+                    onTool.accept(new ToolTraceEvent(
+                            step + 1,
+                            toolCall.name(),
+                            truncate(toolCall.arguments()),
+                            truncate(result)));
                 }
                 step++;
                 continue;
@@ -120,6 +142,31 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
         }
 
         return finalAnswer;
+    }
+
+    /** Agent 模式的模型调用也记账:否则每次对话被拆成多轮 LLM 调用反而绕过了成本治理 */
+    private void recordUsage(Long userId, ChatResponse response) {
+        if (userId == null) {
+            return;
+        }
+        try {
+            Usage usage = response.getMetadata().getUsage();
+            if (usage != null) {
+                tokenUsageService.recordChat(userId,
+                        usage.getPromptTokens() == null ? 0 : usage.getPromptTokens(),
+                        usage.getCompletionTokens() == null ? 0 : usage.getCompletionTokens());
+            }
+        } catch (Exception e) {
+            log.warn("Agent 模式 token 记账失败: {}", e.getMessage());
+        }
+    }
+
+    private String truncate(String s) {
+        if (s == null) {
+            return "";
+        }
+        String flat = s.replaceAll("\\s+", " ").trim();
+        return flat.length() <= TRACE_MAX_LEN ? flat : flat.substring(0, TRACE_MAX_LEN) + "…";
     }
 
     /**

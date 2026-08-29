@@ -11,7 +11,27 @@
           <div v-if="msg.loading" class="msg-loading">
             <span class="dot" />{{ t('chat.thinking') }}...
           </div>
-          <div v-else class="msg-content markdown-body" v-html="renderMarkdown(msg.content)" />
+          <template v-else>
+            <!-- Agent 工具调用时间线(ReAct 循环可视:模型自主决策 → 工具执行 → 结果回传) -->
+            <div v-if="msg.toolCalls && msg.toolCalls.length" class="msg-tool-trace">
+              <div
+                v-for="(tc, ti) in msg.toolCalls"
+                :key="ti"
+                class="tool-step"
+              >
+                <span class="tool-step-label">
+                  {{ t('chat.toolStep', { n: tc.step }) }} · {{ toolLabel(tc.tool) }}
+                </span>
+                <span v-if="tc.summary" class="tool-step-summary" :title="tc.summary">
+                  {{ tc.summary }}
+                </span>
+              </div>
+            </div>
+            <div class="msg-content markdown-body">
+              <span v-html="renderMarkdown(msg.content)" />
+              <span v-if="msg.streaming" class="stream-cursor" />
+            </div>
+          </template>
 
           <!-- 引用来源(文件 + 切片级溯源) -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
@@ -34,11 +54,14 @@
             </el-collapse>
           </div>
 
-          <!-- 存为笔记(AI 回答沉淀,人机确认闭环) -->
+          <!-- 操作区:复制回答 + 存为笔记(AI 回答沉淀,人机确认闭环) -->
           <div
             v-if="msg.role === 'assistant' && msg.content && !msg.loading"
             class="msg-actions"
           >
+            <el-button size="small" text :icon="DocumentCopy" @click="onCopy(msg.content)">
+              {{ t('chat.copy') }}
+            </el-button>
             <el-button size="small" text :icon="CollectionTag" @click="openSaveNote(idx)">
               {{ t('chat.saveNote') }}
             </el-button>
@@ -57,6 +80,13 @@
           class="web-search-switch"
         />
         <span class="web-search-hint" v-if="webSearchOn">{{ t('chat.webSearchHint') }}</span>
+        <el-switch
+          v-model="agentOn"
+          :active-text="t('chat.agentMode')"
+          size="small"
+          class="agent-switch"
+        />
+        <span class="web-search-hint" v-if="agentOn">{{ t('chat.agentHint') }}</span>
         <span class="toolbar-right">
           <TokenUsageStrip />
         </span>
@@ -90,10 +120,10 @@
 
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
-import { CollectionTag, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { CollectionTag, Delete, DocumentCopy } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
-import { useChatStore } from '@/stores/chat'
+import { useChatStore, toolLabel } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
 import { renderMarkdown } from '@/utils/markdown'
 import { useI18n } from 'vue-i18n'
@@ -105,7 +135,24 @@ const { t } = useI18n()
 const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const webSearchOn = ref(false)
+const agentOn = ref(false)
 const messageListRef = ref<HTMLElement>()
+
+// 复制回答(剪贴板 API 不可用时降级 execCommand,兼容非 https 环境)
+async function onCopy(content: string) {
+  try {
+    await navigator.clipboard.writeText(content)
+    ElMessage.success(t('chat.copied'))
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = content
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    ElMessage.success(t('chat.copied'))
+  }
+}
 
 // 存为笔记:记录触发的那条回答与对应问题
 const saveNoteVisible = ref(false)
@@ -138,7 +185,7 @@ async function onSend() {
   const msg = input.value.trim()
   if (!msg || chatStore.sending) return
   input.value = ''
-  await chatStore.sendStream(msg, webSearchOn.value)
+  await chatStore.sendStream(msg, webSearchOn.value, agentOn.value)
   scrollToBottom()
 }
 
@@ -217,6 +264,53 @@ function scrollToBottom() {
   line-height: 1.7;
   // 不用 pre-wrap:markdown 已渲染成 HTML,pre-wrap 会把标签间换行也显示,
   // 与 <p> 的 margin 叠加成双倍空行
+}
+
+// 流式生成中的打字机光标
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: $color-primary;
+  animation: blink 0.9s step-end infinite;
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+}
+
+// Agent 工具调用时间线(ReAct 循环可视)
+.msg-tool-trace {
+  margin-bottom: $space-3;
+  padding: $space-2 $space-3;
+  border-left: 3px solid $color-primary;
+  background: $color-bg;
+  border-radius: 0 $radius-sm $radius-sm 0;
+
+  .tool-step {
+    display: flex;
+    align-items: baseline;
+    gap: $space-2;
+    padding: 2px 0;
+    font-size: $font-size-xs;
+    line-height: 1.5;
+
+    .tool-step-label {
+      flex-shrink: 0;
+      color: $color-text;
+      font-weight: 600;
+    }
+
+    .tool-step-summary {
+      color: $color-text-secondary;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
 }
 
 .msg-loading {

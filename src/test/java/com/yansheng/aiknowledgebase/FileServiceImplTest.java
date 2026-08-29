@@ -23,6 +23,7 @@ import java.util.concurrent.Executor;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -116,7 +117,7 @@ class FileServiceImplTest {
         verify(fileMapper).deleteById(99L);
         verify(ossService).delete("http://oss/old/report.pdf");
         verify(vectorStoreService).deleteByFileId(99L);
-        verify(fileMapper).updateStatus(any(), eq("SUCCESS"));
+        verify(fileMapper).updateStatus(any(), eq("SUCCESS"), isNull());
     }
 
     @Test
@@ -133,6 +134,6 @@ class FileServiceImplTest {
         verify(chunkMapper, never()).deleteByFileId(99L);
         verify(fileMapper, never()).deleteById(99L);
         verify(ossService, never()).delete(any());
-        verify(fileMapper).updateStatus(any(), eq("FAILED"));
+        verify(fileMapper).updateStatus(any(), eq("FAILED"), eq("解析失败"));
     }
 }

@@ -11,7 +11,8 @@ import java.util.List;
 public interface FileMapper {
 void saveFile(FileEntity file);
 List<FileEntity> selectFileByKnowledgeId(Long knowledgeId);
-int updateStatus(@Param("id") Long id,@Param("status") String status);
+/** 更新处理状态;FAILED 时 errorMsg 带失败原因(截断由调用方负责),SUCCESS 传 null 清空 */
+int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("errorMsg") String errorMsg);
     FileEntity selectById(@Param("id") Long id);
     int deleteByKnowledgeId(Long knowledgeId);
 

@@ -8,7 +8,15 @@
         <el-tag v-if="isAiSourced(f)" size="small" type="warning" effect="plain" class="ai-tag">AI</el-tag>
       </span>
       <div class="file-right">
-        <el-tag size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+        <!-- FAILED 时悬浮显示后端落库的失败原因(如:扫描件无文字层) -->
+        <el-tooltip
+          v-if="f.status === 'FAILED' && f.errorMsg"
+          :content="f.errorMsg"
+          placement="top"
+        >
+          <el-tag size="small" type="danger" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+        </el-tooltip>
+        <el-tag v-else size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
         <!-- 处理中禁删:状态机未到终态,此时删会留下孤儿 chunk/向量 -->
         <el-tooltip :content="f.status === 'PROCESSING' ? t('upload.deleteBlockedProcessing') : t('common.delete')" placement="top">
           <el-button

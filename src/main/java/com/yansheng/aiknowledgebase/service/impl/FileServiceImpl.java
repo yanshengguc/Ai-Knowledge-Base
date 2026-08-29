@@ -97,6 +97,7 @@ public class FileServiceImpl implements FileService {
         vo.setFileSize(entity.getFileSize());
         vo.setKnowledgeId(entity.getKnowledgeId());
         vo.setStatus(entity.getStatus());
+        vo.setErrorMsg(entity.getErrorMsg());
         vo.setFileType(entity.getFileType());
         vo.setUpdateTime(entity.getUpdateTime());
         return vo;
@@ -215,14 +216,19 @@ entity.setStatus(FileStatus.PROCESSING.name());
                     vectorStoreService.deleteByFileId(old.getId());
                     log.info("旧版本已清理,fileId={}", old.getId());
                 }
-                fileMapper.updateStatus(fileId, FileStatus.SUCCESS.name());
+                fileMapper.updateStatus(fileId, FileStatus.SUCCESS.name(), null);
                 // 知识内容已更新:失效该用户的检索缓存,下次检索重新召回(短 TTL 兜底)
                 retrievalService.invalidate(userId);
                 log.info("文件处理完成,fileId={}", fileId);
             } catch (Exception e) {
                 // 处理失败:旧版本保留(旧数据仍可用),新记录置 FAILED
                 log.error("文件处理失败,fileId={}, 保留旧版本", fileId, e);
-                fileMapper.updateStatus(fileId, FileStatus.FAILED.name());
+                String reason = e.getMessage() == null ? "处理失败" : e.getMessage();
+                if (reason.length() > 500) {
+                    reason = reason.substring(0, 500);
+                }
+                // 失败原因落库:用户在文件列表能看到"为什么 FAILED"(否则扫描件被拒时无从下手)
+                fileMapper.updateStatus(fileId, FileStatus.FAILED.name(), reason);
             }
         }, docProcessExecutor);
 

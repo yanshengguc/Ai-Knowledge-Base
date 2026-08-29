@@ -45,6 +45,7 @@
         file_url,
         knowledge_id,
         status,
+        error_msg,
         create_time,
         update_time
        FROM  knowledge_file
@@ -64,6 +65,7 @@
         UPDATE knowledge_file
         SET
         status = #{status},
+        error_msg = #{errorMsg},
         update_time = NOW()
         WHERE id = #{id}
     </update>

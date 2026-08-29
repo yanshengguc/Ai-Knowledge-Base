@@ -94,6 +94,17 @@ python scripts\security_attack.py
 
 **本地环境变化（2026-08-28）**: Docker Desktop 端口转发损坏（容器内 PONG 但宿主 6379 不可达,重置 WSL/重启均未恢复）;已改在 WSL Ubuntu-24.04 安装并 `service redis-server start` 起 Redis（apt 装了 redis-server 包）,本地靶机/回归均正常。恢复 Docker 转发后两条路径可并存。
 
+## 8.5 周边工具与知识库(跨仓库生态)
+
+| 位置 | 用途 | 交接文档 |
+|---|---|---|
+| `IdeaProjects/chlog` | git 历史→中文周报/changelog 的零依赖 CLI(Python 练手) | chlog/HANDOFF.md |
+| `IdeaProjects/study-vault` | 备考学习库(四线计划+SRS 调度 srs.py) | study-vault/HANDOFF.md |
+| `~/.zcode/skills/{scaffold,modforge,study}` | 立项/游戏 mod/学习计划三个 skill(各带 HANDOFF) | 各自目录内 HANDOFF.md |
+| `D:/StudyMaterials` | 游戏与方向学习资料库(39 仓库,INDEX.md 总目录) | INDEX.md |
+
+提交本仓库时若动了上述生态,记得去对应仓库各自提交(它们是独立 git 仓库)。
+
 ## 8. 常用命令速查
 
 ```powershell

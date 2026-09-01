@@ -80,7 +80,14 @@ public class FileSearchServiceImpl implements FileSearchService {
         }
         String query = rawQuery.toString().trim();
 
-        List<SearchResult> results = vectorSearchService.search(query, TOP_K);
+        List<SearchResult> results;
+        try {
+            results = vectorSearchService.search(query, TOP_K);
+        } catch (Exception e) {
+            // 向量库不可用时优雅返回空结果:ReAct 循环据实回答"未检索到",不抛错中断
+            log.error("file_search 向量检索失败,返回空结果: {}", e.getMessage());
+            results = List.of();
+        }
 
         // 按 fileId 去重(一个文件的多个chunk可能都命中),保留最高分
         Map<Long, SearchResult> bestByFile = new LinkedHashMap<>();

@@ -2,7 +2,6 @@ package com.yansheng.aiknowledgebase.service.impl;
 
 import com.aliyun.dashvector.DashVectorClient;
 import com.aliyun.dashvector.DashVectorCollection;
-import com.aliyun.dashvector.common.DashVectorException;
 import com.aliyun.dashvector.models.CollectionMeta;
 import com.aliyun.dashvector.models.Doc;
 import com.aliyun.dashvector.models.DocOpResult;
@@ -72,20 +71,25 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
     }
 
     @PostConstruct
-    public void init() throws DashVectorException {
-        client = new DashVectorClient(apiKey, endpoint);
-        Response<CollectionMeta> meta = client.describe(COLLECTION_NAME);
-        if (!meta.isSuccess()) {
-            // 集合不存在 → 按知识库集合维度创建
-            int dimension = DEFAULT_DIMENSION;
-            Response<CollectionMeta> src = client.describe(SOURCE_COLLECTION);
-            if (src.isSuccess() && src.getOutput() != null) {
-                dimension = src.getOutput().getDimension();
+    public void init() {
+        try {
+            client = new DashVectorClient(apiKey, endpoint);
+            Response<CollectionMeta> meta = client.describe(COLLECTION_NAME);
+            if (!meta.isSuccess()) {
+                // 集合不存在 → 按知识库集合维度创建
+                int dimension = DEFAULT_DIMENSION;
+                Response<CollectionMeta> src = client.describe(SOURCE_COLLECTION);
+                if (src.isSuccess() && src.getOutput() != null) {
+                    dimension = src.getOutput().getDimension();
+                }
+                client.create(COLLECTION_NAME, dimension);
+                log.info("长期记忆集合已创建: {}, dimension={}", COLLECTION_NAME, dimension);
             }
-            client.create(COLLECTION_NAME, dimension);
-            log.info("长期记忆集合已创建: {}, dimension={}", COLLECTION_NAME, dimension);
+            collection = client.get(COLLECTION_NAME);
+        } catch (Exception e) {
+            // 供应商不可用时不阻断启动,记忆读写已有各自的 try/catch 降级
+            log.error("长期记忆向量库初始化失败(降级启动,记忆功能停用): {}", e.getMessage());
         }
-        collection = client.get(COLLECTION_NAME);
     }
 
     @Override

@@ -39,8 +39,13 @@ public class VectorStoreServiceImpl implements VectorStoreService {
 
     @PostConstruct
     public void init() {
-        client = new DashVectorClient(apiKey, endpoint);
-        collection = client.get(COLLECTION_NAME);
+        try {
+            client = new DashVectorClient(apiKey, endpoint);
+            collection = client.get(COLLECTION_NAME);
+        } catch (Exception e) {
+            // 供应商不可用时不阻断启动,检索层已兜底降级为 BM25 单路
+            log.error("向量库初始化失败(降级启动,检索退化为 BM25): {}", e.getMessage());
+        }
     }
 
     @Override

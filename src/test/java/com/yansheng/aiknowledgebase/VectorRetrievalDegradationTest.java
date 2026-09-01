@@ -7,10 +7,13 @@ import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.mcp.KnowledgeMcpTools;
+import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
 import com.yansheng.aiknowledgebase.service.impl.FileSearchServiceImpl;
+import com.yansheng.aiknowledgebase.service.impl.LongTermMemoryServiceImpl;
 import com.yansheng.aiknowledgebase.service.impl.RetrievalServiceImpl;
+import com.yansheng.aiknowledgebase.service.impl.VectorStoreServiceImpl;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -146,5 +150,31 @@ class VectorRetrievalDegradationTest {
 
         assertTrue(json.contains("results"));
         assertTrue(json.contains("[]"), "应为空数组,实际: " + json);
+    }
+
+    @Test
+    void vectorStoreInitFailureShouldNotBlockStartup() {
+        // 启动期降级:供应商连不上(DNS 失效/Token 失效)时 @PostConstruct 吞异常,
+        // 应用照常启动;collection 为 null,后续调用抛 NPE 由检索层三层降级接住。
+        // e2e 实证(9/1):修复前坏 endpoint/坏 key 均导致 Spring 上下文启动失败、进程退出。
+        VectorStoreServiceImpl store = new VectorStoreServiceImpl();
+        ReflectionTestUtils.setField(store, "apiKey", "sk-invalid-simulate-expired");
+        ReflectionTestUtils.setField(store, "endpoint", "invalid.dashvector.local");
+
+        assertDoesNotThrow(store::init);
+    }
+
+    @Test
+    void longTermMemoryInitFailureShouldNotBlockStartup() {
+        // 同款启动期降级:长期记忆集合初始化失败不阻断启动,remember/recall 已有独立 try/catch
+        EmbeddingService embeddingService = mock(EmbeddingService.class);
+        when(embeddingService.embed(anyString())).thenReturn(new float[]{0.1f, 0.2f});
+        LongTermMemoryServiceImpl memory = new LongTermMemoryServiceImpl(embeddingService);
+        ReflectionTestUtils.setField(memory, "apiKey", "sk-invalid-simulate-expired");
+        ReflectionTestUtils.setField(memory, "endpoint", "invalid.dashvector.local");
+
+        assertDoesNotThrow(memory::init);
+        // collection 为 null → insert 抛 NPE → remember 内部 catch 降级,不外抛
+        assertDoesNotThrow(() -> memory.remember(7L, "供应商故障期间的记忆写入"));
     }
 }

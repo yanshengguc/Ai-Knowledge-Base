@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-01 | 当前生产版本 = commit `dd0b6e1`(9/1 第五次部署:向量检索失败降级 BM25 兜底,防供应商故障全站瘫痪;verify 3/3 PASS)
+> 更新: 2026-09-01 | 当前生产版本 = commit `385a3dd`(9/1 第六次部署:向量库不可用时服务可降级启动,@PostConstruct 兜底补齐降级最后一环;verify 3/3 + seed_demo 11/11 PASS)
 
 ## 1. 项目概览
 
@@ -33,6 +33,7 @@
 
 | commit | 内容 |
 |---|---|
+| `385a3dd` | 向量库不可用时服务可降级启动:VectorStoreServiceImpl/LongTermMemoryServiceImpl 的 @PostConstruct 加 try-catch(供应商故障不再阻断 Spring 启动);启动期降级测试 2 用例,155/155 绿(9/1 第六次部署) |
 | `dd0b6e1` | 向量检索失败降级 BM25 兜底:主链路向量路异常退 BM25 单路,Agent file_search 与 MCP 出口返回空结果 JSON;VectorRetrievalDegradationTest 4 用例,153/153 绿(9/1 第五次部署) |
 | `4dbf4f3` | 长期记忆治理：去重(相似度阈值)/过期(TTL)/容量上限/超长截断，配置化于 application.properties（memory.governance.*） |
 | `3265dd1` | 测试加固：新增 27 个 P0 用例；删除 9 个零断言假测试(FileSearchChainVerify 等 5 个类)；一键回归脚本 |
@@ -57,7 +58,7 @@ python scripts\security_attack.py
 
 ## 5. 测试体系
 
-- 全量: `mvn test`（当前 **153/153 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。153 = 8/29 基线 149 + 降级测试 4 个；HANDOFF 旧记录 146 已过期）
+- 全量: `mvn test`（当前 **155/155 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。155 = 8/29 基线 149 + 降级测试 4 个 + 启动期降级 2 个）
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
 - 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest
 - **约定: 任何代码改动必须全量回归全绿才可提交部署**
@@ -83,11 +84,11 @@ python scripts\security_attack.py
 - [x] Agent 模式可视化上线（8/29 第二次部署 ffbd271:聊天"🤖 Agent"开关走 ReAct 循环,SSE tool 事件 → 前端工具时间线;Agent 模式 LLM 调用已按 userId 记账;生产实测 time_now 时间线+正确回答）
 - [x] 识图盲区修复上线（8/29 第三次部署 24957d1:扫描件显式失败+error_msg 落库+前端悬浮展示;生产实测通过。演进项:OCR 补全/多模态 qwen-vl 按 JD 再定）
 - [x] **DashVector 免费额度 9/6 到期——已闭环（9/1）**:三层降级代码已部署(dd0b6e1,向量挂→BM25 单路,Agent/MCP 出口空结果);阿里云账户已充值 ¥7,实例为 Serverless 按量(本站流量月均 ¥1-2,余额够撑数月),到期自动转付费无需操作。万一实例被冻结的预案:新建 Serverless Cluster→改 endpoint 环境变量→MySQL 是向量数据源,重跑入库流水线全量重建
-- [ ] 服务器 /opt/aikb 下 7 个备份 jar（~800MB，含 9/1 的 bak-0901），稳定运行几天后清理
+- [x] 服务器 /opt/aikb 备份 jar 已清理（9/1 第六次部署验收通过后:删除 8/24-8/29 的 7 个旧备份 ~811MB;保留 bak-0901(无降级代码版)/bak-0901b(降级第一版)两个回滚点,/ 分区占用降至 23%）
 - [ ] 前端 chunk >500kB 警告（vite 构建提示,可做 manualChunks 分包,非紧急）
 - [ ] 备选小打磨:Agent 时间线的工具结果摘要目前是原始 JSON,可按工具定制友好文案
 - [ ] 备选小打磨:rerank 后仅数量截断(topK=5),缺分数下限淘汰;另 rerank 关闭且纯 BM25 时兜底排序按升序与 BM25 分数语义相反(生产 rerank 开启,不影响线上)——可作 9 月面试前的 30-60 分钟间隙任务
-- [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 153 见第 6 节）
+- [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节）
 
 低优先 backlog:
 - 后端分页 / .doc 老格式支持 / DashVector 检索用户隔离 filter / 统一 HTTP 连接池

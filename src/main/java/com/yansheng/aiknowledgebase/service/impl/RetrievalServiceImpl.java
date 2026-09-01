@@ -78,9 +78,16 @@ public class RetrievalServiceImpl implements RetrievalService {
         // 1. 粗召回(向量检索,多召回一些留给重排)
         //    多用户隔离:web 请求带用户上下文时,只在该用户拥有的文件范围内召回(防横向越权)
         Long userId = UserContext.getUserId();
-        List<SearchResult> rawResults = (userId != null)
-                ? vectorSearchService.searchForUser(queryText, topK * 3, userId)
-                : vectorSearchService.search(queryText, topK * 3);
+        List<SearchResult> rawResults;
+        try {
+            rawResults = (userId != null)
+                    ? vectorSearchService.searchForUser(queryText, topK * 3, userId)
+                    : vectorSearchService.search(queryText, topK * 3);
+        } catch (Exception e) {
+            // 供应商故障降级:向量库不可用(额度过期/网络异常)时退化为 BM25 单路,问答不中断
+            log.error("向量检索失败,降级为BM25单路: userId={}, error={}", userId, e.getMessage());
+            rawResults = List.of();
+        }
 
         // 2. 阈值过滤(去掉明显不相关的噪声邻居)——只对向量路(score 是距离,越小越相关)
         List<SearchResult> filtered = rawResults.stream()

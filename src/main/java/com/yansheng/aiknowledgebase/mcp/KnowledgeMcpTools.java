@@ -72,7 +72,14 @@ public class KnowledgeMcpTools {
         Long userId = requireUser();
 
         // 按用户隔离检索:只在该用户拥有的文件范围内召回
-        List<SearchResult> results = vectorSearchService.searchForUser(query.trim(), TOP_K, userId);
+        List<SearchResult> results;
+        try {
+            results = vectorSearchService.searchForUser(query.trim(), TOP_K, userId);
+        } catch (Exception e) {
+            // 向量库不可用时优雅返回空结果,不中断 MCP 调用方
+            log.error("MCP knowledge_search 向量检索失败,返回空结果: {}", e.getMessage());
+            results = List.of();
+        }
 
         // 按 fileId 去重,保留最高分;轻量返回
         Map<Long, SearchResult> bestByFile = new LinkedHashMap<>();

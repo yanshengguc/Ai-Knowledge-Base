@@ -12,6 +12,19 @@ export default defineConfig(({ mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // 大依赖分包:element-plus / vue 全家桶 / markdown 渲染库各自独立 chunk,
+          // 业务代码改动不再让全量 vendor 缓存失效(主包原 1.27MB 超 500kB 警告)
+          manualChunks: {
+            'element-plus': ['element-plus', '@element-plus/icons-vue'],
+            'vue-vendor': ['vue', 'vue-router', 'pinia', 'vue-i18n'],
+            'markdown': ['marked', 'dompurify'],
+          },
+        },
+      },
+    },
     server: {
       port: 5173,
       proxy: {

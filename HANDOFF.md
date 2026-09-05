@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-05 | 当前生产版本 = commit `385a3dd`(9/1 第六次部署:向量库不可用时服务可降级启动,@PostConstruct 兜底补齐降级最后一环;verify 3/3 + seed_demo 11/11 PASS)| 本地最新 = `5537f19`(9/5:时间线摘要 + rerank 打磨 + 前端分包,175/175 绿,**未部署**,下次部署窗口一并带上,前端注意另发 dist)
+> 更新: 2026-09-05 | 当前生产版本 = commit `385a3dd`(9/1 第六次部署:向量库不可用时服务可降级启动,@PostConstruct 兜底补齐降级最后一环;verify 3/3 + seed_demo 11/11 PASS)| 本地最新 = `ca977d0`(9/5:时间线摘要 + rerank 打磨 + 前端分包 + **file_search 用户隔离修复**,180/180 绿,**未部署**,下次部署窗口一并带上,前端注意另发 dist)
 
 ## 1. 项目概览
 
@@ -33,6 +33,7 @@
 
 | commit | 内容 |
 |---|---|
+| `ca977d0` | **file_search 补用户隔离**(本地靶机实测新账号曾召回他人文件 fileId=178,横向越权;登录改走 searchForUser 与 RetrievalServiceImpl 同口径,backlog"DashVector 检索用户隔离 filter"就此闭环)+ 重排空响应(解析不出分数)降级粗排 + 工具失败文案去重;测试 +5 → 180/180 绿(9/5) |
 | `5537f19` | Agent 时间线摘要友好化(ToolTraceSummarizer,5 工具 JSON→人话,失败/未知降级截断)+ rerank 分数下限淘汰(rerank.min-score 默认 0.3,全量取分本地淘汰,全淘汰返回空)+ 兜底排序方向修复(混合池分段有序,不再整体升序 sort);测试 +20 → 175/175 绿(9/5,**未部署**) |
 | `de2c9d8` | 前端 vendor 三分包(element-plus/vue/markdown 独立 chunk,业务主包 1.27MB→12.6KB);HANDOFF 清除已修复的登录枚举遗留项(9/5,**未部署**,前端需发 dist) |
 | `385a3dd` | 向量库不可用时服务可降级启动:VectorStoreServiceImpl/LongTermMemoryServiceImpl 的 @PostConstruct 加 try-catch(供应商故障不再阻断 Spring 启动);启动期降级测试 2 用例,155/155 绿(9/1 第六次部署) |
@@ -60,7 +61,7 @@ python scripts\security_attack.py
 
 ## 5. 测试体系
 
-- 全量: `mvn test`（当前 **175/175 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。175 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 6 + 兜底排序 2 个新用例及 1 个用例修正）
+- 全量: `mvn test`（当前 **180/180 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4)
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
 - 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest / ToolTraceSummarizerTest / RerankScoreFilterTest / RetrievalServiceImplTest
 - **约定: 任何代码改动必须全量回归全绿才可提交部署**
@@ -94,9 +95,10 @@ python scripts\security_attack.py
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节）
 
 低优先 backlog:
-- 后端分页 / .doc 老格式支持 / DashVector 检索用户隔离 filter / 统一 HTTP 连接池
-- 知识图谱（README 路线图已列;面试前优先"数字+故事"而非新功能）
-- 简历方向: Python+LangGraph 多 Agent 复刻版（强化"场景"维度）
+- 后端分页 / .doc 老格式支持 / 统一 HTTP 连接池
+- ~~DashVector 检索用户隔离 filter~~(已闭环:file_search 9/5 改走 searchForUser,ca977d0;RetrievalServiceImpl 一直是隔离的)
+- 知识图谱(README 路线图已列;面试前优先"数字+故事"而非新功能)
+- 简历方向: Python+LangGraph 多 Agent 复刻版(强化"场景"维度)
 
 **本地环境变化（2026-08-28）**: Docker Desktop 端口转发损坏（容器内 PONG 但宿主 6379 不可达,重置 WSL/重启均未恢复）;已改在 WSL Ubuntu-24.04 安装并 `service redis-server start` 起 Redis（apt 装了 redis-server 包）,本地靶机/回归均正常。恢复 Docker 转发后两条路径可并存。
 

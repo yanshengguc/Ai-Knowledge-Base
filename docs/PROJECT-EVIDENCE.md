@@ -17,7 +17,7 @@
 
 | 指标 | 数值 | 怎么测的 |
 |---|---|---|
-| 单元/集成测试 | **146 用例 BUILD SUCCESS**(8/29 全量,默认跑批;e2e 子集 test-e2e.sh 单独跑) | mvn test;e2e 子集 scripts/test-e2e.sh |
+| 单元/集成测试 | **175 用例 BUILD SUCCESS**(9/5 全量,默认跑批;e2e 子集 test-e2e.sh 单独跑) | mvn test;e2e 子集 scripts/test-e2e.sh |
 | 工具选择准确率 | **100%**(15/15,8/20 Eval Harness) | 15 个真实用例(该调/不该调),ListAppender 统计 |
 | 检索质量 | **recall@5 / MRR 达标**(18 查询/12 篇文档,阈值 0.80/0.70) | RetrievalQualityEvalTest:真实管线注入(切片→Embedding→DashVector→混合检索+Rerank 全链路,非 mock) |
 | 端到端串联 | **9/9**(8/18 MVP) | 注册→问答→删除全流程 curl 实测 |
@@ -27,6 +27,9 @@
 | Token 成本可观测 | token_usage 按用户/模型记账(8/24 上线) | TokenCostCalculationTest 10 用例 |
 | 每日配额边界 | **>= 即拒/SUM 聚合/豁免对照/开关关闭跳过**(8/28) | ChatDailyQuotaTest 5 用例 + DisabledTest 1 用例 |
 | Agent 模式可视化 | **工具时间线端到端**(8/29,本地+生产双实测) | 浏览器实测:问"现在几点了"→time_now 时间线→正确回答;Agent 模式 LLM 调用按 userId 记账(成本面板 2.8k→4.5k 实时可见) |
+| Agent 时间线摘要 | **JSON→人话**(9/5,5537f19) | ToolTraceSummarizerTest 12 用例:5 个已知工具各按返回结构出文案(file_search→"检索到 N 个相关文件"/空→"未检索到相关资料"),失败文本/未知工具降级截断原文 |
+| 重排分数下限淘汰 | rerank.min-score=0.3,低分噪声不进上下文(9/5,5537f19) | RerankScoreFilterTest 6 用例:全量取分本地淘汰/超量截断 topN/全淘汰返回空/缺分同淘汰/置 0 关闭/博查响应格式兼容 |
+| 前端分包 | **业务主包 1.27MB→12.6KB**(9/5,de2c9d8) | npm run build 实测产物:element-plus 1.08MB / vue 全家桶 174KB / markdown 72.6KB 各自独立 chunk,vue-tsc 类型检查通过 |
 
 > 注:工具选择 100% 是**测试集**结果(用例清晰);真实场景更复杂,已在缺陷清单标注为持续迭代项。
 

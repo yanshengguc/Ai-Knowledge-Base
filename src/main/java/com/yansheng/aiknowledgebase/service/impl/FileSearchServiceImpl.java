@@ -82,7 +82,12 @@ public class FileSearchServiceImpl implements FileSearchService {
 
         List<SearchResult> results;
         try {
-            results = vectorSearchService.search(query, TOP_K);
+            // 用户隔离(防横向越权):登录请求只在本人文件范围内召回,与 RetrievalServiceImpl 同口径;
+            // 未登录(评测/内部分析场景)才走全局检索
+            Long userId = com.yansheng.aiknowledgebase.utils.UserContext.getUserId();
+            results = (userId != null)
+                    ? vectorSearchService.searchForUser(query, TOP_K, userId)
+                    : vectorSearchService.search(query, TOP_K);
         } catch (Exception e) {
             // 向量库不可用时优雅返回空结果:ReAct 循环据实回答"未检索到",不抛错中断
             log.error("file_search 向量检索失败,返回空结果: {}", e.getMessage());

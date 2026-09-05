@@ -123,6 +123,13 @@ public class RerankServiceImpl implements RerankService {
             }
         }
 
+        // 一个分数都没拿到 = 响应结构异常(非预期格式/空 results)——视为本次重排失败,
+        // 降级返回粗排原顺序(与 非200/超时 一致),不能当作"全部低于阈值"误淘汰
+        if (scoreMap.isEmpty()) {
+            log.warn("重排响应未含任何分数,降级返回粗排结果: provider={}", endpoint);
+            return truncate(candidates, topN);
+        }
+
         // 按重排分数降序(未出现的 index 排最后,保留原相对顺序)。
         // 对下标数组排序,comparator 内直接查 Map;原实现每次比较都 List.indexOf 是 O(n²)
         Integer[] order = new Integer[candidates.size()];

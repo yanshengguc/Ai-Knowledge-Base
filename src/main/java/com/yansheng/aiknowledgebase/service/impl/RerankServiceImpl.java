@@ -48,6 +48,13 @@ public class RerankServiceImpl implements RerankService {
     @Value("${rerank.api-key:}")
     private String apiKey;
 
+    /**
+     * 重排分数下限(0~1,relevance_score):低于阈值视为不相关,淘汰不进上下文。
+     * 防"数量截断混入噪声"——topK 凑不满没关系,宁缺毋滥;配置可调,置 0 关闭淘汰。
+     */
+    @Value("${rerank.min-score:0.3}")
+    private double minScore;
+
     public RerankServiceImpl(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
@@ -72,7 +79,9 @@ public class RerankServiceImpl implements RerankService {
             body.put("model", model);
             body.put("query", query);
             body.put("documents", documents);
-            body.put("top_n", topN);
+            // 拿全量候选的重排分(而非只回 topN),本地先按分数下限淘汰再截断——
+            // 否则低分噪声在 API 侧已占满 topN 名额,淘汰无从谈起
+            body.put("top_n", candidates.size());
             body.put("return_documents", false);
 
             HttpRequest request = HttpRequest.newBuilder()
@@ -97,8 +106,8 @@ public class RerankServiceImpl implements RerankService {
         }
     }
 
-    /** 按重排 relevance_score 降序重排候选,取 topN */
-    private List<SearchResult> reorderByScore(List<SearchResult> candidates, String rawJson, int topN) throws Exception {
+    /** 按重排 relevance_score 降序重排候选,分数下限淘汰,取 topN(包级可见,供分数淘汰单测) */
+    List<SearchResult> reorderByScore(List<SearchResult> candidates, String rawJson, int topN) throws Exception {
         JsonNode root = objectMapper.readTree(rawJson);
         // 兼容两种响应格式:硅基流动 results 在顶层;博查在 data.results
         JsonNode results = root.path("results");
@@ -122,11 +131,21 @@ public class RerankServiceImpl implements RerankService {
         }
         java.util.Arrays.sort(order, (ia, ib) ->
                 Double.compare(scoreMap.getOrDefault(ib, -1.0), scoreMap.getOrDefault(ia, -1.0)));
+
+        // 分数下限淘汰:重排分低于阈值(含未拿到分数的)视为不相关,不进上下文;
+        // 全部淘汰 = 该问题在知识库里没有相关资料,返回空列表让上层如实作答,不硬凑 topK
         List<SearchResult> reordered = new ArrayList<>(candidates.size());
+        int dropped = 0;
         for (Integer idx : order) {
+            if (scoreMap.getOrDefault(idx, -1.0) < minScore) {
+                dropped++;
+                continue;
+            }
             reordered.add(candidates.get(idx));
         }
-        log.info("重排完成: {} 候选 → 前 {} 个", candidates.size(), Math.min(topN, reordered.size()));
+        if (dropped > 0) {
+            log.info("重排分数下限 {} 淘汰 {} 条低分候选,保留 {} 条", minScore, dropped, reordered.size());
+        }
         return truncate(reordered, topN);
     }
 

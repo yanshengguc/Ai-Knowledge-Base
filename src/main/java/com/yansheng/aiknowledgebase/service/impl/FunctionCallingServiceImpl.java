@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yansheng.aiknowledgebase.common.tool.Tool;
 import com.yansheng.aiknowledgebase.common.tool.ToolCallbackAdapter;
 import com.yansheng.aiknowledgebase.common.tool.ToolRegistry;
+import com.yansheng.aiknowledgebase.common.tool.ToolTraceSummarizer;
 import com.yansheng.aiknowledgebase.entity.ToolTraceEvent;
 import com.yansheng.aiknowledgebase.service.FunctionCallingService;
 import com.yansheng.aiknowledgebase.service.TokenUsageService;
@@ -119,11 +120,13 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
                             .responses(List.of(new ToolResponseMessage.ToolResponse(toolCall.id(), toolCall.name(), result)))
                             .build());
                     // 工具轨迹回调:执行完再推,事件里带结果摘要(失败也有摘要,前端时间线如实展示)
+                    // summary 由 ToolTraceSummarizer 按 toolName 翻译成人话,解析失败降级截断原文;
+                    // 回传给模型的 ToolResponse 仍是原始 result,摘要只影响前端展示
                     onTool.accept(new ToolTraceEvent(
                             step + 1,
                             toolCall.name(),
                             truncate(toolCall.arguments()),
-                            truncate(result)));
+                            ToolTraceSummarizer.summarize(toolCall.name(), result)));
                 }
                 step++;
                 continue;

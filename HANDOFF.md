@@ -58,11 +58,12 @@ python scripts\security_attack.py
 
 ## 5. 测试体系
 
-- 全量: `mvn test`（当前 **155/155 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。155 = 8/29 基线 149 + 降级测试 4 个 + 启动期降级 2 个）
+- 全量: `mvn test`（当前 **175/175 绿**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。175 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 6 + 兜底排序 2 个新用例及 1 个用例修正）
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
-- 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest
+- 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest / ToolTraceSummarizerTest / RerankScoreFilterTest / RetrievalServiceImplTest
 - **约定: 任何代码改动必须全量回归全绿才可提交部署**
 - 坑: MockMvc 断言中文需 `new String(resp.getBytes(ISO_8859_1), UTF_8)` 重解码；BusinessException 是 HTTP 200 + body code 500，断言要看 body 层；**本地库曾漏建 token_usage 表（recordChat 吞异常不报错，8/28 补建）——新环境初始化务必执行最新 docs/schema.sql 全量**
+- 坑(9/5): WorkBuddy 终端 bash 预设 `MSYS_NO_PATHCONV=1`,Git Bash 下 `mvn`/`./mvnw` shell 脚本拼出的 `/c/...` classpath 不被转成 Windows 路径,java 报"找不到主类 org.codehaus.plexus.classworlds.launcher.Launcher"(与 8/29 deploy.py 的路径改写坑互为反面)。绕法:直接调 java 跑 Launcher——`"$JAVA_HOME/bin/java" -classpath "C:/apps/maven/apache-maven-3.9.11/boot/plexus-classworlds-2.9.0.jar" -Dclassworlds.conf="C:/apps/maven/apache-maven-3.9.11/bin/m2.conf" -Dmaven.home="C:/apps/maven/apache-maven-3.9.11" -Dmaven.multiModuleProjectDirectory="<项目Windows路径>" org.codehaus.plexus.classworlds.launcher.Launcher test`(正斜杠 Windows 路径 java 可接受);或回 PowerShell 跑 mvn
 - ManualReActVerifyTest 用自建 fixture（knowledge+file 临时插入清理），勿再改回硬编码 fileId
 
 ## 6. 硬约束（改动前必读）
@@ -85,9 +86,9 @@ python scripts\security_attack.py
 - [x] 识图盲区修复上线（8/29 第三次部署 24957d1:扫描件显式失败+error_msg 落库+前端悬浮展示;生产实测通过。演进项:OCR 补全/多模态 qwen-vl 按 JD 再定）
 - [x] **DashVector 免费额度 9/6 到期——已闭环（9/1）**:三层降级代码已部署(dd0b6e1,向量挂→BM25 单路,Agent/MCP 出口空结果);阿里云账户已充值 ¥7,实例为 Serverless 按量(本站流量月均 ¥1-2,余额够撑数月),到期自动转付费无需操作。万一实例被冻结的预案:新建 Serverless Cluster→改 endpoint 环境变量→MySQL 是向量数据源,重跑入库流水线全量重建
 - [x] 服务器 /opt/aikb 备份 jar 已清理（9/1 第六次部署验收通过后:删除 8/24-8/29 的 7 个旧备份 ~811MB;保留 bak-0901(无降级代码版)/bak-0901b(降级第一版)两个回滚点,/ 分区占用降至 23%）
-- [ ] 前端 chunk >500kB 警告（vite 构建提示,可做 manualChunks 分包,非紧急）
-- [ ] 备选小打磨:Agent 时间线的工具结果摘要目前是原始 JSON,可按工具定制友好文案
-- [ ] 备选小打磨:rerank 后仅数量截断(topK=5),缺分数下限淘汰;另 rerank 关闭且纯 BM25 时兜底排序按升序与 BM25 分数语义相反(生产 rerank 开启,不影响线上)——可作 9 月面试前的 30-60 分钟间隙任务
+- [ ] 前端 chunk 优化:vendor 已三分包(element-plus/vue/markdown 独立 chunk,主包 1.27MB→12.6KB,de2c9d8);element-plus 单 chunk 仍 >500kB(gzip 339KB),要再减需引入 unplugin 按需导入(加构建依赖,未做)
+- [x] Agent 时间线工具结果摘要已友好化(9/5:ToolTraceSummarizer 按工具名把结果 JSON 翻译成人话,如 file_search→"检索到 N 个相关文件";解析失败/未知工具降级截断原文,回传模型的原始结果不变)
+- [x] rerank 打磨完成(9/5):①分数下限淘汰——rerank.min-score 配置(默认 0.3),请求改拿全量候选分数后本地先淘汰再截 topN,全淘汰返回空让上层如实作答,置 0 关闭;②兜底排序方向修复——rerank 关闭时不再对混合池整体升序 sort(两路 score 语义相反:向量=距离、BM25=相关度,整体排序必错一路),改为保持合并顺序(向量段距离升序在前 + BM25 段相关度降序在后,各自天然有序)
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节）
 
 低优先 backlog:

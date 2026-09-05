@@ -55,12 +55,13 @@ class RetrievalServiceImplTest {
 
     @Test
     void shouldFilterOutResultsAboveThreshold() {
-        // 构造 5 条候选结果，score 有高有低，且故意打乱顺序
+        // 构造 5 条候选:score 有高有低。mock 顺序模拟 DashVector 真实行为(按距离升序返回)——
+        // 兜底排序不整体重排(混合池两路 score 语义相反),顺序依赖上游有序性
         List<SearchResult> mockResults = Arrays.asList(
+                new SearchResult(4L, 4L, "内容D", 0.05), // 相关,最相似
                 new SearchResult(1L, 1L, "内容A", 0.10), // 相关
-                new SearchResult(2L, 2L, "内容B", 0.50), // 不相关，应被过滤
                 new SearchResult(3L, 3L, "内容C", 0.20), // 相关
-                new SearchResult(4L, 4L, "内容D", 0.05), // 相关，最相似
+                new SearchResult(2L, 2L, "内容B", 0.50), // 不相关，应被过滤
                 new SearchResult(5L, 5L, "内容E", 0.90)  // 完全不相关，应被过滤
         );
 
@@ -69,7 +70,7 @@ class RetrievalServiceImplTest {
 
         List<SearchResult> result = retrievalService.retrieveTopK("测试查询");
 
-        // 验证：只剩 3 条低于阈值 0.35 的（A、C、D），且按 score 升序排列
+        // 验证：只剩 3 条低于阈值 0.35 的（D、A、C），保持上游升序
         assertEquals(3, result.size());
         assertEquals(4L, result.get(0).getChunkId()); // score=0.05，最相关，排第一
         assertEquals(1L, result.get(1).getChunkId()); // score=0.10
@@ -187,6 +188,64 @@ class RetrievalServiceImplTest {
             // 合并后应同时包含向量路和 BM25 路结果
             assertTrue(result.stream().anyMatch(r -> r.getChunkId() == 1L));
             assertTrue(result.stream().anyMatch(r -> r.getChunkId() == 2L));
+        } finally {
+            UserContext.remove();
+        }
+    }
+
+    @Test
+    void shouldKeepMergeOrderInFallbackSorting() {
+        // 兜底排序(无重排):混合池保持"向量段(距离升序)+ BM25 段(相关度降序)"合并顺序,
+        // 不整体按 score 排——两路语义相反(距离 vs 相关度),整体升序会把 BM25 高相关度错排到后面
+        UserEntity user = new UserEntity();
+        user.setId(7L);
+        user.setUsername("u7");
+        UserContext.set(user);
+        try {
+            when(valueOperations.get(anyString())).thenReturn(null);
+            // 向量段:上游保证距离升序(0.10 < 0.30)
+            when(vectorSearchService.searchForUser(eq("混合查询"), anyInt(), eq(7L)))
+                    .thenReturn(Arrays.asList(
+                            new SearchResult(1L, 1L, "向量近", 0.10),
+                            new SearchResult(2L, 2L, "向量远", 0.30)));
+            // BM25 段:SQL 保证相关度降序;score 数值故意远大于向量距离,验证段间不互相干扰
+            when(chunkMapper.selectByFullText(eq(7L), eq("混合查询"), anyInt()))
+                    .thenReturn(List.of(new SearchResult(3L, 3L, "BM25 强命中", 15.0)));
+
+            List<SearchResult> result = retrievalService.retrieveTopK("混合查询");
+
+            // 期望顺序:向量段在前(1,2),BM25 段补充在后(3)——而不是按数值混排
+            assertEquals(3, result.size());
+            assertEquals(1L, result.get(0).getChunkId());
+            assertEquals(2L, result.get(1).getChunkId());
+            assertEquals(3L, result.get(2).getChunkId());
+        } finally {
+            UserContext.remove();
+        }
+    }
+
+    @Test
+    void shouldTruncateToTopKInFallbackSorting() {
+        // 兜底排序数量截断语义保留:候选多于 topK=3 时只留前 3
+        UserEntity user = new UserEntity();
+        user.setId(7L);
+        user.setUsername("u7");
+        UserContext.set(user);
+        try {
+            when(valueOperations.get(anyString())).thenReturn(null);
+            when(vectorSearchService.searchForUser(eq("超长召回"), anyInt(), eq(7L)))
+                    .thenReturn(Arrays.asList(
+                            new SearchResult(1L, 1L, "a", 0.05),
+                            new SearchResult(2L, 2L, "b", 0.10),
+                            new SearchResult(3L, 3L, "c", 0.20),
+                            new SearchResult(4L, 4L, "d", 0.30)));
+            when(chunkMapper.selectByFullText(anyLong(), anyString(), anyInt())).thenReturn(List.of());
+
+            List<SearchResult> result = retrievalService.retrieveTopK("超长召回");
+
+            assertEquals(3, result.size());
+            assertEquals(1L, result.get(0).getChunkId());
+            assertEquals(3L, result.get(2).getChunkId());
         } finally {
             UserContext.remove();
         }

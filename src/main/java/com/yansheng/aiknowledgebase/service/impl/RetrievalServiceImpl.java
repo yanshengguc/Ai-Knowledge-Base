@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -117,10 +116,12 @@ public class RetrievalServiceImpl implements RetrievalService {
         if (rerankEnabled && !filtered.isEmpty()) {
             finalResults = rerankService.rerank(queryText, filtered, topK);
         } else {
-            finalResults = filtered.stream()
-                    .sorted(Comparator.comparingDouble(SearchResult::getScore))
-                    .limit(topK)
-                    .collect(Collectors.toList());
+            // 兜底排序(无重排时):保持合并顺序——向量段(DashVector 距离升序)在前,
+            // BM25 段(SQL 相关度降序)在后,两段各自天然有序。
+            // 不可整体按 score 排序:两路 score 语义相反(距离 vs 相关度),混排必错一路。
+            finalResults = filtered.size() > topK
+                    ? new ArrayList<>(filtered.subList(0, topK))
+                    : filtered;
         }
 
         fillFileNames(finalResults);

@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-01 | 当前生产版本 = commit `385a3dd`(9/1 第六次部署:向量库不可用时服务可降级启动,@PostConstruct 兜底补齐降级最后一环;verify 3/3 + seed_demo 11/11 PASS)
+> 更新: 2026-09-05 | 当前生产版本 = commit `385a3dd`(9/1 第六次部署:向量库不可用时服务可降级启动,@PostConstruct 兜底补齐降级最后一环;verify 3/3 + seed_demo 11/11 PASS)| 本地最新 = `5537f19`(9/5:时间线摘要 + rerank 打磨 + 前端分包,175/175 绿,**未部署**,下次部署窗口一并带上,前端注意另发 dist)
 
 ## 1. 项目概览
 
@@ -33,6 +33,8 @@
 
 | commit | 内容 |
 |---|---|
+| `5537f19` | Agent 时间线摘要友好化(ToolTraceSummarizer,5 工具 JSON→人话,失败/未知降级截断)+ rerank 分数下限淘汰(rerank.min-score 默认 0.3,全量取分本地淘汰,全淘汰返回空)+ 兜底排序方向修复(混合池分段有序,不再整体升序 sort);测试 +20 → 175/175 绿(9/5,**未部署**) |
+| `de2c9d8` | 前端 vendor 三分包(element-plus/vue/markdown 独立 chunk,业务主包 1.27MB→12.6KB);HANDOFF 清除已修复的登录枚举遗留项(9/5,**未部署**,前端需发 dist) |
 | `385a3dd` | 向量库不可用时服务可降级启动:VectorStoreServiceImpl/LongTermMemoryServiceImpl 的 @PostConstruct 加 try-catch(供应商故障不再阻断 Spring 启动);启动期降级测试 2 用例,155/155 绿(9/1 第六次部署) |
 | `dd0b6e1` | 向量检索失败降级 BM25 兜底:主链路向量路异常退 BM25 单路,Agent file_search 与 MCP 出口返回空结果 JSON;VectorRetrievalDegradationTest 4 用例,153/153 绿(9/1 第五次部署) |
 | `4dbf4f3` | 长期记忆治理：去重(相似度阈值)/过期(TTL)/容量上限/超长截断，配置化于 application.properties（memory.governance.*） |

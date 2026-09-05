@@ -184,7 +184,11 @@ public class FunctionCallingServiceImpl implements FunctionCallingService {
                     return cb.call(toolCall.arguments());
                 } catch (Exception e) {
                     log.warn("工具执行失败: {}, 错误: {}", name, e.getMessage());
-                    return "工具执行失败: " + e.getMessage() + "(请换一种方式处理或如实告知用户)";
+                    // ToolCallbackAdapter 已包一层"工具执行失败: <工具名>"前缀,这里去重防文案叠罗汉
+                    String msg = e.getMessage() == null ? name : e.getMessage();
+                    String prefix = "工具执行失败: ";
+                    String body = msg.startsWith(prefix) ? msg.substring(prefix.length()) : msg;
+                    return prefix + body + "(请换一种方式处理或如实告知用户)";
                 }
             }
         }

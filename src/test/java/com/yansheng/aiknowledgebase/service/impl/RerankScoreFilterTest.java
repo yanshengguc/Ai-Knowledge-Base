@@ -95,6 +95,22 @@ class RerankScoreFilterTest {
     }
 
     @Test
+    void shouldFallbackToRawOrderWhenNoScoresAtAll() throws Exception {
+        // 响应 200 但解析不出任何分数(结构异常/空 results)→ 视为重排失败,
+        // 降级返回粗排原顺序,不能当"全部低于阈值"误淘汰成空列表
+        List<SearchResult> candidates = Arrays.asList(
+                new SearchResult(1L, 1L, "A", 0.5),
+                new SearchResult(2L, 2L, "B", 0.5));
+        String rawJson = "{\"error\":{\"message\":\"unexpected\"}}";
+
+        List<SearchResult> result = rerankService.reorderByScore(candidates, rawJson, 3);
+
+        assertEquals(2, result.size(), "无分数时应降级保留全部候选");
+        assertEquals(1L, result.get(0).getChunkId(), "保持粗排原顺序");
+        assertEquals(2L, result.get(1).getChunkId());
+    }
+
+    @Test
     void shouldKeepAllWhenMinScoreZero() throws Exception {
         // min-score=0 关闭淘汰:所有拿到分数的候选保留(旧行为回退开关)
         ReflectionTestUtils.setField(rerankService, "minScore", 0.0);

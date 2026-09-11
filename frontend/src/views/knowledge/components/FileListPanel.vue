@@ -1,6 +1,15 @@
 <template>
-  <div v-if="files.length" class="upload-section">
+  <div class="upload-section">
     <h3>{{ t('upload.fileList') }}</h3>
+    <div v-if="loadError" class="file-empty-state">
+      <el-empty :description="t('upload.fileListLoadFailed')">
+        <el-button type="primary" @click="emit('retry')">{{ t('common.retry') }}</el-button>
+      </el-empty>
+    </div>
+    <div v-else-if="!files.length" class="file-empty-state">
+      <el-empty :description="t('upload.emptyFileList')" />
+    </div>
+    <template v-else>
     <div v-for="f in files" :key="f.id" class="file-row" :class="{ 'is-processing': f.status === 'PROCESSING' }">
       <span class="file-name">
         {{ f.fileName }}
@@ -24,12 +33,14 @@
             size="small"
             circle
             :icon="Delete"
+            :aria-label="t('upload.deleteFile', { name: f.fileName })"
             :disabled="f.status === 'PROCESSING'"
             @click="onDeleteFile(f)"
           />
         </el-tooltip>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -41,8 +52,11 @@ import type { FileVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
 
 // 文件列表:展示 + 删除。列表数据由父级持有(上传完成/笔记创建后父级刷新传入)
-defineProps<{ files: FileVO[] }>()
-const emit = defineEmits<{ (e: 'deleted', fileId: number): void }>()
+defineProps<{ files: FileVO[]; loadError?: boolean }>()
+const emit = defineEmits<{
+  (e: 'deleted', fileId: number): void
+  (e: 'retry'): void
+}>()
 const { t } = useI18n()
 
 function fileStatusLabel(status?: string) {
@@ -91,6 +105,10 @@ async function onDeleteFile(f: FileVO) {
   }
 }
 
+.file-empty-state {
+  padding: $space-4 0;
+}
+
 .file-row {
   display: flex;
   align-items: center;
@@ -122,15 +140,14 @@ async function onDeleteFile(f: FileVO) {
     flex-shrink: 0;
   }
 
-  // 删除按钮悬停才显示:平时完全隐形,列表安静;处理中行整体降透明度暗示不可操作
+  // 删除按钮保持可见,触屏和键盘用户无需依赖悬停;处理中行整体降透明度暗示不可操作
   .delete-btn {
-    opacity: 0;
-    transition: opacity 0.15s ease;
     margin-left: 0;
   }
 
-  &:hover .delete-btn:not(:disabled) {
-    opacity: 1;
+  &:focus-within .delete-btn:not(:disabled) {
+    outline: 2px solid $color-primary;
+    outline-offset: 2px;
   }
 
   &.is-processing {

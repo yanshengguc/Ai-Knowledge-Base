@@ -22,15 +22,8 @@
       </el-select>
     </div>
 
-    <!-- 空态 -->
-    <div v-if="!loading && filteredList.length === 0" class="empty">
-      <el-empty :description="t('knowledge.empty') + ',' + t('knowledge.emptyHint')">
-        <el-button type="primary" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
-      </el-empty>
-    </div>
-
     <!-- 加载骨架 -->
-    <div v-else-if="loading" class="grid">
+    <div v-if="loading" class="grid">
       <el-skeleton v-for="i in 6" :key="i" animated class="card">
         <template #template>
           <el-skeleton-item variant="h3" style="width: 60%" />
@@ -40,37 +33,59 @@
       </el-skeleton>
     </div>
 
+    <!-- 加载失败态:与真实空库和筛选无结果区分 -->
+    <div v-else-if="loadError" class="empty">
+      <el-empty :description="t('knowledge.loadFailed')">
+        <el-button type="primary" @click="load">{{ t('common.retry') }}</el-button>
+      </el-empty>
+    </div>
+
+    <!-- 空态/筛选无结果态 -->
+    <div v-else-if="filteredList.length === 0" class="empty">
+      <el-empty :description="hasFilters ? t('knowledge.noResults') : t('knowledge.empty')">
+        <el-button v-if="hasFilters" @click="clearFilters">{{ t('knowledge.clearFilters') }}</el-button>
+        <el-button v-else type="primary" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
+      </el-empty>
+    </div>
+
     <!-- 列表 -->
     <div v-else>
     <div class="grid">
-      <div
+      <article
         v-for="item in pagedList"
         :key="item.id"
         class="card"
-        @click="router.push(`/knowledge/${item.id}`)"
       >
-        <div class="card-title">{{ item.title }}</div>
-        <div class="card-meta">
-          <el-tag size="small" :type="categoryTagType(item.category)" effect="light">{{ item.category || t('knowledge.uncategorized') }}</el-tag>
-          <span class="card-time">{{ item.updateTime || '' }}</span>
-        </div>
+        <button
+          type="button"
+          class="card-main"
+          :aria-label="t('knowledge.openItem', { name: item.title })"
+          @click="openItem(item.id)"
+        >
+          <div class="card-title">{{ item.title }}</div>
+          <div class="card-meta">
+            <el-tag size="small" :type="categoryTagType(item.category)" effect="light">{{ item.category || t('knowledge.uncategorized') }}</el-tag>
+            <span class="card-time">{{ item.updateTime || '' }}</span>
+          </div>
+        </button>
         <el-button
           class="card-delete"
           text
           type="danger"
           size="small"
           :icon="Delete"
+          :aria-label="t('common.delete')"
           @click.stop="onDelete(item)"
         >
           {{ t('common.delete') }}
         </el-button>
-      </div>
+      </article>
     </div>
     <el-pagination
       v-if="filteredList.length > pageSize"
       class="pager"
       layout="prev, pager, next"
-      :total="list.length"
+      :total="filteredList.length"
       :page-size="pageSize"
       :current-page="page"
       @current-change="page = $event"
@@ -99,7 +114,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Plus, Delete, Search, Download } from '@element-plus/icons-vue'
@@ -135,6 +150,8 @@ const page = ref(1)
 const pageSize = 12
 const keyword = ref('')
 const categoryFilter = ref('')
+const loadError = ref(false)
+const hasFilters = computed(() => !!keyword.value.trim() || !!categoryFilter.value)
 const categories = computed(() => Array.from(new Set(list.value.map((k) => k.category).filter(Boolean))))
 const filteredList = computed(() => {
   const kw = keyword.value.trim().toLowerCase()
@@ -148,6 +165,9 @@ const filteredList = computed(() => {
   })
 })
 const pagedList = computed(() => filteredList.value.slice((page.value - 1) * pageSize, page.value * pageSize))
+watch([keyword, categoryFilter], () => {
+  page.value = 1
+})
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -159,13 +179,24 @@ const rules: FormRules = {
   content: [{ required: true, message: t('knowledge.contentRequired'), trigger: 'blur' }],
 }
 
+function openItem(id: number) {
+  router.push(`/knowledge/${id}`)
+}
+
+function clearFilters() {
+  keyword.value = ''
+  categoryFilter.value = ''
+}
+
 async function load() {
   loading.value = true
+  loadError.value = false
   try {
     const res = await fetchList()
     list.value = res.data || []
     page.value = 1
   } catch {
+    loadError.value = true
     // 拦截器已提示
   } finally {
     loading.value = false
@@ -232,11 +263,28 @@ onMounted(load)
   background: $color-bg-card;
   border-radius: $radius-md;
   box-shadow: $shadow-card;
-  cursor: pointer;
   transition: box-shadow 0.2s;
 
   &:hover {
     box-shadow: $shadow-pop;
+  }
+}
+
+.card-main {
+  display: block;
+  width: 100%;
+  padding: 0 0 $space-4;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid $color-primary;
+    outline-offset: 2px;
+    border-radius: $radius-sm;
   }
 }
 
@@ -267,7 +315,8 @@ onMounted(load)
   opacity: 0;
   transition: opacity 0.2s;
 
-  .card:hover & {
+  .card:hover &,
+  .card:focus-within & {
     opacity: 1;
   }
 }

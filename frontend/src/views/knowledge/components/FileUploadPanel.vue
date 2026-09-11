@@ -26,7 +26,7 @@
       <el-button
         type="primary"
         :loading="uploading"
-        :disabled="uploading || !selectedFile || !!uploadedFile"
+        :disabled="uploading || !selectedFile"
         style="margin-top: 12px"
         @click="onUpload"
       >
@@ -37,6 +37,20 @@
       </el-tag>
       <el-progress v-if="uploading" :percentage="uploadProgress" class="upload-progress" />
     </div>
+    <el-alert
+      v-if="pollingError"
+      :title="pollingErrorText"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="polling-alert"
+    >
+      <template #default>
+        <el-button size="small" type="primary" plain @click="retryPolling">
+          {{ t('upload.retryProcessing') }}
+        </el-button>
+      </template>
+    </el-alert>
   </div>
 </template>
 
@@ -58,21 +72,33 @@ const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadedFile = ref<FileVO | null>(null)
+const pollingError = ref(false)
+const pollingTimedOut = ref(false)
 let pollTimer: number | undefined
+let pollingFailures = 0
+let pollingDeadline = 0
+
+const POLL_INTERVAL_MS = 2000
+const MAX_POLL_FAILURES = 3
+const POLL_TIMEOUT_MS = 5 * 60 * 1000
 
 const fileStatusText = computed(() => {
   if (!uploadedFile.value) return ''
   const st = uploadedFile.value.status
   if (st === 'SUCCESS') return t('upload.success') + ' ✅'
   if (st === 'FAILED') return t('upload.failed') + ' ❌'
+  if (pollingError.value) return t('upload.processingCheckFailed')
   return t('upload.processing') + '...'
 })
 const fileStatusType = computed(() => {
   const st = uploadedFile.value?.status
   if (st === 'SUCCESS') return 'success'
-  if (st === 'FAILED') return 'danger'
+  if (st === 'FAILED' || pollingError.value) return 'danger'
   return 'warning'
 })
+const pollingErrorText = computed(() =>
+  pollingTimedOut.value ? t('upload.processingTimeout') : t('upload.processingCheckFailedHint')
+)
 // 仅"上传请求中/后台处理中"锁定;处理完成后允许继续选新文件(原来 !!uploadedFile 会永久禁用)
 const uploadLocked = computed(() => uploading.value || uploadedFile.value?.status === 'PROCESSING')
 
@@ -81,31 +107,68 @@ function resetIf(fileId: number) {
   if (uploadedFile.value?.id === fileId) {
     stopPolling()
     uploadedFile.value = null
+    pollingError.value = false
+    pollingTimedOut.value = false
   }
 }
 defineExpose({ resetIf })
 
 function startPolling(fileId: number) {
   stopPolling()
-  pollTimer = window.setInterval(async () => {
-    try {
-      const res = await getFileById(fileId)
-      uploadedFile.value = res.data
-      if (res.data.status === 'SUCCESS' || res.data.status === 'FAILED') {
-        stopPolling()
-        if (res.data.status === 'SUCCESS') ElMessage.success(t('upload.docSuccess'))
-        else ElMessage.error(t('upload.docFailed'))
-        emit('file-processed')
-      }
-    } catch {
+  pollingError.value = false
+  pollingTimedOut.value = false
+  pollingFailures = 0
+  pollingDeadline = Date.now() + POLL_TIMEOUT_MS
+  schedulePoll(fileId, POLL_INTERVAL_MS)
+}
+
+function schedulePoll(fileId: number, delay: number) {
+  pollTimer = window.setTimeout(() => void pollOnce(fileId), delay)
+}
+
+async function pollOnce(fileId: number) {
+  pollTimer = undefined
+  if (uploadedFile.value?.id !== fileId) return
+  if (Date.now() >= pollingDeadline) {
+    pollingTimedOut.value = true
+    pollingError.value = true
+    return
+  }
+
+  try {
+    const res = await getFileById(fileId)
+    if (uploadedFile.value?.id !== fileId) return
+    uploadedFile.value = res.data
+    pollingFailures = 0
+    if (res.data.status === 'SUCCESS' || res.data.status === 'FAILED') {
       stopPolling()
+      if (res.data.status === 'SUCCESS') ElMessage.success(t('upload.docSuccess'))
+      else ElMessage.error(t('upload.docFailed'))
+      emit('file-processed')
+      return
     }
-  }, 2000)
+    schedulePoll(fileId, POLL_INTERVAL_MS)
+  } catch {
+    pollingFailures += 1
+    if (pollingFailures >= MAX_POLL_FAILURES) {
+      pollingError.value = true
+      return
+    }
+    // 网络抖动时退避重试,避免固定间隔持续打满接口;成功后恢复正常间隔
+    const retryDelay = POLL_INTERVAL_MS * 2 ** (pollingFailures - 1)
+    schedulePoll(fileId, retryDelay)
+  }
+}
+
+function retryPolling() {
+  const fileId = uploadedFile.value?.id
+  if (!fileId) return
+  startPolling(fileId)
 }
 
 function stopPolling() {
-  if (pollTimer) {
-    window.clearInterval(pollTimer)
+  if (pollTimer !== undefined) {
+    window.clearTimeout(pollTimer)
     pollTimer = undefined
   }
 }
@@ -126,6 +189,10 @@ function onFileChange(file: any) {
     ElMessage.error(t('upload.sizeError'))
     return
   }
+  stopPolling()
+  uploadedFile.value = null
+  pollingError.value = false
+  pollingTimedOut.value = false
   selectedFile.value = raw
 }
 
@@ -133,20 +200,25 @@ async function onUpload() {
   if (!selectedFile.value) return
   uploading.value = true
   uploadedFile.value = null // 开始新一轮,清掉上一次的状态显示
+  pollingError.value = false
+  pollingTimedOut.value = false
   try {
-      uploadProgress.value = 0
-      const res = await uploadFile(props.knowledgeId, selectedFile.value, (p) => (uploadProgress.value = p))
-      const fileId = (res.data as FileVO)?.id
-      ElMessage.success(t('upload.uploadSuccess'))
-      selectedFile.value = null // 上传请求已受理,清空选中;连续传文件时无需手动移除上一个
-      if (fileId) {
-        uploadedFile.value = { id: fileId, status: 'PROCESSING' }
-        startPolling(fileId)
-      }
-    } catch {
-    } finally {
-      uploading.value = false
+    uploadProgress.value = 0
+    const res = await uploadFile(props.knowledgeId, selectedFile.value, (p) => (uploadProgress.value = p))
+    const fileId = (res.data as FileVO)?.id
+    if (!fileId) {
+      ElMessage.error(t('upload.uploadResponseInvalid'))
+      return
     }
+    ElMessage.success(t('upload.uploadSuccess'))
+    selectedFile.value = null // 上传请求已受理,清空选中;连续传文件时无需手动移除上一个
+    uploadedFile.value = { id: fileId, status: 'PROCESSING' }
+    startPolling(fileId)
+  } catch {
+    // 请求拦截器负责展示服务端错误,保留已选文件以便用户重试
+  } finally {
+    uploading.value = false
+  }
 }
 </script>
 
@@ -178,6 +250,10 @@ async function onUpload() {
 
 .upload-progress {
   width: 200px;
+}
+
+.polling-alert {
+  margin-top: $space-3;
 }
 
 .selected-file {

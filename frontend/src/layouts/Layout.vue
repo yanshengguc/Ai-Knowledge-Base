@@ -16,24 +16,32 @@
 
     <el-container>
       <el-header class="header">
-        <el-icon v-if="isMobile" class="menu-toggle" @click="mobileMenuVisible = !mobileMenuVisible">
-          <Expand />
-        </el-icon>
+        <el-button
+          v-if="isMobile"
+          class="menu-toggle"
+          text
+          circle
+          :aria-label="t('nav.openMenu')"
+          :aria-expanded="mobileMenuVisible"
+          @click="mobileMenuVisible = !mobileMenuVisible"
+        >
+          <el-icon><Expand /></el-icon>
+        </el-button>
         <div class="header-right">
           <span class="username">{{ userStore.username || t('nav.user') }}</span>
           <el-dropdown @command="onLang">
-            <el-button text>
+            <el-button text circle :aria-label="t('nav.switchLanguage')">
               <el-icon><Operation /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="zh" :class="{ active: locale === 'zh' }">简体中文</el-dropdown-item>
-                <el-dropdown-item command="en" :class="{ active: locale === 'en' }">English</el-dropdown-item>
+                <el-dropdown-item command="zh" :class="{ active: locale === 'zh' }">{{ t('nav.zh') }}</el-dropdown-item>
+                <el-dropdown-item command="en" :class="{ active: locale === 'en' }">{{ t('nav.en') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
           <el-dropdown @command="onCommand">
-            <el-button text>
+            <el-button text circle :aria-label="t('nav.accountMenu')">
               <el-icon><ArrowDown /></el-icon>
             </el-button>
             <template #dropdown>
@@ -46,7 +54,13 @@
       </el-header>
 
       <!-- 移动端抽屉菜单 -->
-      <el-drawer v-model="mobileMenuVisible" direction="ltr" size="200px" :with-header="false">
+      <el-drawer
+        v-model="mobileMenuVisible"
+        direction="ltr"
+        size="200px"
+        :with-header="false"
+        :aria-label="t('nav.mobileMenu')"
+      >
         <div class="logo">📚 {{ t('app.name') }}</div>
         <el-menu router :default-active="$route.path" @select="mobileMenuVisible = false">
           <el-menu-item index="/knowledge">
@@ -85,6 +99,7 @@ const mobileMenuVisible = ref(false)
 
 function onResize() {
   isMobile.value = window.innerWidth <= 768
+  if (!isMobile.value) mobileMenuVisible.value = false
 }
 
 onMounted(() => window.addEventListener('resize', onResize))

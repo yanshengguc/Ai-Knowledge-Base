@@ -6,7 +6,7 @@
         <el-empty :description="t('chat.empty')" />
       </div>
 
-      <div v-for="(msg, idx) in messages" :key="idx" :class="['msg-row', msg.role]">
+      <div v-for="(msg, idx) in messages" :key="msg.id" :class="['msg-row', msg.role]">
         <div class="msg-bubble">
           <div v-if="msg.loading" class="msg-loading">
             <span class="dot" />{{ t('chat.thinking') }}...
@@ -15,8 +15,8 @@
             <!-- Agent 工具调用时间线(ReAct 循环可视:模型自主决策 → 工具执行 → 结果回传) -->
             <div v-if="msg.toolCalls && msg.toolCalls.length" class="msg-tool-trace">
               <div
-                v-for="(tc, ti) in msg.toolCalls"
-                :key="ti"
+                v-for="tc in msg.toolCalls"
+                :key="`${tc.step}-${tc.tool}`"
                 class="tool-step"
               >
                 <span class="tool-step-label">
@@ -27,9 +27,35 @@
                 </span>
               </div>
             </div>
-            <div class="msg-content markdown-body">
+            <div v-if="msg.content" class="msg-content markdown-body">
               <span v-html="renderMarkdown(msg.content)" />
               <span v-if="msg.streaming" class="stream-cursor" />
+            </div>
+            <div v-if="msg.stopped" class="msg-status stopped">
+              <span>{{ t('chat.generationStopped') }}</span>
+              <el-button
+                v-if="msg.retryable"
+                size="small"
+                text
+                type="primary"
+                :icon="RefreshRight"
+                @click="onRetry(idx)"
+              >
+                {{ t('chat.retry') }}
+              </el-button>
+            </div>
+            <div v-if="msg.error" class="msg-status error">
+              <span>{{ t('chat.answerFailed') }}</span>
+              <el-button
+                v-if="msg.retryable"
+                size="small"
+                text
+                type="primary"
+                :icon="RefreshRight"
+                @click="onRetry(idx)"
+              >
+                {{ t('chat.retry') }}
+              </el-button>
             </div>
           </template>
 
@@ -39,7 +65,7 @@
             <el-collapse>
               <el-collapse-item
                 v-for="(ref, ri) in msg.references.slice(0, 3)"
-                :key="ri"
+                :key="`${ref.fileId ?? ref.fileName ?? 'ref'}-${ref.chunkIndex ?? ri}`"
               >
                 <template #title>
                   <span class="ref-title">
@@ -101,8 +127,18 @@
           @keydown.enter.exact.prevent="onSend"
         />
         <div class="actions">
-          <el-button text :icon="Delete" @click="onClear">{{ t('common.clear') }}</el-button>
-          <el-button type="primary" :loading="chatStore.sending" :disabled="!input.trim()" @click="onSend">
+          <el-button text :icon="Delete" :disabled="chatStore.sending || messages.length === 0" @click="onClear">
+            {{ t('common.clear') }}
+          </el-button>
+          <el-button v-if="chatStore.sending" type="warning" plain :icon="VideoPause" @click="onStop">
+            {{ t('chat.stop') }}
+          </el-button>
+          <el-button
+            v-else
+            type="primary"
+            :disabled="!input.trim()"
+            @click="onSend"
+          >
             {{ t('common.send') }}
           </el-button>
         </div>
@@ -121,7 +157,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CollectionTag, Delete, DocumentCopy } from '@element-plus/icons-vue'
+import { CollectionTag, Delete, DocumentCopy, RefreshRight, VideoPause } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore, toolLabel } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
@@ -173,7 +209,11 @@ onMounted(async () => {
     const res = await getChatHistory()
     const history = res.data || []
     if (history.length) {
-      chatStore.messages = history.map((h) => ({ role: h.role, content: h.content }))
+      chatStore.messages = history.map((h) => ({
+        id: `history-${crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`,
+        role: h.role,
+        content: h.content,
+      }))
       scrollToBottom()
     }
   } catch {
@@ -185,7 +225,19 @@ async function onSend() {
   const msg = input.value.trim()
   if (!msg || chatStore.sending) return
   input.value = ''
+  scrollToBottom()
   await chatStore.sendStream(msg, webSearchOn.value, agentOn.value)
+  scrollToBottom()
+}
+
+function onStop() {
+  if (chatStore.stop()) ElMessage.info(t('chat.stopped'))
+}
+
+async function onRetry(idx: number) {
+  if (chatStore.sending) return
+  scrollToBottom()
+  await chatStore.retry(idx)
   scrollToBottom()
 }
 
@@ -371,6 +423,24 @@ function scrollToBottom() {
     color: $color-text-secondary;
     max-height: 100px;
     overflow-y: auto;
+  }
+}
+
+.msg-status {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-2;
+  margin-top: $space-2;
+  padding-top: $space-2;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: $font-size-xs;
+
+  &.stopped {
+    color: $color-text-secondary;
+  }
+
+  &.error {
+    color: $color-danger;
   }
 }
 

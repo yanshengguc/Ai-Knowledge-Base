@@ -1,63 +1,80 @@
 <template>
   <div class="chat-page">
     <!-- 消息流 -->
-    <div ref="messageListRef" class="message-list">
+    <div ref="messageListRef" class="message-list" @scroll="onMessageScroll">
       <div v-if="messages.length === 0" class="empty">
         <el-empty :description="t('chat.empty')" />
       </div>
 
       <div v-for="(msg, idx) in messages" :key="msg.id" :class="['msg-row', msg.role]">
         <div class="msg-bubble">
-          <div v-if="msg.loading" class="msg-loading">
-            <span class="dot" />{{ t('chat.thinking') }}...
+          <div v-if="msg.request?.enableAgent" class="agent-status" :class="{ active: msg.loading }">
+            <span class="agent-status-dot" aria-hidden="true" />
+            <span>
+              {{ msg.loading
+                ? (msg.toolCalls?.length ? t('chat.agentRunning') : t('chat.agentThinking'))
+                : t('chat.agentDone') }}
+            </span>
+            <span v-if="msg.toolCalls?.length" class="agent-status-meta">
+              {{ t('chat.toolCount', { n: msg.toolCalls.length }) }}
+            </span>
           </div>
-          <template v-else>
-            <!-- Agent 工具调用时间线(ReAct 循环可视:模型自主决策 → 工具执行 → 结果回传) -->
-            <div v-if="msg.toolCalls && msg.toolCalls.length" class="msg-tool-trace">
-              <div
-                v-for="tc in msg.toolCalls"
-                :key="`${tc.step}-${tc.tool}`"
-                class="tool-step"
-              >
-                <span class="tool-step-label">
-                  {{ t('chat.toolStep', { n: tc.step }) }} · {{ toolLabel(tc.tool) }}
-                </span>
+
+          <!-- Agent 工具调用时间线(ReAct 循环可视:模型自主决策 → 工具执行 → 结果回传) -->
+          <div v-if="msg.toolCalls && msg.toolCalls.length" class="msg-tool-trace">
+            <div class="trace-header">
+              <span>{{ t('chat.agentTrace') }}</span>
+              <span class="trace-count">{{ t('chat.toolCount', { n: msg.toolCalls.length }) }}</span>
+            </div>
+            <div
+              v-for="tc in msg.toolCalls"
+              :key="`${tc.step}-${tc.tool}`"
+              class="tool-step"
+            >
+              <span class="tool-step-number" aria-hidden="true">{{ tc.step }}</span>
+              <span class="tool-step-body">
+                <span class="tool-step-label">{{ toolLabel(tc.tool) }}</span>
                 <span v-if="tc.summary" class="tool-step-summary" :title="tc.summary">
                   {{ tc.summary }}
                 </span>
-              </div>
+              </span>
+              <span class="tool-step-state">{{ t('chat.toolDone') }}</span>
             </div>
-            <div v-if="msg.content" class="msg-content markdown-body">
-              <span v-html="renderMarkdown(msg.content)" />
-              <span v-if="msg.streaming" class="stream-cursor" />
-            </div>
-            <div v-if="msg.stopped" class="msg-status stopped">
-              <span>{{ t('chat.generationStopped') }}</span>
-              <el-button
-                v-if="msg.retryable"
-                size="small"
-                text
-                type="primary"
-                :icon="RefreshRight"
-                @click="onRetry(idx)"
-              >
-                {{ t('chat.retry') }}
-              </el-button>
-            </div>
-            <div v-if="msg.error" class="msg-status error">
-              <span>{{ t('chat.answerFailed') }}</span>
-              <el-button
-                v-if="msg.retryable"
-                size="small"
-                text
-                type="primary"
-                :icon="RefreshRight"
-                @click="onRetry(idx)"
-              >
-                {{ t('chat.retry') }}
-              </el-button>
-            </div>
-          </template>
+          </div>
+
+          <div v-if="msg.loading && !msg.content" class="msg-loading">
+            <span class="dot" />{{ msg.toolCalls?.length ? t('chat.agentRunning') : t('chat.thinking') }}...
+          </div>
+          <div v-if="msg.content" class="msg-content markdown-body">
+            <span v-html="renderMarkdown(msg.content)" />
+            <span v-if="msg.streaming" class="stream-cursor" />
+          </div>
+          <div v-if="msg.stopped" class="msg-status stopped">
+            <span>{{ t('chat.generationStopped') }}</span>
+            <el-button
+              v-if="msg.retryable"
+              size="small"
+              text
+              type="primary"
+              :icon="RefreshRight"
+              @click="onRetry(idx)"
+            >
+              {{ t('chat.retry') }}
+            </el-button>
+          </div>
+          <div v-if="msg.error" class="msg-status error">
+            <span>{{ t('chat.answerFailed') }}</span>
+            <el-button
+              v-if="msg.retryable"
+              size="small"
+              text
+              type="primary"
+              :icon="RefreshRight"
+              @click="onRetry(idx)"
+            >
+              {{ t('chat.retry') }}
+            </el-button>
+          </div>
 
           <!-- 引用来源(文件 + 切片级溯源) -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
@@ -94,28 +111,51 @@
           </div>
         </div>
       </div>
+      <button
+        v-if="showScrollButton"
+        type="button"
+        class="scroll-bottom"
+        :aria-label="t('chat.jumpToLatest')"
+        @click="scrollToBottom(true)"
+      >
+        ↓ {{ t('chat.jumpToLatest') }}
+      </button>
     </div>
 
     <!-- 输入区 -->
     <div class="input-area">
       <div class="input-toolbar">
-        <el-switch
-          v-model="webSearchOn"
-          :active-text="t('chat.webSearch')"
-          size="small"
-          class="web-search-switch"
-        />
-        <span class="web-search-hint" v-if="webSearchOn">{{ t('chat.webSearchHint') }}</span>
-        <el-switch
-          v-model="agentOn"
-          :active-text="t('chat.agentMode')"
-          size="small"
-          class="agent-switch"
-        />
-        <span class="web-search-hint" v-if="agentOn">{{ t('chat.agentHint') }}</span>
-        <span class="toolbar-right">
-          <TokenUsageStrip />
-        </span>
+        <div class="toolbar-heading">
+          <span class="toolbar-title">{{ t('chat.answerOptions') }}</span>
+          <button
+            type="button"
+            class="mobile-tools-toggle"
+            :aria-expanded="toolsExpanded"
+            @click="toolsExpanded = !toolsExpanded"
+          >
+            {{ activeModeCount ? t('chat.activeModes', { n: activeModeCount }) : t('chat.noModes') }}
+            <el-icon :class="{ rotated: toolsExpanded }"><ArrowDown /></el-icon>
+          </button>
+        </div>
+        <div class="toolbar-options" :class="{ expanded: toolsExpanded }">
+          <el-switch
+            v-model="webSearchOn"
+            :active-text="t('chat.webSearch')"
+            size="small"
+            class="web-search-switch"
+          />
+          <span class="web-search-hint" v-if="webSearchOn">{{ t('chat.webSearchHint') }}</span>
+          <el-switch
+            v-model="agentOn"
+            :active-text="t('chat.agentMode')"
+            size="small"
+            class="agent-switch"
+          />
+          <span class="web-search-hint" v-if="agentOn">{{ t('chat.agentHint') }}</span>
+          <span class="toolbar-right">
+            <TokenUsageStrip />
+          </span>
+        </div>
       </div>
       <div class="input-row">
         <el-input
@@ -155,9 +195,9 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CollectionTag, Delete, DocumentCopy, RefreshRight, VideoPause } from '@element-plus/icons-vue'
+import { ArrowDown, CollectionTag, Delete, DocumentCopy, RefreshRight, VideoPause } from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore, toolLabel } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
@@ -172,7 +212,10 @@ const { messages } = storeToRefs(chatStore)
 const input = ref('')
 const webSearchOn = ref(false)
 const agentOn = ref(false)
+const toolsExpanded = ref(false)
+const showScrollButton = ref(false)
 const messageListRef = ref<HTMLElement>()
+const activeModeCount = computed(() => Number(webSearchOn.value) + Number(agentOn.value))
 
 // 复制回答(剪贴板 API 不可用时降级 execCommand,兼容非 https 环境)
 async function onCopy(content: string) {
@@ -225,6 +268,7 @@ async function onSend() {
   const msg = input.value.trim()
   if (!msg || chatStore.sending) return
   input.value = ''
+  toolsExpanded.value = false
   scrollToBottom()
   await chatStore.sendStream(msg, webSearchOn.value, agentOn.value)
   scrollToBottom()
@@ -252,28 +296,69 @@ async function onClear() {
   }
 }
 
-function scrollToBottom() {
+function onMessageScroll() {
+  const el = messageListRef.value
+  if (!el) return
+  showScrollButton.value = el.scrollHeight - el.scrollTop - el.clientHeight > 120
+}
+
+function scrollToBottom(smooth = false) {
   nextTick(() => {
-    messageListRef.value?.scrollTo({ top: messageListRef.value.scrollHeight, behavior: 'smooth' })
+    const el = messageListRef.value
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    showScrollButton.value = false
   })
 }
+
+// 流式内容变化时仅在用户仍停留在底部才跟随,避免打断用户阅读历史消息
+watch(
+  () => messages.value[messages.value.length - 1]?.content,
+  () => {
+    if (!showScrollButton.value) scrollToBottom()
+  },
+)
 </script>
 
 <style scoped lang="scss">
 @use '@/styles/tokens.scss' as *;
 
 .chat-page {
+  position: relative;
   display: flex;
   flex-direction: column;
+  width: 100%;
   height: 100%;
+  min-height: 0;
   max-width: 860px;
   margin: 0 auto;
 }
 
 .message-list {
+  position: relative;
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: $space-4 $space-2;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.scroll-bottom {
+  position: sticky;
+  z-index: 2;
+  bottom: $space-3;
+  display: block;
+  margin: -44px auto $space-2;
+  padding: 6px $space-3;
+  border: 1px solid $color-primary;
+  border-radius: 999px;
+  background: $color-bg-card;
+  color: $color-primary;
+  box-shadow: $shadow-pop;
+  cursor: pointer;
+  font: inherit;
+  font-size: $font-size-xs;
 }
 
 .empty {
@@ -306,10 +391,44 @@ function scrollToBottom() {
 }
 
 .msg-bubble {
+  min-width: 0;
   max-width: 80%;
   padding: $space-3 $space-4;
   box-shadow: $shadow-card;
   word-break: break-word;
+}
+
+.agent-status {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  margin-bottom: $space-2;
+  color: $color-text-secondary;
+  font-size: $font-size-xs;
+  font-weight: 600;
+
+  &.active {
+    color: $color-primary;
+  }
+
+  .agent-status-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 7px;
+    border-radius: 50%;
+    background: $color-success;
+  }
+
+  &.active .agent-status-dot {
+    background: $color-primary;
+    animation: pulse 1s infinite;
+  }
+
+  .agent-status-meta {
+    margin-left: auto;
+    color: $color-text-muted;
+    font-weight: 400;
+  }
 }
 
 .msg-content {
@@ -342,25 +461,67 @@ function scrollToBottom() {
   background: $color-bg;
   border-radius: 0 $radius-sm $radius-sm 0;
 
+  .trace-header {
+    display: flex;
+    justify-content: space-between;
+    gap: $space-2;
+    margin-bottom: $space-1;
+    color: $color-text-secondary;
+    font-size: $font-size-xs;
+    font-weight: 600;
+
+    .trace-count {
+      color: $color-text-muted;
+      font-weight: 400;
+    }
+  }
+
   .tool-step {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     gap: $space-2;
-    padding: 2px 0;
+    padding: 5px 0;
     font-size: $font-size-xs;
     line-height: 1.5;
 
+    .tool-step-number {
+      display: inline-flex;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: $color-primary-light;
+      color: $color-primary;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tool-step-body {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      flex-direction: column;
+      gap: 1px;
+    }
+
     .tool-step-label {
-      flex-shrink: 0;
       color: $color-text;
       font-weight: 600;
     }
 
     .tool-step-summary {
-      color: $color-text-secondary;
       overflow: hidden;
+      color: $color-text-secondary;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    .tool-step-state {
+      flex-shrink: 0;
+      color: $color-success;
+      font-size: 11px;
     }
   }
 }
@@ -451,25 +612,67 @@ function scrollToBottom() {
 }
 
 .input-area {
-  padding: $space-3 0 $space-2;
+  padding: $space-3 0 max($space-2, env(safe-area-inset-bottom));
+  background: $color-bg-card;
 
   .input-toolbar {
-    display: flex;
-    align-items: center;
-    gap: $space-3;
     margin-bottom: $space-2;
-    min-height: 24px;
 
-    .web-search-hint {
-      font-size: $font-size-xs;
-      color: $color-text-secondary;
-    }
-
-    .toolbar-right {
-      margin-left: auto;
-      display: inline-flex;
+    .toolbar-heading {
+      display: flex;
       align-items: center;
+      justify-content: space-between;
+      min-height: 24px;
     }
+
+    .toolbar-title {
+      color: $color-text-muted;
+      font-size: $font-size-xs;
+      font-weight: 600;
+    }
+
+    .mobile-tools-toggle {
+      display: none;
+      align-items: center;
+      gap: $space-1;
+      border: 0;
+      padding: 2px 0;
+      background: transparent;
+      color: $color-primary;
+      cursor: pointer;
+      font: inherit;
+      font-size: $font-size-xs;
+
+      .el-icon {
+        transition: transform $transition-fast;
+
+        &.rotated {
+          transform: rotate(180deg);
+        }
+      }
+    }
+
+    .toolbar-options {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      min-height: 24px;
+
+      .web-search-hint {
+        color: $color-text-secondary;
+        font-size: $font-size-xs;
+      }
+
+      .toolbar-right {
+        display: inline-flex;
+        align-items: center;
+        margin-left: auto;
+      }
+    }
+  }
+
+  .input-row {
+    min-width: 0;
   }
 
   .actions {
@@ -515,5 +718,117 @@ function scrollToBottom() {
   :deep(a) { color: $color-primary; }
   :deep(table) { border-collapse: collapse; margin: 0 0 8px; }
   :deep(th), :deep(td) { border: 1px solid $color-border; padding: 4px 8px; font-size: $font-size-xs; }
+}
+
+@media (max-width: $bp-md) {
+  .message-list {
+    padding: $space-3 0 $space-4;
+  }
+
+  .msg-row {
+    margin-bottom: $space-3;
+
+    &.user .msg-bubble {
+      max-width: 90%;
+    }
+
+    &.assistant .msg-bubble {
+      max-width: 96%;
+    }
+  }
+
+  .msg-bubble {
+    padding: $space-3;
+    border-radius: $radius-md;
+  }
+
+  .msg-tool-trace {
+    padding: $space-2;
+
+    .tool-step {
+      gap: $space-1;
+
+      .tool-step-summary {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .tool-step-state {
+        display: none;
+      }
+    }
+  }
+
+  .input-area {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    margin: 0 -8px;
+    padding: $space-2 $space-2 max($space-2, env(safe-area-inset-bottom));
+    border-top: 1px solid $color-border;
+    box-shadow: 0 -4px 14px rgba(15, 23, 42, 0.05);
+
+    .toolbar-title {
+      font-size: 11px;
+    }
+
+    .mobile-tools-toggle {
+      display: inline-flex;
+    }
+
+    .toolbar-options {
+      display: none;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: $space-2;
+      padding-top: $space-2;
+
+      &.expanded {
+        display: flex;
+      }
+
+      .web-search-hint {
+        width: 100%;
+        padding-left: 24px;
+        line-height: 1.4;
+      }
+
+      .toolbar-right {
+        width: 100%;
+        margin-left: 0;
+        padding-top: $space-1;
+      }
+    }
+
+    .input-row :deep(.el-textarea__inner) {
+      min-height: 48px !important;
+      padding: 10px 12px;
+      font-size: $font-size-md;
+    }
+
+    .actions {
+      justify-content: space-between;
+      margin-top: $space-1;
+
+      .el-button {
+        min-height: 36px;
+      }
+    }
+  }
+
+  .markdown-body {
+    :deep(pre) {
+      max-width: 100%;
+    }
+
+    :deep(table) {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+  }
 }
 </style>

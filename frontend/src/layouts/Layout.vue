@@ -1,7 +1,10 @@
 <template>
   <el-container class="layout">
     <el-aside :width="isMobile ? '0px' : '200px'" class="aside">
-      <div v-if="!isMobile" class="logo">📚 {{ t('app.name') }}</div>
+      <div v-if="!isMobile" class="logo">
+        <el-icon class="logo-icon"><Collection /></el-icon>
+        <span>{{ t('app.name') }}</span>
+      </div>
       <el-menu router :default-active="$route.path" class="menu">
         <el-menu-item index="/knowledge">
           <el-icon><Collection /></el-icon>
@@ -61,7 +64,10 @@
         :with-header="false"
         :aria-label="t('nav.mobileMenu')"
       >
-        <div class="logo">📚 {{ t('app.name') }}</div>
+        <div class="logo">
+          <el-icon class="logo-icon"><Collection /></el-icon>
+          <span>{{ t('app.name') }}</span>
+        </div>
         <el-menu router :default-active="$route.path" @select="mobileMenuVisible = false">
           <el-menu-item index="/knowledge">
             <el-icon><Collection /></el-icon>
@@ -85,7 +91,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Operation } from '@element-plus/icons-vue'
+import { Collection, Operation } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
@@ -130,9 +136,17 @@ function onLang(lang: 'zh' | 'en') {
   border-right: 1px solid $color-border;
 
   .logo {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
     padding: $space-4 $space-3;
     font-size: $font-size-md;
     font-weight: 600;
+
+    .logo-icon {
+      color: $color-primary;
+      font-size: 18px;
+    }
   }
 
   .menu {

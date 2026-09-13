@@ -33,12 +33,12 @@ const SSE_URL = `${import.meta.env.VITE_API_BASE ?? '/api'}/chat/stream`
 
 // 工具名 → 时间线友好标签(未识别的工具原样展示)
 const TOOL_LABELS: Record<string, string> = {
-  file_search: '🔍 知识库检索',
-  file_trace: '🧾 文件追溯',
-  time_now: '⏰ 查询时间',
-  knowledge_stats: '📊 知识库统计',
-  web_search: '🌐 联网搜索',
-  remember: '🧠 写入记忆',
+  file_search: '知识库检索',
+  file_trace: '文件追溯',
+  time_now: '查询时间',
+  knowledge_stats: '知识库统计',
+  web_search: '联网搜索',
+  remember: '写入记忆',
 }
 
 let messageSeq = 0

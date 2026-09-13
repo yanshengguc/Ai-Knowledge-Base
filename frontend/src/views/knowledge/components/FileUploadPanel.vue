@@ -85,8 +85,8 @@ const POLL_TIMEOUT_MS = 5 * 60 * 1000
 const fileStatusText = computed(() => {
   if (!uploadedFile.value) return ''
   const st = uploadedFile.value.status
-  if (st === 'SUCCESS') return t('upload.success') + ' ✅'
-  if (st === 'FAILED') return t('upload.failed') + ' ❌'
+  if (st === 'SUCCESS') return t('upload.success')
+  if (st === 'FAILED') return t('upload.failed')
   if (pollingError.value) return t('upload.processingCheckFailed')
   return t('upload.processing') + '...'
 })

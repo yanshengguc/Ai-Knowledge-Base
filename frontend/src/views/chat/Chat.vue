@@ -23,7 +23,10 @@
           <!-- Agent 工具调用时间线(ReAct 循环可视:模型自主决策 → 工具执行 → 结果回传) -->
           <div v-if="msg.toolCalls && msg.toolCalls.length" class="msg-tool-trace">
             <div class="trace-header">
-              <span>{{ t('chat.agentTrace') }}</span>
+              <span class="trace-title">
+                <el-icon aria-hidden="true"><SetUp /></el-icon>
+                <span>{{ t('chat.agentTrace') }}</span>
+              </span>
               <span class="trace-count">{{ t('chat.toolCount', { n: msg.toolCalls.length }) }}</span>
             </div>
             <div
@@ -33,7 +36,12 @@
             >
               <span class="tool-step-number" aria-hidden="true">{{ tc.step }}</span>
               <span class="tool-step-body">
-                <span class="tool-step-label">{{ toolLabel(tc.tool) }}</span>
+                <span class="tool-step-label">
+                  <el-icon class="tool-step-icon" aria-hidden="true">
+                    <component :is="toolIcon(tc.tool)" />
+                  </el-icon>
+                  <span>{{ toolLabel(tc.tool) }}</span>
+                </span>
                 <span v-if="tc.summary" class="tool-step-summary" :title="tc.summary">
                   {{ tc.summary }}
                 </span>
@@ -78,7 +86,10 @@
 
           <!-- 引用来源(文件 + 切片级溯源) -->
           <div v-if="msg.references && msg.references.length" class="msg-refs">
-            <div class="refs-title">📎 {{ t('chat.references') }}</div>
+            <div class="refs-title">
+              <el-icon aria-hidden="true"><DocumentCopy /></el-icon>
+              <span>{{ t('chat.references') }}</span>
+            </div>
             <el-collapse>
               <el-collapse-item
                 v-for="(ref, ri) in msg.references.slice(0, 3)"
@@ -197,7 +208,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown, CollectionTag, Delete, DocumentCopy, RefreshRight, VideoPause } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  Clock,
+  CollectionTag,
+  DataAnalysis,
+  Delete,
+  Document,
+  DocumentCopy,
+  RefreshRight,
+  Search,
+  SetUp,
+  VideoPause,
+} from '@element-plus/icons-vue'
 import { storeToRefs } from 'pinia'
 import { useChatStore, toolLabel } from '@/stores/chat'
 import { getChatHistory } from '@/api/modules/chat'
@@ -216,6 +239,19 @@ const toolsExpanded = ref(false)
 const showScrollButton = ref(false)
 const messageListRef = ref<HTMLElement>()
 const activeModeCount = computed(() => Number(webSearchOn.value) + Number(agentOn.value))
+
+const TOOL_ICONS = {
+  file_search: Search,
+  file_trace: Document,
+  time_now: Clock,
+  knowledge_stats: DataAnalysis,
+  web_search: Search,
+  remember: CollectionTag,
+}
+
+function toolIcon(name: string) {
+  return TOOL_ICONS[name as keyof typeof TOOL_ICONS] ?? SetUp
+}
 
 // 复制回答(剪贴板 API 不可用时降级 execCommand,兼容非 https 环境)
 async function onCopy(content: string) {
@@ -470,6 +506,12 @@ watch(
     font-size: $font-size-xs;
     font-weight: 600;
 
+    .trace-title {
+      display: inline-flex;
+      align-items: center;
+      gap: $space-1;
+    }
+
     .trace-count {
       color: $color-text-muted;
       font-weight: 400;
@@ -507,8 +549,17 @@ watch(
     }
 
     .tool-step-label {
+      display: inline-flex;
+      align-items: center;
+      gap: $space-1;
       color: $color-text;
       font-weight: 600;
+
+      .tool-step-icon {
+        flex: 0 0 auto;
+        color: $color-primary;
+        font-size: 14px;
+      }
     }
 
     .tool-step-summary {
@@ -556,8 +607,11 @@ watch(
   padding-top: $space-2;
 
   .refs-title {
-    font-size: $font-size-xs;
+    display: inline-flex;
+    align-items: center;
+    gap: $space-1;
     color: $color-text-muted;
+    font-size: $font-size-xs;
     margin-bottom: $space-2;
   }
 

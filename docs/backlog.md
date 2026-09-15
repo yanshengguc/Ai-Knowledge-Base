@@ -13,7 +13,12 @@
 ## P2（低优先，面试前不新开功能线）
 - [ ] B-105 .doc 老格式上传支持
 - [ ] B-106 统一 HTTP 连接池
-- [ ] B-107 知识图谱（README 路线图项，面试前优先"数字+故事"）
+- [ ] B-107 知识可视化（Obsidian 风格,9/15 晚 PO 提出升级方向）——分三档 MVP,按投入递增:
+  - **L1 树（~0.5d）**: 知识/文件目录树 + chunk 大纲面板(element-plus Tree 现成),对应 Obsidian 文件树+Outline
+  - **L2 反链（~1d）**: "反向链接"——chunk 被哪些 AI 回答引用过的溯源面板(数据现成:SearchResult.chunkId/ChatResponse 引用链路),对应 Obsidian Backlinks
+  - **L3 网图（~2-3d）**: 力导向图(ECharts graph force,零新增生态)——节点=文件/chunk,边=**共引关系**(同一回答引用过的 chunk 之间连边,免 LLM 实体抽取,成本最低的图谱);支持点节点高亮邻居(Obsidian local graph 交互)
+  - 技术备选: AntV G6/D3 更专业但重,MVP 用 ECharts;接口需新增 /api/graph 聚合端点(共引边可 MySQL 聚合 chat 引用记录)
+  - 约束: 维持"面试后解锁",若面试前想展示,只做 L1 树(零后端改动)
 - [ ] B-108 Python+LangGraph 多 Agent 复刻版（简历方向，独立仓库，不在本仓库 Sprint 内）
 
 ## 已完成

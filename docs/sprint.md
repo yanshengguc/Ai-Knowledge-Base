@@ -12,17 +12,15 @@
 - [x] T-2 本地全量默认回归复跑确认 **152/152 全绿**(9/15 14:32,BUILD SUCCESS,1m4s) @Dev
 - [x] T-3 后端 `70e1408` 构建打包:fat jar 117MB(14:33:05,BUILD SUCCESS,56382 无锁) @Dev（←B-101）
 - [x] T-4 部署后端 jar 到生产:备份 bak-20260915-backend → 上传 117MB → 重启 active+UP → **双端 jar SHA256 一致(8a59eb15…7d85,=70e1408 产物)** → verify_deploy 3/3 PASS @Dev（←B-101 已闭环）
-- [ ] T-5 (条件)Redis/DashVector 就绪则跑 integration/e2e 剩余 28 项,冲 180 全绿 @Dev（←B-102,依赖 T-1）
-  - 进展:9/15 首跑 integration 组 21 项 = 6F+9E,**根因定位完毕(见阻塞区),待用户解锁两个环境前置后重跑;e2e 子集未跑**
+- [x] T-5 (条件)Redis/DashVector 就绪则跑 integration/e2e 剩余 28 项,冲 180 全绿 @Dev（←B-102 **已闭环**）
+  - **9/15 晚达成: integration 21/21 + e2e 11/11 + 默认回归 152/152 = 184 项全绿,BUILD SUCCESS**
+  - 收尾链路:①ChatIntegrationTest WRONGTYPE 修复(测试 bug:opsForValue 读 List key → 改 opsForList().range 对齐主代码);②DashVector region 根因:集群实际在 cn-shenzhen,本地配置/文档误写 cn-hangzhou → `Inexistent Cluster`(生产 env 一直是正确的深圳);③长期记忆维度根因:collection 1536 维(8 月 v2 时代)vs 现 embedding 1024 维 → 删坏集合自动重建,顺带发现并修复"生产长期记忆自上线即静默降级"的隐患;④RerankSmokeTest 断言对齐 min-score 特性
+  - 遗留: 生产 `systemctl restart aikb` 触发 long_term_memory 重建(重启前保持降级,不影响主流程)→ 待 PO 确认窗口
 
 ## 阻塞
-- **T-5 两大环境根因(9/15 实测定位,21 项失败 0 代码缺陷)**:
-  1. **127.0.0.1:6379 是 Python RESP 测试替身,不是真 Redis**(证据:PING→+PONG 但 DBSIZE→+OK、INFO 超时;真 Redis 必回 :N。HANDOFF 8/28 记录的"临时替身"仍在运行)→ 影响 15 项 + Chat 测试 JWT 连锁
-  2. **DashVector 本机不可达**(向量库不可用已降级 BM25,降级逻辑工作正常)→ 影响 3 项 Vector 类;TUN 全局接管流量,阿里云看到境外出口 34.228.66.24(AWS),不在白名单
-- 解锁动作(全在用户侧,WSL 被沙箱拦):
-  ① WSL 里停替身进程 + `service redis-server start` 起真 Redis
-  ② DashVector 白名单加本机出口 IP(关 TUN 后重查:直连出口=宽带 IP;或把 34.228.66.24 加白)
-- 已尝试无效:host=127.0.0.1/preferIPv4Stack/超时 5s(替身该卡还是卡,根因不在网络参数)
+- ~~T-5 环境依赖~~ **全部解除(9/15 晚)**。唯一待办=生产服务重启(用户确认时机):
+  - `systemctl restart aikb`(~30s 空窗)后 init() 自动重建 1024 维 long_term_memory,长期记忆功能恢复
+  - 不重启也不影响现有功能(降级逻辑兜底,主流程无感)
 
 ## DoD
 - 默认回归全绿(152/152) · verify_deploy.py PASS · 线上 jar = 70e1408 · HANDOFF.md 同步 · sprint.md 实时更新

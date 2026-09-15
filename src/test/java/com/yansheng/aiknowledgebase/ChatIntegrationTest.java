@@ -90,19 +90,19 @@ class ChatIntegrationTest {
                 .andExpect(jsonPath("$.data.answer").isNotEmpty());
 
         // 验证 Redis 中已保存 2 轮 4 条消息(user + assistant ×2)
-        Object value = redisTemplate.opsForValue().get("chat:" + userId);
-        assertNotNull(value, "Redis 应存在会话历史");
-        List<?> history = (List<?>) value;
+        // 主代码 ConversationHistoryServiceImpl 用 opsForList(rightPush+trim)存储,须用 range 读取
+        List<Object> history = redisTemplate.opsForList().range("chat:" + userId, 0, -1);
+        assertNotNull(history, "Redis 应存在会话历史");
         assertEquals(4, history.size(), "两轮对话应存 4 条消息");
         assertTrue(((Map<?, ?>) history.get(0)).get("role").equals("user"));
         assertTrue(((Map<?, ?>) history.get(3)).get("role").equals("assistant"));
 
-        // 清空会话后历史应为空
+        // 清空会话后历史应为空(clear 即 delete,list 读取返回空/null)
         mockMvc.perform(post("/api/chat/clear")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        Object after = redisTemplate.opsForValue().get("chat:" + userId);
-        assertNull(after, "清空后 Redis 不应再存在会话历史");
+        List<Object> after = redisTemplate.opsForList().range("chat:" + userId, 0, -1);
+        assertTrue(after == null || after.isEmpty(), "清空后 Redis 不应再存在会话历史");
     }
 }

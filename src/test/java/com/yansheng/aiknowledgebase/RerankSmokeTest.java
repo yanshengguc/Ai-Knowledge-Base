@@ -41,8 +41,10 @@ class RerankSmokeTest {
         sb.append("第一个(fileId=" + result.get(0).getFileId() + ")应为 JVM(2)\n");
         java.nio.file.Files.write(java.nio.file.Path.of("C:/Users/yansheng/AppData/Local/Temp/dbg_rerank.txt"),
                 sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        // 断言:JVM 文档必须排第一(真实重排生效)
-        assert result.size() == 3 : "必须返回全部候选";
+        // 断言:JVM 文档必须排第一(真实重排生效)。
+        // 注:英文弱相关候选对中文 query 的重排分低于 rerank.min-score(0.3)会被"宁缺毋滥"淘汰,
+        //     这是 70e1408 引入的分数下限特性,不再断言"必须返回全部候选"
+        assert !result.isEmpty() : "至少应保留最相关的 JVM 候选";
         assert result.get(0).getFileId() == 2L : "重排后 JVM 文档应排第一,实际=" + result.get(0).getFileId();
     }
 }

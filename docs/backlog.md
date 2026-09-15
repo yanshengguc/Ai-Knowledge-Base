@@ -4,7 +4,7 @@
 
 ## P0（本 Sprint 候选）
 - [ ] B-101 后端 `70e1408` 部署上线（Redis 降级回源/DashVector 防 NPE/外部依赖测试隔离），消除线上(5e617a0 时代的后端)与本地不一致
-- [ ] B-102 真实 Redis + DashVector 白名单环境下跑剩余 28 项 integration/e2e，目标历史 180 项全绿（依赖：WSL Redis 起服务、DashVector 本机白名单）
+- [x] B-102 **已闭环(9/15 晚)**: integration 21/21 + e2e 11/11 + 默认回归 152/152 = 184 项全绿。根因三连:Chat WRONGTYPE(测试 bug)/DashVector region 误写 cn-hangzhou(实为 cn-shenzhen)/长期记忆 collection 1536 维 vs embedding 1024 维(删坏集合重建)。遗留: 生产重启 aikb 触发 collection 重建
 
 ## P1
 - [ ] B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），减 1MB+ 单 chunk

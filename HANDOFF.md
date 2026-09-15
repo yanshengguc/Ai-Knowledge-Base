@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-15 | 线上前端仍为 commit `5e617a0`(移动端智能问答体验 + Agent 状态/工具轨迹可视化,9/12 发布;保留前端备份与回滚目录) | 本地最新 = `70e1408`(后端降级健壮性 + 外部依赖测试隔离),前端 Emoji 清理 commit `65792fd` 尚未部署 | 默认后端回归已 `152/152` 通过;历史全量基线仍为 180 项,剩余 Redis/DashVector/LLM 外部依赖测试待真实环境复核(见第 5 节)
+> 更新: 2026-09-15 | 线上前端已更新为 commit `65792fd`(Emoji 清理版,9/15 发布:重建 dist → tar+SHA256 双端校验 → 原子替换 → 内外网 200 + verify_deploy 3/3 PASS;回滚点 `/var/www/aikb.bak-20260915-emoji`) | 本地最新 = `70e1408`(后端降级健壮性 + 外部依赖测试隔离),**后端 jar 尚未部署** | 默认后端回归已 `152/152` 通过;历史全量基线仍为 180 项,剩余 Redis/DashVector/LLM 外部依赖测试待真实环境复核(见第 5 节)
 
 ## 1. 项目概览
 
@@ -34,7 +34,7 @@
 4. `deploy.py put` 上传到 `/tmp`，线上校验 SHA-256 后解压到临时目录
 5. 使用 `mv` 原子替换 `/var/www/aikb`，检查 `index.html` 与关键 Chat 资源 HTTP 200
 6. 验证 `systemctl is-active aikb`、`/actuator/health`、首页和 `scripts/verify_deploy.py`
-7. 本次回滚点: `/var/www/aikb.bak-20260912-095745`、`/var/www/aikb.rollback-20260912-095745`
+7. 本次回滚点: `/var/www/aikb.bak-20260915-emoji`(9/15 Emoji 版发布前,即 5e617a0 线上版);历史:`/var/www/aikb.bak-20260912-095745`、`/var/www/aikb.rollback-20260912-095745`
 
 **坑（8/29 实测）**: ①Git Bash 下跑 deploy.py,独立路径参数会被 MSYS 改写成 Windows 路径 → SFTP 报 ENOENT（SSH cmd 不受影响,字符串里的路径没事）。Git Bash 一律前缀 `MSYS_NO_PATHCONV=1`,或回 PowerShell。②新机器需 `pip install paramiko`（历史版本 3.4.1 可用）。③前端改动要另发 dist:tar 打包 frontend/dist → put 到 /tmp → 解压到 **/var/www/aikb**（nginx 静态根,与 jar 不同目录）。
 
@@ -115,7 +115,7 @@ python scripts\security_attack.py
 - [x] rerank 打磨完成(9/5):①分数下限淘汰——rerank.min-score 配置(默认 0.3),请求改拿全量候选分数后本地先淘汰再截 topN,全淘汰返回空让上层如实作答,置 0 关闭;②兜底排序方向修复——rerank 关闭时不再对混合池整体升序 sort(两路 score 语义相反:向量=距离、BM25=相关度,整体排序必错一路),改为保持合并顺序(向量段距离升序在前 + BM25 段相关度降序在后,各自天然有序)
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节)
 - [ ] 在真实 Redis 上运行 Redis 集成测试，并为本机配置可访问 DashVector 测试白名单后运行剩余集成/E2E，目标历史 180 项 `0 failures / 0 errors`
-- [ ] 将 `65792fd` 前端 Emoji 清理版本单独部署并完成线上验收
+- [x] **前端 Emoji 清理已部署(9/15)**:`65792fd` 重新 build(vue-tsc+Vite 通过) → tar(SHA256 `4a5dbe70…b88` 双端校验一致) → 备份 `/var/www/aikb.bak-20260915-emoji` → 原子替换 → 验收:aikb active、/actuator/health UP、内外网 index/Chat JS/CSS 200、verify_deploy 3/3 PASS(注册关闭跳过 5 项);/tmp 临时包已清理
 
 低优先 backlog:
 - 后端分页 / .doc 老格式支持 / 统一 HTTP 连接池

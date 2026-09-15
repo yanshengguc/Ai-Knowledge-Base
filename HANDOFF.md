@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-15(晚) | 线上前端 = `65792fd`(Emoji 清理) + 后端 = `70e1408`(降级健壮性)——**本地与生产已对齐** | **三组测试全绿: 默认回归 152/152 + integration 21/21 + e2e 11/11 = 184 项全绿**(9/15 晚达成,BUILD SUCCESS) | 唯一遗留: 生产 `long_term_memory` collection 需重启 aikb 触发自动重建(9/15 晚已删除 1536 维坏集合,详见第 5 节)
+> 更新: 2026-09-15(晚) | 线上前端 = `65792fd`(Emoji 清理) + 后端 = `70e1408`(降级健壮性)——**本地与生产已对齐** | **三组测试全绿: 默认回归 152/152 + integration 21/21 + e2e 11/11 = 184 项全绿**(9/15 晚达成,BUILD SUCCESS) | 生产 `long_term_memory` 已随 9/15 晚 aikb 重启自动重建为 1024 维(describe 实测 dimension=1024),长期记忆功能线上恢复
 
 ## 1. 项目概览
 
@@ -82,7 +82,7 @@ python scripts\security_attack.py
 - **2026-09-15 integration 组首跑(21 项,6F+9E)根因定位——0 代码缺陷**：①`127.0.0.1:6379` 挂的是 **Python RESP 测试替身**(PING→+PONG 但 DBSIZE→+OK、INFO 超时)，HANDOFF 8/28 记录的替身仍在运行，须停替身并 `service redis-server start` 起真 Redis；②DashVector 本机不可达(降级 BM25 正常触发)，**v2rayN TUN 全局接管流量**致阿里云看到境外出口(AWS 34.228.66.24)，白名单需加真实出口 IP(或测试时关 TUN)。正确跑法:`mvn test "-Dgroups=integration" "-DexcludedGroups=e2e"`(groups 必须同时清空 excludedGroups,否则 0 项匹配)。e2e 子集尚未跑。
 - **2026-09-15(晚) 三组全绿达成——184 项全绿**: 默认回归 **152/152** + integration **21/21** + e2e **11/11**,均 BUILD SUCCESS。当日环境链路:①用户停 Python 替身起真 Redis → Redis 类 15 项转绿;②DashVector 白名单加直连出口(关 TUN 后宽带 IP)→ 网络通;③ChatIntegrationTest 修 WRONGTYPE(测试 bug);④DashVector region 根因修复(见下);⑤删 1536 维坏 collection → 长期记忆链路 6 项全绿;⑥RerankSmokeTest 断言对齐 min-score 特性。
 - **DashVector region 根因(9/15 实锤,重要教训)**: 集群 `vrs-cn-moy4ydvtt0001k` 实际在 **cn-shenzhen**,此前配置/HANDOFF 记录误写为 cn-hangzhou → API 报 `ABORTED: Inexistent Cluster`(集群 ID 对但 region 错)。生产 `/etc/aikb/aikb.env` 的 DASHVECTOR_ENDPOINT 一直是正确的深圳值,**只有本地 application-local.properties 与文档记录错**。已改为深圳。SDK 排查工具: `target/MiniDash3.java`(list 探测,构造参数顺序为 **(apiKey, endpoint)**)/MiniDash4(删 collection)。
-- **长期记忆维度根因(9/15 实锤)**: `long_term_memory` collection 为 8 月 text-embedding-v2 时代建的 **1536 维**,现 embedding(text-embedding-v3)输出 **1024 维** → 写入/检索全报 `-2019 Vector length(1024) is different with collection dimension(1536)` → **生产长期记忆自上线起即降级失效**(WARN 静默)。已删除坏集合(init() 会按 knowledge_chunk_vector 维度自动重建);**生产需择机 `systemctl restart aikb` 触发重建,重启前长期记忆功能保持降级(不影响主流程)**。
+- **长期记忆维度根因(9/15 实锤,已修复)**: `long_term_memory` collection 为 8 月 text-embedding-v2 时代建的 **1536 维**,现 embedding(text-embedding-v3)输出 **1024 维** → 写入/检索全报 `-2019 Vector length(1024) is different with collection dimension(1536)` → **生产长期记忆自上线起即降级失效**(WARN 静默)。9/15 晚已删除坏集合 → 重启生产 aikb(active+UP)→ init() 自动重建 **1024 维**(describe 实测确认),长期记忆功能线上恢复。教训:换 embedding 模型必须同步重建向量集合,降级逻辑会掩盖这类维度失配。
 - **RerankSmokeTest 断言修正(9/15)**: min-score 分数下限淘汰(0.3,宁缺毋滥)为 70e1408 引入特性,英文弱相关候选对中文 query 会被淘汰,测试从"必须返回全部候选"改为"最相关者排第一 + 至少保留 1 条"。
 - **ChatIntegrationTest 修复(9/15)**: 测试用 `opsForValue().get()` 读 List 类型 key(主代码 rightPush+trim 存 LIST)→ 真 Redis 严格类型校验报 WRONGTYPE(替身宽松未暴露);改为 `opsForList().range()` 对齐主代码。
 - 本地历史遗留问题(替身 Redis/旧集群/TUN 出口)均已在 9/15 当日解决,后续新环境初始化可参考当日根因清单。

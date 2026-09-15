@@ -15,12 +15,10 @@
 - [x] T-5 (条件)Redis/DashVector 就绪则跑 integration/e2e 剩余 28 项,冲 180 全绿 @Dev（←B-102 **已闭环**）
   - **9/15 晚达成: integration 21/21 + e2e 11/11 + 默认回归 152/152 = 184 项全绿,BUILD SUCCESS**
   - 收尾链路:①ChatIntegrationTest WRONGTYPE 修复(测试 bug:opsForValue 读 List key → 改 opsForList().range 对齐主代码);②DashVector region 根因:集群实际在 cn-shenzhen,本地配置/文档误写 cn-hangzhou → `Inexistent Cluster`(生产 env 一直是正确的深圳);③长期记忆维度根因:collection 1536 维(8 月 v2 时代)vs 现 embedding 1024 维 → 删坏集合自动重建,顺带发现并修复"生产长期记忆自上线即静默降级"的隐患;④RerankSmokeTest 断言对齐 min-score 特性
-  - 遗留: 生产 `systemctl restart aikb` 触发 long_term_memory 重建(重启前保持降级,不影响主流程)→ 待 PO 确认窗口
+  - 遗留:**已清零(9/15 晚)**——生产 aikb 已重启(active+UP,启动 11.5s),init() 自动重建 long_term_memory 为 1024 维(describe 实测确认),长期记忆功能线上恢复
 
 ## 阻塞
-- ~~T-5 环境依赖~~ **全部解除(9/15 晚)**。唯一待办=生产服务重启(用户确认时机):
-  - `systemctl restart aikb`(~30s 空窗)后 init() 自动重建 1024 维 long_term_memory,长期记忆功能恢复
-  - 不重启也不影响现有功能(降级逻辑兜底,主流程无感)
+- ~~T-5 环境依赖~~ **全部解除,无阻塞**。Sprint 1 T-1~T-5 全闭环,待评审/反思会。
 
 ## DoD
 - 默认回归全绿(152/152) · verify_deploy.py PASS · 线上 jar = 70e1408 · HANDOFF.md 同步 · sprint.md 实时更新

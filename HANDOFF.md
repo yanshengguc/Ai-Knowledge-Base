@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-15 | 线上前端已更新为 commit `65792fd`(Emoji 清理版,9/15 发布:重建 dist → tar+SHA256 双端校验 → 原子替换 → 内外网 200 + verify_deploy 3/3 PASS;回滚点 `/var/www/aikb.bak-20260915-emoji`) | 本地最新 = `70e1408`(后端降级健壮性 + 外部依赖测试隔离),**后端 jar 尚未部署** | 默认后端回归已 `152/152` 通过;历史全量基线仍为 180 项,剩余 Redis/DashVector/LLM 外部依赖测试待真实环境复核(见第 5 节)
+> 更新: 2026-09-15 | 线上前端 = `65792fd`(Emoji 清理,9/15 发布) + 后端 = `70e1408`(降级健壮性,9/15 部署,jar SHA256 双端一致)——**本地与生产已对齐** | 默认回归 `152/152`;integration 组首跑 21 项失败根因已定位(6379 为 Python 替身 + DashVector TUN 出口未加白,详见第 5 节),待环境解锁后冲 180 全绿
 
 ## 1. 项目概览
 
@@ -78,6 +78,8 @@ python scripts\security_attack.py
 
 - 全量历史基线: **180 项**；默认 Maven 回归排除 `integration,e2e`，真实集成/E2E 会调用 Redis、DashVector、LLM/Embedding，可能产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4。
 - **2026-09-15 默认回归已通过**: 清理旧 `target` 产物后执行 `-DexcludedGroups=integration,e2e test`，结果 `Tests run: 152, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。本次提交为 `70e1408`，未部署。
+- **2026-09-15 后端 `70e1408` 已部署线上**（jar SHA256 双端一致 `8a59eb15…7d85`，verify_deploy 3/3 PASS，回滚点 `/opt/aikb/app.jar.bak-20260915-backend`）。
+- **2026-09-15 integration 组首跑(21 项,6F+9E)根因定位——0 代码缺陷**：①`127.0.0.1:6379` 挂的是 **Python RESP 测试替身**(PING→+PONG 但 DBSIZE→+OK、INFO 超时)，HANDOFF 8/28 记录的替身仍在运行，须停替身并 `service redis-server start` 起真 Redis；②DashVector 本机不可达(降级 BM25 正常触发)，**v2rayN TUN 全局接管流量**致阿里云看到境外出口(AWS 34.228.66.24)，白名单需加真实出口 IP(或测试时关 TUN)。正确跑法:`mvn test "-Dgroups=integration" "-DexcludedGroups=e2e"`(groups 必须同时清空 excludedGroups,否则 0 项匹配)。e2e 子集尚未跑。
 - 这不是历史 180 项全部全绿：剩余测试需在真实 Redis 和本机已加入白名单的 DashVector 环境中执行；此前 180 项失败的主要根因是本机 Redis 不可用、旧 DashVector 集群不存在/新集群白名单拒绝，以及测试产物残留造成的旧 `VectorStoreTest` 引用。
 - 本地没有确认到真实 Redis 服务；`127.0.0.1:6379` 曾使用临时 Python RESP 测试替身，仅用于诊断，不能作为真实 Redis 集成测试结论。DashVector 新免费集群的生产白名单已配置，但本机仍未验证可访问。
 - 前端回归: `cd frontend && npm run build`（vue-tsc + Vite）通过；移动端问答发布前已验证首页、Chat JS/CSS HTTP 200。构建仍有 Sass legacy API、Rollup PURE 注释和 Element Plus 大包警告，均为非阻断警告。

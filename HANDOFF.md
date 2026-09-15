@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-12 | 线上前端已发布至 commit `5e617a0`(移动端智能问答体验 + Agent 状态/工具轨迹可视化,9/12 发布;保留前端备份与回滚目录) | 本次未修改后端 JAR/配置;本地最新 = `5e617a0` | 后端本地历史全量回归基线为 180 项,最近一次环境不完整时为 8 failures + 12 errors(见第 5 节)
+> 更新: 2026-09-15 | 线上前端仍为 commit `5e617a0`(移动端智能问答体验 + Agent 状态/工具轨迹可视化,9/12 发布;保留前端备份与回滚目录) | 本地最新 = `70e1408`(后端降级健壮性 + 外部依赖测试隔离),前端 Emoji 清理 commit `65792fd` 尚未部署 | 默认后端回归已 `152/152` 通过;历史全量基线仍为 180 项,剩余 Redis/DashVector/LLM 外部依赖测试待真实环境复核(见第 5 节)
 
 ## 1. 项目概览
 
@@ -42,6 +42,8 @@
 
 | commit | 内容 |
 |---|---|
+| `70e1408` | **后端降级健壮性与回归隔离(9/15)**:Redis 不可用时知识详情直接回源、锁释放/缓存清理容错;DashVector collection 不可用时不再 NPE;Redis/DashVector/长期记忆外部依赖测试重新标记 integration/e2e;默认回归 `152/152` 通过,未部署 |
+| `65792fd` | **前端 Emoji 清理(9/15)**:用户可见 Emoji 改为 Element Plus 图标与纯文案,TypeScript/生产构建/本地预览通过,尚未部署 |
 | `5e617a0` | **移动端智能问答体验优化并已线上发布(9/12)**:Agent 分析/调用工具/完成状态、工具轨迹与调用计数、移动端工具栏折叠、消息气泡/Markdown 表格适配、回到底部按钮、流式跟随和安全区适配;前端构建通过,线上 Chat JS/CSS HTTP 200 |
 | `0fc282e` | 前端交互韧性与无障碍:停止生成/重试、文件索引状态与失败重试、知识库列表筛选分页状态、详情 Markdown/错误重试、文件列表触屏操作、移动菜单语义;9/11 已线上发布 |
 | `ca977d0` | **file_search 补用户隔离**(本地靶机实测新账号曾召回他人文件 fileId=178,横向越权;登录改走 searchForUser 与 RetrievalServiceImpl 同口径,backlog"DashVector 检索用户隔离 filter"就此闭环)+ 重排空响应(解析不出分数)降级粗排 + 工具失败文案去重;测试 +5 → 180 项基线(9/5) |
@@ -74,8 +76,10 @@ python scripts\security_attack.py
 
 ## 5. 测试体系
 
-- 全量: `mvn test`（**180 项历史基线**；默认跑批排除 integration/e2e 分组，e2e 子集 scripts/test-e2e.sh 会真实调 LLM/向量库产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4）
-- **最近一次本地回归未全绿**: `Tests run: 180, Failures: 8, Errors: 12`；主要因本机 Redis 未启动，以及无效/不可达 DashVector 测试配置触发空 collection NPE。不能把线上健康或前端构建通过等同于后端 180 项全绿；完整回归前先准备 Redis 和可用/隔离的向量库测试环境。
+- 全量历史基线: **180 项**；默认 Maven 回归排除 `integration,e2e`，真实集成/E2E 会调用 Redis、DashVector、LLM/Embedding，可能产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4。
+- **2026-09-15 默认回归已通过**: 清理旧 `target` 产物后执行 `-DexcludedGroups=integration,e2e test`，结果 `Tests run: 152, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。本次提交为 `70e1408`，未部署。
+- 这不是历史 180 项全部全绿：剩余测试需在真实 Redis 和本机已加入白名单的 DashVector 环境中执行；此前 180 项失败的主要根因是本机 Redis 不可用、旧 DashVector 集群不存在/新集群白名单拒绝，以及测试产物残留造成的旧 `VectorStoreTest` 引用。
+- 本地没有确认到真实 Redis 服务；`127.0.0.1:6379` 曾使用临时 Python RESP 测试替身，仅用于诊断，不能作为真实 Redis 集成测试结论。DashVector 新免费集群的生产白名单已配置，但本机仍未验证可访问。
 - 前端回归: `cd frontend && npm run build`（vue-tsc + Vite）通过；移动端问答发布前已验证首页、Chat JS/CSS HTTP 200。构建仍有 Sass legacy API、Rollup PURE 注释和 Element Plus 大包警告，均为非阻断警告。
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）
 - 关键测试类: FileAccessControlTest / UserSelfAccessAndRegisterLimitTest / KnowledgeDeleteCascadeTest / LoginLockoutBoundaryTest / RateLimitBoundaryTest / ChatDailyQuotaTest / TokenCostCalculationTest / RetrievalQualityEvalTest / KnowledgeAddValidationTest / ToolTraceSummarizerTest / RerankScoreFilterTest / RetrievalServiceImplTest
@@ -107,8 +111,11 @@ python scripts\security_attack.py
 - [ ] 前端 chunk 优化:vendor 已三分包(element-plus/vue/markdown 独立 chunk,主包 1.27MB→12.6KB,de2c9d8);element-plus 单 chunk 仍 >500kB(gzip 339KB),要再减需引入 unplugin 按需导入(加构建依赖,未做)
 - [x] Agent 时间线工具结果摘要已友好化(9/5:ToolTraceSummarizer 按工具名把结果 JSON 翻译成人话,如 file_search→"检索到 N 个相关文件";解析失败/未知工具降级截断原文,回传模型的原始结果不变)
 - [x] **移动端智能问答体验已完成并发布(9/12)**:Chat 页面已适配窄屏消息气泡、工具栏折叠、Agent 工作状态/工具轨迹、引用与 Markdown 表格、流式自动跟随、回到底部和安全区;线上基础验收 3/3 PASS。回滚目录见第 2 节。
+- [x] **后端默认回归恢复全绿(9/15)**:Redis 降级回源、DashVector collection 缺失防 NPE、外部依赖测试隔离;默认集合 `152/152` 通过,提交 `70e1408`。剩余 28 项历史基线需真实 Redis/DashVector/LLM 环境复核。
 - [x] rerank 打磨完成(9/5):①分数下限淘汰——rerank.min-score 配置(默认 0.3),请求改拿全量候选分数后本地先淘汰再截 topN,全淘汰返回空让上层如实作答,置 0 关闭;②兜底排序方向修复——rerank 关闭时不再对混合池整体升序 sort(两路 score 语义相反:向量=距离、BM25=相关度,整体排序必错一路),改为保持合并顺序(向量段距离升序在前 + BM25 段相关度降序在后,各自天然有序)
-- [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节）
+- [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节)
+- [ ] 在真实 Redis 上运行 Redis 集成测试，并为本机配置可访问 DashVector 测试白名单后运行剩余集成/E2E，目标历史 180 项 `0 failures / 0 errors`
+- [ ] 将 `65792fd` 前端 Emoji 清理版本单独部署并完成线上验收
 
 低优先 backlog:
 - 后端分页 / .doc 老格式支持 / 统一 HTTP 连接池
@@ -132,8 +139,12 @@ python scripts\security_attack.py
 ## 8. 常用命令速查
 
 ```powershell
-# 全量回归（改代码后必跑）
+# 默认回归（改代码后必跑；当前排除 integration/e2e）
 mvn test
+
+# Windows + Git Bash 若 Maven Launcher classpath 报错，直接调用 Java 17 + Maven Launcher
+# 具体 maven.home / plexus-classworlds 路径以本机 ~/.m2/wrapper/dists 下实际版本为准
+# 参考本次 9/15 命令：-DexcludedGroups=integration,e2e test
 
 # 起本地靶机
 java -jar target\Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar --server.port=56382 --spring.profiles.active=local

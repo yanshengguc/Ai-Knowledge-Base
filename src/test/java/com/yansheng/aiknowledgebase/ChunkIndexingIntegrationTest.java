@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import com.yansheng.aiknowledgebase.service.IndexingService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,6 +16,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@Tag("integration")
 @ActiveProfiles("local")
 class ChunkIndexingIntegrationTest {
 

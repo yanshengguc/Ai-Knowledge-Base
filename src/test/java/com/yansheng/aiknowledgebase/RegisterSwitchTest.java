@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.dto.LoginDTO;
 import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.UserService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *  - 默认 true 分支由 UserSecurityTest 等既有注册用例隐式覆盖
  */
 @SpringBootTest
+@Tag("integration")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @TestPropertySource(properties = "register.enabled=false")

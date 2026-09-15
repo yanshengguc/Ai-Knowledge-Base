@@ -4,6 +4,7 @@ import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 用专用测试 fileId(9999991)避免污染真实数据——插入→删除→按该文件过滤检索必须为空。
  */
 @SpringBootTest
+@Tag("integration")
 @ActiveProfiles("local")
 class VectorStoreDeleteTest {
 

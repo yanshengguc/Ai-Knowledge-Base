@@ -7,6 +7,7 @@ import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.mapper.UserMapper;
 import com.yansheng.aiknowledgebase.service.UserService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * 验证 2026-08-17 密码明文修复真实生效
  */
 @SpringBootTest
+@Tag("integration")
 @ActiveProfiles("local")
 class UserSecurityTest {
 

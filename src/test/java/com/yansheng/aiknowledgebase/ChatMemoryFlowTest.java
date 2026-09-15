@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase;
 
 import com.yansheng.aiknowledgebase.service.ChatService;
 import com.yansheng.aiknowledgebase.service.LongTermMemoryService;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
 @SpringBootTest
+@Tag("e2e")
 @ActiveProfiles("local")
 class ChatMemoryFlowTest {
 

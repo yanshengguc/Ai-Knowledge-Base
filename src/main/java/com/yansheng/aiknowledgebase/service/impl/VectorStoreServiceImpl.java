@@ -48,6 +48,13 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         }
     }
 
+    private DashVectorCollection requireCollection() {
+        if (collection == null) {
+            throw new IllegalStateException("向量库不可用，当前已降级为 BM25 检索");
+        }
+        return collection;
+    }
+
     @Override
     public void insert(Long chunkId, Long fileId, String content, float[] vector) {
         if (chunkId == null) {
@@ -72,7 +79,8 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                 .field("content", content)
                 .build();
 
-        Response<List<DocOpResult>> response = collection.insert(InsertDocRequest.builder().doc(doc).build());
+        Response<List<DocOpResult>> response = requireCollection()
+                .insert(InsertDocRequest.builder().doc(doc).build());
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量插入失败: " + response.getMessage());
@@ -107,7 +115,8 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                     .build());
         }
 
-        Response<List<DocOpResult>> response = collection.insert(InsertDocRequest.builder().docs(docs).build());
+        Response<List<DocOpResult>> response = requireCollection()
+                .insert(InsertDocRequest.builder().docs(docs).build());
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量批量插入失败: " + response.getMessage());
@@ -119,10 +128,14 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         if (fileId == null) {
             return;
         }
+        if (collection == null) {
+            log.warn("跳过向量清理:向量库当前不可用, fileId={}", fileId);
+            return;
+        }
         try {
             // 1. 查出该文件的所有向量主键(chunkId):
             //    DashVector query 必须带向量,用零向量 + filter 只取该文件范围(主键已足够)
-            int dim = collection.getCollectionMeta().getDimension();
+            int dim = requireCollection().getCollectionMeta().getDimension();
             List<Float> zeroVector = new ArrayList<>(dim);
             for (int i = 0; i < dim; i++) {
                 zeroVector.add(0f);
@@ -209,7 +222,7 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         }
 
         // 5. 调用 DashVector
-        Response<List<Doc>> response = collection.query(request);
+        Response<List<Doc>> response = requireCollection().query(request);
 
         // 6. 查询失败
         if (!response.isSuccess()) {

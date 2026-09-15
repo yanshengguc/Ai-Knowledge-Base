@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 用真实 Redis(独立 userId 隔离,测后清理 key)。
  */
 @SpringBootTest
+@Tag("integration")
 @ActiveProfiles("local")
 class RateLimitBoundaryTest {
 

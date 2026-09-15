@@ -96,12 +96,23 @@ public class KnowledgeServiceImpl implements KnowledgeService {
 
         String lockKey = "lock:" + key;
         String lockValue = UUID.randomUUID().toString();
-        Boolean success = redisTemplate.opsForValue().setIfAbsent(
-                lockKey,
-                lockValue,
-                10,
-                TimeUnit.SECONDS
-        );
+        Boolean success;
+        try {
+            success = redisTemplate.opsForValue().setIfAbsent(
+                    lockKey,
+                    lockValue,
+                    10,
+                    TimeUnit.SECONDS
+            );
+        } catch (Exception e) {
+            // Redis 仅用于缓存与互斥锁,不可用时直接回源,不能阻断知识详情和权限校验。
+            log.warn("Redis锁不可用,降级直查数据库: id={}, error={}", id, e.getMessage());
+            KnowledgeDetailVO degraded = loadFromDb(id);
+            if (degraded == null) {
+                throw new BusinessException("不存在");
+            }
+            return degraded;
+        }
 
         if (Boolean.TRUE.equals(success)) {
             try {
@@ -130,11 +141,15 @@ public class KnowledgeServiceImpl implements KnowledgeService {
                 return vo;
 
             } finally {
-                redisTemplate.execute(
-                        new DefaultRedisScript<>(UNLOCK_SCRIPT, Long.class),
-                        Collections.singletonList(lockKey),
-                        lockValue
-                );
+                try {
+                    redisTemplate.execute(
+                            new DefaultRedisScript<>(UNLOCK_SCRIPT, Long.class),
+                            Collections.singletonList(lockKey),
+                            lockValue
+                    );
+                } catch (Exception e) {
+                    log.warn("Redis锁释放失败,不影响本次知识读取: id={}, error={}", id, e.getMessage());
+                }
             }
         } else {
             log.info("等待锁: id={}", id);
@@ -267,7 +282,11 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
         throw new BusinessException("修改失败");
     }
         String key= RedisKey.knowledge(id);
-        redisTemplate.delete(key);
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("Redis缓存删除失败,不影响知识更新: id={}, error={}", id, e.getMessage());
+        }
     }
 
     @Override
@@ -294,7 +313,11 @@ else if (!userEntity.getUsername().equals(knowledgeEntity.getAuthor())){
             vectorStoreService.deleteByFileId(file.getId());
         }
         String key= RedisKey.knowledge(id);
-        redisTemplate.delete(key);
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("Redis缓存删除失败,不影响知识删除: id={}, error={}", id, e.getMessage());
+        }
     }
 
     @Override

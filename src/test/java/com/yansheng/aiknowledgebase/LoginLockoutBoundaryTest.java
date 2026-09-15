@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.UserService;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -22,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 否则攻击者可持续高速撞库,锁定形同虚设。
  */
 @SpringBootTest
+@Tag("integration")
 @ActiveProfiles("local")
 class LoginLockoutBoundaryTest {
 

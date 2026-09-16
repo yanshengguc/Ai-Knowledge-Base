@@ -10,6 +10,10 @@
           <el-icon><Collection /></el-icon>
           <span>{{ t('nav.knowledge') }}</span>
         </el-menu-item>
+        <el-menu-item index="/tree">
+          <el-icon><Share /></el-icon>
+          <span>{{ t('nav.tree') }}</span>
+        </el-menu-item>
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span>{{ t('nav.chat') }}</span>
@@ -69,16 +73,20 @@
           <span>{{ t('app.name') }}</span>
         </div>
         <el-menu router :default-active="$route.path" @select="mobileMenuVisible = false">
-          <el-menu-item index="/knowledge">
-            <el-icon><Collection /></el-icon>
-            <span>{{ t('nav.knowledge') }}</span>
-          </el-menu-item>
-          <el-menu-item index="/chat">
-            <el-icon><ChatDotRound /></el-icon>
-            <span>{{ t('nav.chat') }}</span>
-          </el-menu-item>
-        </el-menu>
-      </el-drawer>
+        <el-menu-item index="/knowledge">
+          <el-icon><Collection /></el-icon>
+          <span>{{ t('nav.knowledge') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/tree">
+          <el-icon><Share /></el-icon>
+          <span>{{ t('nav.tree') }}</span>
+        </el-menu-item>
+        <el-menu-item index="/chat">
+          <el-icon><ChatDotRound /></el-icon>
+          <span>{{ t('nav.chat') }}</span>
+        </el-menu-item>
+      </el-menu>
+    </el-drawer>
 
       <el-main class="main">
         <router-view />
@@ -91,7 +99,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Operation } from '@element-plus/icons-vue'
+import { Collection, Operation, Share } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'

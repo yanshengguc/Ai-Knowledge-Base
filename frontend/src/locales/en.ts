@@ -1,10 +1,14 @@
 export default {
   app: {
-    name: 'AI Knowledge Base',
+    name: 'Distilled',
     tagline: 'Upload docs · Ask questions',
+  },
+  tree: {
+    subtitle: 'Knowledge tree: entries and files at a glance, click for detail',
   },
   nav: {
     knowledge: 'Knowledge',
+    tree: 'Knowledge Tree',
     chat: 'Ask AI',
     logout: 'Log out',
     lang: 'English',

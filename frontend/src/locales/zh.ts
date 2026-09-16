@@ -1,10 +1,14 @@
 export default {
   app: {
-    name: 'AI 知识库',
+    name: '盐集 Distilled',
     tagline: '上传文档 · 智能问答',
+  },
+  tree: {
+    subtitle: '知识树:条目与文件的归属全景,点击直达详情',
   },
   nav: {
     knowledge: '知识库',
+    tree: '知识树',
     chat: '智能问答',
     logout: '退出登录',
     lang: '简体中文',

@@ -14,7 +14,7 @@
 - [ ] B-105 .doc 老格式上传支持
 - [ ] B-106 统一 HTTP 连接池
 - [ ] B-107 知识可视化（Obsidian 风格,9/15 晚 PO 提出升级方向）——分三档 MVP,按投入递增:
-  - **L1 树（~0.5d）**: 知识/文件目录树 + chunk 大纲面板(element-plus Tree 现成),对应 Obsidian 文件树+Outline
+  - [x] **L1 树(9/16 完成)**: /tree 路由 + el-tree 懒加载两级树(知识条目→文件,复用 /knowledge 与 /file/list 接口,零后端改动),文件节点带状态标签(PROCESSING/SUCCESS/FAILED),点击直达知识详情;顺带品牌化:app.name=盐集 Distilled、index.html 标题、i18n zh/en。vue-tsc+vite 构建过,152 回归绿
   - **L2 反链（~1d）**: "反向链接"——chunk 被哪些 AI 回答引用过的溯源面板(数据现成:SearchResult.chunkId/ChatResponse 引用链路),对应 Obsidian Backlinks
   - **L3 网图（~2-3d）**: 力导向图(ECharts graph force,零新增生态)——节点=文件/chunk,边=**共引关系**(同一回答引用过的 chunk 之间连边,免 LLM 实体抽取,成本最低的图谱);支持点节点高亮邻居(Obsidian local graph 交互)
   - 技术备选: AntV G6/D3 更专业但重,MVP 用 ECharts;接口需新增 /api/graph 聚合端点(共引边可 MySQL 聚合 chat 引用记录)

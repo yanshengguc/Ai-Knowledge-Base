@@ -40,6 +40,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { Collection, Document } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
@@ -93,6 +94,8 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
       resolve([])
     }
   } catch {
+    // 静默空节点会误导为"没有文件",必须显式反馈
+    ElMessage.error(t('tree.loadFailed'))
     resolve([])
   }
 }

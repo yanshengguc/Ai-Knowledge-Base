@@ -5,6 +5,7 @@ export default {
   },
   tree: {
     subtitle: 'Knowledge tree: entries and files at a glance, click for detail',
+    loadFailed: 'Failed to load, please retry',
   },
   nav: {
     knowledge: 'Knowledge',

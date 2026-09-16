@@ -5,6 +5,7 @@ export default {
   },
   tree: {
     subtitle: '知识树:条目与文件的归属全景,点击直达详情',
+    loadFailed: '加载失败,请重试',
   },
   nav: {
     knowledge: '知识库',

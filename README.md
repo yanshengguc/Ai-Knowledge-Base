@@ -52,6 +52,12 @@
 
 ## 架构总览
 
+三条业务线的独立拆解（含架构图与设计取舍）：
+
+- **[RAG 检索供给线](docs/line-rag.md)**：入库流水线（异步状态机）+ 双路召回 → 重排 → min-score 宁缺毋滥 + 缓存治理
+- **[Agent 编排与上下文治理线](docs/line-agent.md)**：手写 ReAct 循环 + 工具链与 MCP + 三层记忆 + 成本治理（Agent 的缰绳）
+- **[评估与质量线](docs/line-eval.md)**：测试分层 + 评估集 + 24 项攻防 + 变异测试（防假测试）
+
 ```mermaid
 flowchart TB
     UI["前端 Vue 3 + TypeScript + Element Plus<br/>(对话 / 知识管理 / 成本面板)"]

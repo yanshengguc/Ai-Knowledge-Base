@@ -17,7 +17,7 @@
 
 | 指标 | 数值 | 怎么测的 |
 |---|---|---|
-| 单元/集成测试 | **180 用例 BUILD SUCCESS**(9/5 全量,默认跑批;e2e 子集 test-e2e.sh 单独跑) | mvn test;e2e 子集 scripts/test-e2e.sh |
+| 单元/集成测试 | **184 用例 BUILD SUCCESS**(9/15 三组全绿:默认 152+integration 21+e2e 11;e2e 子集 test-e2e.sh 单独跑) | mvn test;e2e 子集 scripts/test-e2e.sh |
 | 工具选择准确率 | **100%**(15/15,8/20 Eval Harness) | 15 个真实用例(该调/不该调),ListAppender 统计 |
 | 检索质量 | **recall@5 / MRR 达标**(18 查询/12 篇文档,阈值 0.80/0.70) | RetrievalQualityEvalTest:真实管线注入(切片→Embedding→DashVector→混合检索+Rerank 全链路,非 mock) |
 | 端到端串联 | **9/9**(8/18 MVP) | 注册→问答→删除全流程 curl 实测 |
@@ -69,7 +69,7 @@
 ✅ 登录限流 + 聊天限流 + 注册限流(8/24 新增)
 ✅ 路径白名单 + MCP 端点白名单
 ✅ 推送前敏感扫描(git grep 密钥)
-✅ 仓库 PRIVATE
+✅ 仓库访问控制(私有开发期;公开前已做密钥/IP 全面脱敏)
 ```
 
 ## 六、攻防实测(8/24 · 重点讲解故事)

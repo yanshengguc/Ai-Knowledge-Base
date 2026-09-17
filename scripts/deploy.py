@@ -10,12 +10,14 @@ import sys
 
 import paramiko
 
-HOST = os.environ.get("DEPLOY_HOST", "YOUR_SERVER_IP")
+HOST = os.environ.get("DEPLOY_HOST", "")
 USER = os.environ.get("DEPLOY_USER", "root")
 PASSWORD = os.environ.get("DEPLOY_PASSWORD", "")
 
 
 def client():
+    if not HOST:
+        sys.exit("DEPLOY_HOST 未设置")
     if not PASSWORD:
         sys.exit("DEPLOY_PASSWORD 未设置")
     c = paramiko.SSHClient()

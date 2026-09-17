@@ -259,7 +259,7 @@
   <div class="container">
     <span class="hero-tag">DEPLOYMENT REPORT · 2026-08-24</span>
     <h1>AI 知识库系统 · 生产环境部署总结</h1>
-    <div class="sub">单机生产部署于阿里云 ECS（杭州）· 访问入口 <code>http://YOUR_SERVER_IP</code> · 由开发到上线全程 1 天完成</div>
+    <div class="sub">单机生产部署于阿里云 ECS（杭州）· 访问入口 <code>http://<SERVER_IP></code> · 由开发到上线全程 1 天完成</div>
     <div class="stat-grid">
       <div class="stat-card ok">
         <div class="num">¥0<span class="unit">现金</span></div>
@@ -293,7 +293,7 @@
       <thead><tr><th>项目</th><th>配置 / 值</th><th>说明</th></tr></thead>
       <tbody>
         <tr><td>实例规格</td><td><code>ecs.e-c1m1.large</code>（2 vCPU / 2 GiB）</td><td>经济型 e 实例，共享算力，适合个人低并发应用</td></tr>
-        <tr><td>公网 IP</td><td><code>YOUR_SERVER_IP</code></td><td>固定公网 IP</td></tr>
+        <tr><td>公网 IP</td><td><code><SERVER_IP></code></td><td>固定公网 IP</td></tr>
         <tr><td>地域 / 可用区</td><td>华东1（杭州）</td><td>选非活动标记地域，代金券可全额抵扣</td></tr>
         <tr><td>操作系统</td><td>Ubuntu 22.04 LTS 64 位</td><td>系统自带 4 GB swap，吸收内存峰值</td></tr>
         <tr><td>磁盘 / 带宽</td><td>40 GB ESSD Entry · 按流量计费</td><td>流量 0.8 元/GB，代金券余额 ¥6.12 可抵约 7.5 GB</td></tr>
@@ -322,7 +322,7 @@
   <figure class="diagram">
     <pre class="mermaid">
 flowchart LR
-  U["用户浏览器"] -->|"http://YOUR_SERVER_IP :80"| NG["Nginx 1.18<br/>(systemd: nginx)"]
+  U["用户浏览器"] -->|"http://<SERVER_IP> :80"| NG["Nginx 1.18<br/>(systemd: nginx)"]
   NG -->|"静态文件 /var/www/aikb"| FE["Vue 3 SPA<br/>(dist 构建产物)"]
   NG -->|"/api/ 反向代理<br/>proxy_buffering off (SSE)"| SB["Spring Boot :8080<br/>(systemd: aikb · JVM -Xmx512m)"]
   SB --> MY[("MySQL 8.0<br/>ai_knowledge_base<br/>仅 127.0.0.1")]
@@ -512,7 +512,7 @@ python scripts/verify_deploy.py<span class="p">        # 期望输出 8/8 PASS</
 
   <div class="callout">
     <div class="ttl">本次部署资产清单</div>
-    生产入口 <code>http://YOUR_SERVER_IP</code> · 服务器 <code>YOUR_SERVER_IP</code>（SSH 账号与凭据见密码管理，不随仓库分发）· systemd 服务 <code>aikb</code> · 环境变量 <code>/etc/aikb/aikb.env</code> · Nginx 站点 <code>/etc/nginx/sites-available/aikb</code> · 部署脚本 <code>scripts/deploy.py</code> · 验证脚本 <code>scripts/verify_deploy.py</code>
+    生产入口 <code>http://<SERVER_IP></code> · 服务器 <code><SERVER_IP></code>（SSH 账号与凭据见密码管理，不随仓库分发）· systemd 服务 <code>aikb</code> · 环境变量 <code>/etc/aikb/aikb.env</code> · Nginx 站点 <code>/etc/nginx/sites-available/aikb</code> · 部署脚本 <code>scripts/deploy.py</code> · 验证脚本 <code>scripts/verify_deploy.py</code>
   </div>
 </section>
 

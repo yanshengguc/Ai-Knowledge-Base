@@ -1,5 +1,7 @@
 # AI-Knowledge-Base 项目交接文档
 
+> ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP `120.55.76.141` 替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份: `Ai-Knowledge-Base-backup-mirror.git`(含 IP,仅本地留存)。
+
 > 更新: 2026-09-18 | 线上前端 = `163694d` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: **9/18 三组全绿 186(154+21+11)**——限流降级修复(163694d)后默认回归 154/154,Redis 恢复后同日重跑 integration 21/21 + e2e 11/11;同日攻防套件 24/24 零漏洞(ATTACK_BASE 靶机 56382) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览

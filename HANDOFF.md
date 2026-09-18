@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-18 | 线上前端 = `163694d` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: 9/15 三组全绿 184(152+21+11);**9/18 限流降级修复后默认回归 154/154**(commit 163694d),integration/e2e 待 Redis 恢复后重跑再更新总数 | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
+> 更新: 2026-09-18 | 线上前端 = `163694d` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: **9/18 三组全绿 186(154+21+11)**——限流降级修复(163694d)后默认回归 154/154,Redis 恢复后同日重跑 integration 21/21 + e2e 11/11;同日攻防套件 24/24 零漏洞(ATTACK_BASE 靶机 56382) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览
 
@@ -85,6 +85,7 @@ python scripts\security_attack.py
 - **长期记忆维度根因(9/15 实锤,已修复)**: `long_term_memory` collection 为 8 月 text-embedding-v2 时代建的 **1536 维**,现 embedding(text-embedding-v3)输出 **1024 维** → 写入/检索全报 `-2019 Vector length(1024) is different with collection dimension(1536)` → **生产长期记忆自上线起即降级失效**(WARN 静默)。9/15 晚已删除坏集合 → 重启生产 aikb(active+UP)→ init() 自动重建 **1024 维**(describe 实测确认),长期记忆功能线上恢复。教训:换 embedding 模型必须同步重建向量集合,降级逻辑会掩盖这类维度失配。
 - **RerankSmokeTest 断言修正(9/15)**: min-score 分数下限淘汰(0.3,宁缺毋滥)为 70e1408 引入特性,英文弱相关候选对中文 query 会被淘汰,测试从"必须返回全部候选"改为"最相关者排第一 + 至少保留 1 条"。
 - **ChatIntegrationTest 修复(9/15)**: 测试用 `opsForValue().get()` 读 List 类型 key(主代码 rightPush+trim 存 LIST)→ 真 Redis 严格类型校验报 WRONGTYPE(替身宽松未暴露);改为 `opsForList().range()` 对齐主代码。
+- **2026-09-18 三组全绿刷新——186 项全绿**: 巡检发现 RateLimitService 裸调 Redis 无兜底 → PO 拍板 **fail-open + WARN** 降级(163694d,新增 failOpenWhenRedisDown/failOpenWhenExpireFails 两测试)后默认回归 **154/154**;用户起真 Redis 后同日重跑 integration **21/21**(47s) + e2e **11/11**(2m03s),均 BUILD SUCCESS。同日攻防套件 **24/24 零漏洞**(靶机 56382,`ATTACK_BASE=http://127.0.0.1:56382/api`,退出码 0=漏洞数);同日盐集 Distilled 品牌版前端已发布(见头部)。
 - 本地历史遗留问题(替身 Redis/旧集群/TUN 出口)均已在 9/15 当日解决,后续新环境初始化可参考当日根因清单。
 - 前端回归: `cd frontend && npm run build`（vue-tsc + Vite）通过；移动端问答发布前已验证首页、Chat JS/CSS HTTP 200。构建仍有 Sass legacy API、Rollup PURE 注释和 Element Plus 大包警告，均为非阻断警告。
 - e2e 子集: `scripts/test-e2e.sh`（@Tag("e2e")）

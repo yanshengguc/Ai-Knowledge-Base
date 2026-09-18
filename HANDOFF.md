@@ -1,6 +1,6 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-15(晚) | 线上前端 = `65792fd`(Emoji 清理) + 后端 = `70e1408`(降级健壮性)——**本地与生产已对齐** | **三组测试全绿: 默认回归 152/152 + integration 21/21 + e2e 11/11 = 184 项全绿**(9/15 晚达成,BUILD SUCCESS) | 生产 `long_term_memory` 已随 9/15 晚 aikb 重启自动重建为 1024 维(describe 实测 dimension=1024),长期记忆功能线上恢复
+> 更新: 2026-09-18 | 线上前端 = `163694d` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: 9/15 三组全绿 184(152+21+11);**9/18 限流降级修复后默认回归 154/154**(commit 163694d),integration/e2e 待 Redis 恢复后重跑再更新总数 | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览
 
@@ -34,7 +34,7 @@
 4. `deploy.py put` 上传到 `/tmp`，线上校验 SHA-256 后解压到临时目录
 5. 使用 `mv` 原子替换 `/var/www/aikb`，检查 `index.html` 与关键 Chat 资源 HTTP 200
 6. 验证 `systemctl is-active aikb`、`/actuator/health`、首页和 `scripts/verify_deploy.py`
-7. 本次回滚点: `/var/www/aikb.bak-20260915-emoji`(9/15 Emoji 版发布前,即 5e617a0 线上版);历史:`/var/www/aikb.bak-20260912-095745`、`/var/www/aikb.rollback-20260912-095745`
+7. 本次回滚点: `/var/www/aikb.bak-20260918-distilled`(9/18 盐集品牌版发布前,即 65792fd 线上版);历史:`/var/www/aikb.bak-20260915-emoji`、`/var/www/aikb.bak-20260912-095745`
 
 **坑（8/29 实测）**: ①Git Bash 下跑 deploy.py,独立路径参数会被 MSYS 改写成 Windows 路径 → SFTP 报 ENOENT（SSH cmd 不受影响,字符串里的路径没事）。Git Bash 一律前缀 `MSYS_NO_PATHCONV=1`,或回 PowerShell。②新机器需 `pip install paramiko`（历史版本 3.4.1 可用）。③前端改动要另发 dist:tar 打包 frontend/dist → put 到 /tmp → 解压到 **/var/www/aikb**（nginx 静态根,与 jar 不同目录）。
 
@@ -43,7 +43,7 @@
 | commit | 内容 |
 |---|---|
 | `70e1408` | **后端降级健壮性与回归隔离(9/15)**:Redis 不可用时知识详情直接回源、锁释放/缓存清理容错;DashVector collection 不可用时不再 NPE;Redis/DashVector/长期记忆外部依赖测试重新标记 integration/e2e;默认回归 `152/152` 通过,未部署 |
-| `65792fd` | **前端 Emoji 清理(9/15)**:用户可见 Emoji 改为 Element Plus 图标与纯文案,TypeScript/生产构建/本地预览通过,尚未部署 |
+| `65792fd` | **前端 Emoji 清理(9/15)**:用户可见 Emoji 改为 Element Plus 图标与纯文案,TypeScript/生产构建/本地预览通过;9/15 已随 dist 部署上线,9/18 起被盐集品牌版(163694d 构建)替代 |
 | `5e617a0` | **移动端智能问答体验优化并已线上发布(9/12)**:Agent 分析/调用工具/完成状态、工具轨迹与调用计数、移动端工具栏折叠、消息气泡/Markdown 表格适配、回到底部按钮、流式跟随和安全区适配;前端构建通过,线上 Chat JS/CSS HTTP 200 |
 | `0fc282e` | 前端交互韧性与无障碍:停止生成/重试、文件索引状态与失败重试、知识库列表筛选分页状态、详情 Markdown/错误重试、文件列表触屏操作、移动菜单语义;9/11 已线上发布 |
 | `ca977d0` | **file_search 补用户隔离**(本地靶机实测新账号曾召回他人文件 fileId=178,横向越权;登录改走 searchForUser 与 RetrievalServiceImpl 同口径,backlog"DashVector 检索用户隔离 filter"就此闭环)+ 重排空响应(解析不出分数)降级粗排 + 工具失败文案去重;测试 +5 → 180 项基线(9/5) |
@@ -122,6 +122,7 @@ python scripts\security_attack.py
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节)
 - [ ] 在真实 Redis 上运行 Redis 集成测试，并为本机配置可访问 DashVector 测试白名单后运行剩余集成/E2E，目标历史 180 项 `0 failures / 0 errors`
 - [x] **前端 Emoji 清理已部署(9/15)**:`65792fd` 重新 build(vue-tsc+Vite 通过) → tar(SHA256 `4a5dbe70…b88` 双端校验一致) → 备份 `/var/www/aikb.bak-20260915-emoji` → 原子替换 → 验收:aikb active、/actuator/health UP、内外网 index/Chat JS/CSS 200、verify_deploy 3/3 PASS(注册关闭跳过 5 项);/tmp 临时包已清理
+- [x] **盐集 Distilled 品牌版已部署(9/18)**:`163694d` 构建(含知识树 /tree、盐集品牌、树加载失败反馈;vue-tsc+Vite 12.1s 通过) → tar(SHA256 `37db84ad…70ff` 双端一致) → 备份 `/var/www/aikb.bak-20260918-distilled` → 原子替换 → 验收:线上首页 `<title>盐集 Distilled · AI 知识库</title>`、index 200、aikb active、verify_deploy 3/3 PASS;Pre-Flight 探针先行的第一次实战
 
 低优先 backlog:
 - 后端分页 / .doc 老格式支持 / 统一 HTTP 连接池

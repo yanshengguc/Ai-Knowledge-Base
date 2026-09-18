@@ -4,6 +4,7 @@ import com.yansheng.aiknowledgebase.exception.BusinessException;
 import com.yansheng.aiknowledgebase.service.RateLimitService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -57,5 +58,25 @@ class RateLimitServiceTest {
         when(valueOperations.increment(anyString())).thenReturn(11L);
 
         assertThrows(BusinessException.class, () -> rateLimitService.check(1L, "chat", 10));
+    }
+
+    @Test
+    void failOpenWhenRedisDown() {
+        // Redis 故障 → fail-open 放行(fail-open + WARN,PO 2026-09-18 拍板),不阻断主流程
+        when(valueOperations.increment(anyString()))
+                .thenThrow(new RedisConnectionFailureException("simulated down"));
+
+        assertDoesNotThrow(() -> rateLimitService.check("ip:1.2.3.4", "register", 5));
+        verify(redisTemplate, never()).expire(anyString(), anyLong(), any());
+    }
+
+    @Test
+    void failOpenWhenExpireFails() {
+        // increment 成功但 expire 失败(半故障态)同样 fail-open,不让异常穿透
+        when(valueOperations.increment(anyString())).thenReturn(1L);
+        doThrow(new RedisConnectionFailureException("simulated down"))
+                .when(redisTemplate).expire(anyString(), anyLong(), any());
+
+        assertDoesNotThrow(() -> rateLimitService.check(1L, "chat", 10));
     }
 }

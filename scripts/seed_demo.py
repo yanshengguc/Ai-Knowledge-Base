@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = os.environ.get("DEMO_BASE", "http://<SERVER_IP>/api")
+BASE = os.environ.get("DEMO_BASE", "http://localhost:8080/api")
 DEMO_USER = os.environ.get("DEMO_USER", "demo")
 DEMO_PASS = os.environ.get("DEMO_PASS", "demo123")
 DO_ASK = os.environ.get("DEMO_ASK") == "1"

@@ -8,7 +8,8 @@ import time
 import urllib.request
 import urllib.error
 
-BASE = "http://YOUR_SERVER_IP/api"
+import os
+BASE = os.environ.get("DEPLOY_BASE", "http://localhost:8080/api")
 RESULTS = []
 
 

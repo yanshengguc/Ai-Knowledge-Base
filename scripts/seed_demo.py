@@ -11,7 +11,7 @@
 
 生产首次建 demo 账号(register.enabled=false 拦截陌生人注册,需临时放开):
   1. /etc/aikb/aikb.env 临时设 REGISTER_ENABLED=true 并 systemctl restart aikb
-  2. 注册:curl -s -X POST http://YOUR_SERVER_IP/api/user/register \
+  2. 注册:curl -s -X POST http://<SERVER_IP>/api/user/register \
        -H "Content-Type: application/json" -d '{"username":"demo","password":"demo123"}'
   3. REGISTER_ENABLED 改回 false 并重启(README 公开了 demo 密码,注册口必须关)
   4. python scripts/seed_demo.py
@@ -25,7 +25,7 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = os.environ.get("DEMO_BASE", "http://YOUR_SERVER_IP/api")
+BASE = os.environ.get("DEMO_BASE", "http://localhost:8080/api")
 DEMO_USER = os.environ.get("DEMO_USER", "demo")
 DEMO_PASS = os.environ.get("DEMO_PASS", "demo123")
 DO_ASK = os.environ.get("DEMO_ASK") == "1"

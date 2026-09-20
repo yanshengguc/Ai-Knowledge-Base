@@ -1,6 +1,8 @@
 # AI-Knowledge-Base 项目交接文档
 
-> 更新: 2026-09-18 | 线上前端 = `163694d` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: **9/18 三组全绿 186(154+21+11)**——限流降级修复(163694d)后默认回归 154/154,Redis 恢复后同日重跑 integration 21/21 + e2e 11/11;同日攻防套件 24/24 零漏洞(ATTACK_BASE 靶机 56382) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
+> ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。
+
+> 更新: 2026-09-18 | 线上前端 = `83ebf7f` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: **9/18 三组全绿 186(154+21+11)**——限流降级修复(83ebf7f)后默认回归 154/154,Redis 恢复后同日重跑 integration 21/21 + e2e 11/11;同日攻防套件 24/24 零漏洞(ATTACK_BASE 靶机 56382) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览
 
@@ -8,13 +10,13 @@
 - 仓库: `C:\Users\yansheng\IdeaProjects\Ai-Knowledge-Base`
 - 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DashScope LLM(qwen 系列, V4-Flash)
 - 前端: Vue 3 + TypeScript + Vite + Element Plus（`frontend/` 目录，v-html 渲染 markdown 已套 DOMPurify）
-- 访问: http://YOUR_SERVER_IP （Nginx 静态 + 反代 /api → 127.0.0.1:8080）
+- 访问: http://<SERVER_IP> （Nginx 静态 + 反代 /api → 127.0.0.1:8080）
 
 ## 2. 生产环境
 
 | 项 | 值 |
 |---|---|
-| 服务器 | 阿里云 ECS YOUR_SERVER_IP, cn-hangzhou, 2C2G, Ubuntu 22.04, 年付至 2027-08-24 |
+| 服务器 | 阿里云 ECS <SERVER_IP>, cn-hangzhou, 2C2G, Ubuntu 22.04, 年付至 2027-08-24 |
 | 服务 | systemd `aikb`（`java -Xmx512m -jar /opt/aikb/app.jar`, env 在 `/etc/aikb/aikb.env`） |
 | MySQL | 库 ai_knowledge_base, 用户 aikb, buffer_pool=128M, performance_schema=OFF |
 | 4GB swap | 有；**严禁在服务器上 mvn package / npm build**（会 OOM），本地构建后传 jar |
@@ -113,7 +115,7 @@ python scripts\security_attack.py
 - [x] 每日配额生产生效（8/29:CHAT_QUOTA_TOKEN_LIMIT=20000 tokens/日,豁免 yan,在 /etc/aikb/aikb.env 可调）
 - [x] Agent 模式可视化上线（8/29 第二次部署 ffbd271:聊天"🤖 Agent"开关走 ReAct 循环,SSE tool 事件 → 前端工具时间线;Agent 模式 LLM 调用已按 userId 记账;生产实测 time_now 时间线+正确回答）
 - [x] 识图盲区修复上线（8/29 第三次部署 24957d1:扫描件显式失败+error_msg 落库+前端悬浮展示;生产实测通过。演进项:OCR 补全/多模态 qwen-vl 按 JD 再定）
-- [x] **DashVector 新免费集群已恢复(9/12)**:集群 `aikb-free-2026` / ID `vrs-cn-moy4ydvtt0001k`，生产白名单已加入 `YOUR_SERVER_IP`；已创建 `long_term_memory` 与 `knowledge_chunk_vector`，从线上 MySQL 重建 27 个切片，`index_completeness=1.0`，语义查询冒烟返回 3 条结果。免费试用约 30 天，届满前必须迁移到长期付费方案或新集群；不要把试用集群当作永久生产方案。
+- [x] **DashVector 新免费集群已恢复(9/12)**:集群 `aikb-free-2026` / ID `vrs-cn-moy4ydvtt0001k`，生产白名单已加入 `<SERVER_IP>`；已创建 `long_term_memory` 与 `knowledge_chunk_vector`，从线上 MySQL 重建 27 个切片，`index_completeness=1.0`，语义查询冒烟返回 3 条结果。免费试用约 30 天，届满前必须迁移到长期付费方案或新集群；不要把试用集群当作永久生产方案。
 - [x] 服务器 /opt/aikb 备份 jar 已清理（9/1 第六次部署验收通过后:删除 8/24-8/29 的 7 个旧备份 ~811MB;保留 bak-0901(无降级代码版)/bak-0901b(降级第一版)两个回滚点,/ 分区占用降至 23%）
 - [ ] 前端 chunk 优化:vendor 已三分包(element-plus/vue/markdown 独立 chunk,主包 1.27MB→12.6KB,de2c9d8);element-plus 单 chunk 仍 >500kB(gzip 339KB),要再减需引入 unplugin 按需导入(加构建依赖,未做)
 - [x] Agent 时间线工具结果摘要已友好化(9/5:ToolTraceSummarizer 按工具名把结果 JSON 翻译成人话,如 file_search→"检索到 N 个相关文件";解析失败/未知工具降级截断原文,回传模型的原始结果不变)

@@ -14,6 +14,10 @@
           <el-icon><Share /></el-icon>
           <span>{{ t('nav.tree') }}</span>
         </el-menu-item>
+        <el-menu-item index="/graph">
+          <el-icon><Connection /></el-icon>
+          <span>{{ t('nav.graph') }}</span>
+        </el-menu-item>
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span>{{ t('nav.chat') }}</span>
@@ -81,6 +85,10 @@
           <el-icon><Share /></el-icon>
           <span>{{ t('nav.tree') }}</span>
         </el-menu-item>
+        <el-menu-item index="/graph">
+          <el-icon><Connection /></el-icon>
+          <span>{{ t('nav.graph') }}</span>
+        </el-menu-item>
         <el-menu-item index="/chat">
           <el-icon><ChatDotRound /></el-icon>
           <span>{{ t('nav.chat') }}</span>
@@ -99,7 +107,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Operation, Share } from '@element-plus/icons-vue'
+import { Collection, Connection, Operation, Share } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'

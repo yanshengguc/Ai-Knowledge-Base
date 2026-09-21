@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.0",
+    "@element-plus/icons-vue": "2.3.0",
     "axios": "^1.7.0",
     "dompurify": "^3.4.13",
+    "echarts": "5.6.0",
     "element-plus": "^2.7.0",
     "marked": "^18.0.9",
     "pinia": "^2.1.0",

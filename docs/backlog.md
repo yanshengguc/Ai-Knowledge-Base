@@ -13,13 +13,24 @@
 ## P2（低优先，面试前不新开功能线）
 - [ ] B-105 .doc 老格式上传支持
 - [ ] B-106 统一 HTTP 连接池
-- [ ] B-107 知识可视化（Obsidian 风格,9/15 晚 PO 提出升级方向）——分三档 MVP,按投入递增:
+- [ ] B-107 知识可视化（Obsidian 风格,9/15 晚 PO 提出升级方向）——分三档 MVP,按投入递增;**L1+L3 已完成（9/16 / 9/21）,仅剩 L2 反链**:
   - [x] **L1 树(9/16 完成)**: /tree 路由 + el-tree 懒加载两级树(知识条目→文件,复用 /knowledge 与 /file/list 接口,零后端改动),文件节点带状态标签(PROCESSING/SUCCESS/FAILED),点击直达知识详情;顺带品牌化:app.name=盐集 Distilled、index.html 标题、i18n zh/en。vue-tsc+vite 构建过,152 回归绿
   - **L2 反链（~1d）**: "反向链接"——chunk 被哪些 AI 回答引用过的溯源面板(数据现成:SearchResult.chunkId/ChatResponse 引用链路),对应 Obsidian Backlinks
-  - **L3 网图（~2-3d）**: 力导向图(ECharts graph force,零新增生态)——节点=文件/chunk,边=**共引关系**(同一回答引用过的 chunk 之间连边,免 LLM 实体抽取,成本最低的图谱);支持点节点高亮邻居(Obsidian local graph 交互)
+  - [x] **L3 网图(9/21 完成)**: /graph 路由 + ECharts 5.6.0 力导向(Obsidian 风格)。边方案实际落地=**文件级向量相似边**(原计划共引边——chat references 未落库(B-110 未做)、DashVector 存量为 chunk 级近邻查询拿不到全量,改为文件名+首切片 500 字做 embedding 两两余弦,top-2 邻居+阈值 0.45+pairKey 去重无向边):后端 GET /api/graph(线上实况 68 节点=3 条目+65 文件/158 边=65 结构+93 相似;**DashScope text-embedding-v3 批量上限实测 10 条/请求**,EMBED_BATCH_SIZE=8 分批,embedding 失败降级空相似边图仍渲染)+前端力导向(条目配色分类图例/结构实线+相似虚线随权重/emphasis adjacency 邻居高亮/点击节点详情侧栏跳知识详情)+GraphServiceTest 8 用例;回归 162+integration 21+e2e 10=193 全绿,jar 0f27719c 部署+线上 /api/graph 验证通过
   - 技术备选: AntV G6/D3 更专业但重,MVP 用 ECharts;接口需新增 /api/graph 聚合端点(共引边可 MySQL 聚合 chat 引用记录)
   - 约束: 维持"面试后解锁",若面试前想展示,只做 L1 树(零后端改动)
 - [ ] B-108 Python+LangGraph 多 Agent 复刻版（简历方向，独立仓库，不在本仓库 Sprint 内）
+- [ ] B-111 AI 回答渲染美化（9/20 PO 试用反馈"回答格式应该更好看"）:
+  - **现状实锤**: utils/markdown.ts = 裸 marked + DOMPurify，注释明写"代码高亮不做(轻量)"；表格/引用块/标题无增强排版
+  - **改动（纯前端 ~1-2h）**: ①代码块高亮（highlight.js，marked 已装零新增生态风险）；②.markdown-body 排版增强（表格边框/引用块样式/h 标题层级/行距）；③references 引用内容同套样式已复用，顺带受益
+  - 注意: 流式渲染时 renderMarkdown 每帧全量重跑，高亮库注意按需加载；DOMPurify 白名单不动（防 XSS 回归）
+  - 量级小，投递收口后可与 B-110 MVP 同批做
+- [ ] B-112 文件在线预览（9/20 PO 试用反馈"应该要可以在线预览已上传的文件（方便学习）"）:
+  - **现状实锤**: FileController 仅 upload/GET {id}/GET list 三端点——**无内容/下载端点**；前端 Detail.vue 与 FileListPanel.vue 零预览/下载入口，上传后内容黑盒
+  - **MVP（~2-3h）**: 后端 `GET /api/file/{id}/content`（校验作者归属==当前用户，返回原始 md 文本）+ 前端 Detail 抽屉 renderMarkdown 展示——**md 文件直接复用 B-111 渲染管线，教材 11 章全是 md，学习场景立即可用**
+  - **扩展**: pdf 浏览器原生 inline 预览（Content-Type: application/pdf，~1h）；docx 用 docx-preview 前端库（单独评估，暂缓）
+  - **协同**: 预览页是 B-110 知识跳转的天然落点（跳转到章节片段→高亮 chunk）；安全上已有 JWT+作者校验覆盖，教材版权内容仅限本人账户可见（符合"不进 git/不外泄"红线）
+  - 依赖: 先做 B-111（渲染），预览直接受益
 
 ## 已完成
 - [x] B-000 前端 Emoji 清理 `65792fd` 部署+线上验收（2026-09-15,3/3 PASS,回滚点 bak-20260915-emoji）

@@ -75,3 +75,31 @@ export interface ToolTraceEvent {
   args: string
   summary: string
 }
+
+// 知识图谱(GET /graph)
+export interface GraphNodeVO {
+  /** "k-{知识id}" / "f-{文件id}",避免两类节点 id 撞号 */
+  id: string
+  /** knowledge | file */
+  type: 'knowledge' | 'file'
+  name: string
+  /** 所属知识条目 id(前端按 group 配色) */
+  group: number
+  status?: string
+  fileType?: string
+  category?: string
+}
+
+export interface GraphEdgeVO {
+  source: string
+  target: string
+  /** structure(归属) | similar(向量相似) */
+  type: 'structure' | 'similar'
+  /** similar 边 = 余弦相似度(0~1);structure 边恒为 1.0 */
+  weight: number
+}
+
+export interface GraphVO {
+  nodes: GraphNodeVO[]
+  edges: GraphEdgeVO[]
+}

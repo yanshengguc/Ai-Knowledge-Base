@@ -25,7 +25,7 @@
   - **改动（纯前端 ~1-2h）**: ①代码块高亮（highlight.js，marked 已装零新增生态风险）；②.markdown-body 排版增强（表格边框/引用块样式/h 标题层级/行距）；③references 引用内容同套样式已复用，顺带受益
   - 注意: 流式渲染时 renderMarkdown 每帧全量重跑，高亮库注意按需加载；DOMPurify 白名单不动（防 XSS 回归）
   - 量级小，投递收口后可与 B-110 MVP 同批做
-- [ ] B-112 文件在线预览（9/20 PO 试用反馈"应该要可以在线预览已上传的文件（方便学习）"）:
+- [x] B-112 文件在线预览 **MVP 完成(9/21 晚,PO"点击对应位置看原文")**: 后端 `GET /api/file/{id}/content`(作者归属校验同 getFileById 口径;OssService 新增 getContent,key 解析与 delete 共用,**5MB 上限防大文件拖垮 2C2G**;md 按文件名后缀返回原文,pdf/docx content=null——contentType 因浏览器而异不可靠);前端 FilePreview.vue 抽屉(renderMarkdown/DOMPurify 管线复用)+三处入口(树文件节点点击/图谱侧栏"查看原文"/文件列表预览按钮);FileContentTest 6 用例;默认 168+integration 21+e2e 10=199 全绿;线上 jar 12e7adc3 实测 4/4(md 原文/越权拒/不存在报错/匿名 401)。pdf/docx 二进制渲染不在 MVP(返回元信息由前端提示)
   - **现状实锤**: FileController 仅 upload/GET {id}/GET list 三端点——**无内容/下载端点**；前端 Detail.vue 与 FileListPanel.vue 零预览/下载入口，上传后内容黑盒
   - **MVP（~2-3h）**: 后端 `GET /api/file/{id}/content`（校验作者归属==当前用户，返回原始 md 文本）+ 前端 Detail 抽屉 renderMarkdown 展示——**md 文件直接复用 B-111 渲染管线，教材 11 章全是 md，学习场景立即可用**
   - **扩展**: pdf 浏览器原生 inline 预览（Content-Type: application/pdf，~1h）；docx 用 docx-preview 前端库（单独评估，暂缓）

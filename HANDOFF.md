@@ -2,7 +2,7 @@
 
 > ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。
 
-> 更新: 2026-09-21 | 线上前端 = `c3d2b4b` 构建(**盐集 Distilled 品牌 + 知识树 + B-107 L3 知识图谱 /graph 页**,9/21 发布,dist SHA256 `ac09a5b3…d8848` 双端一致) + 后端 = `c3d2b4b`(B-107 /api/graph,9/21,jar SHA256 `0f27719c…fd25ec` 双端一致) | 测试: **9/21 三组全绿 193(162+21+10)**——默认回归 154+GraphServiceTest 8=162/162,integration 21/21,e2e 10/10 | 线上验证: /api/graph 68 节点(3 条目+65 文件)/158 边(65 结构+93 相似),匿名访问 401,verify_deploy 3/3 PASS | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
+> 更新: 2026-09-21 | 线上前端 = `8449fb4` 构建(**盐集 Distilled 品牌 + B-107 知识树/图谱——/tree 页树形/网图切换版**,9/21 晚发布,dist SHA256 `38341577…f842` 双端一致;Tree chunk 2.9KB 不背 echarts,GraphPanel 459KB 按需加载) + 后端 = `c3d2b4b`(B-107 /api/graph,9/21,jar SHA256 `0f27719c…fd25ec` 双端一致) | 测试: **9/21 三组全绿 193(162+21+10)**——默认回归 154+GraphServiceTest 8=162/162,integration 21/21(晚 18:24 复跑亦全绿),e2e 10/10 | 线上验证: /api/graph 68 节点(3 条目+65 文件)/158 边(65 结构+93 相似),匿名访问 401,/ /tree /graph 均 200 | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览
 
@@ -36,7 +36,7 @@
 4. `deploy.py put` 上传到 `/tmp`，线上校验 SHA-256 后解压到临时目录
 5. 使用 `mv` 原子替换 `/var/www/aikb`，检查 `index.html` 与关键 Chat 资源 HTTP 200
 6. 验证 `systemctl is-active aikb`、`/actuator/health`、首页和 `scripts/verify_deploy.py`
-7. 本次回滚点: `/var/www/aikb.bak-20260921-graph`(9/21 知识图谱版发布前,即 9/18 盐集 Distilled 版)+ `/opt/aikb/app.jar.bak-20260921-backend`(9/21 后端部署前,即 70e1408 时代 jar);历史:`/var/www/aikb.bak-20260918-distilled`、`/var/www/aikb.bak-20260915-emoji`、`/var/www/aikb.bak-20260912-095745`
+7. 本次回滚点: `/var/www/aikb.bak-20260921b-graph`(9/21 晚视图切换版发布前,即当日图谱初版)+ `/var/www/aikb.bak-20260921-graph`(9/21 图谱版发布前,即 9/18 盐集 Distilled 版)+ `/opt/aikb/app.jar.bak-20260921-backend`(9/21 后端部署前,即 70e1408 时代 jar);历史:`/var/www/aikb.bak-20260918-distilled`、`/var/www/aikb.bak-20260915-emoji`、`/var/www/aikb.bak-20260912-095745`
 
 **坑（8/29 实测）**: ①Git Bash 下跑 deploy.py,独立路径参数会被 MSYS 改写成 Windows 路径 → SFTP 报 ENOENT（SSH cmd 不受影响,字符串里的路径没事）。Git Bash 一律前缀 `MSYS_NO_PATHCONV=1`,或回 PowerShell。②新机器需 `pip install paramiko`（历史版本 3.4.1 可用）。③前端改动要另发 dist:tar 打包 frontend/dist → put 到 /tmp → 解压到 **/var/www/aikb**（nginx 静态根,与 jar 不同目录）。
 

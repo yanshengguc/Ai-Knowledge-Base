@@ -266,4 +266,33 @@ entity.setStatus(FileStatus.PROCESSING.name());
         vectorStoreService.deleteByFileId(id);
         log.info("文件已删除,fileId={},knowledgeId={}", id, file.getKnowledgeId());
     }
+
+    /**
+     * B-112 文件在线预览:作者归属校验(与 getFileById/deleteFile 同口径)后读 OSS 原文。
+     * 类型判断按文件名后缀(与上传白名单一致,contentType 因浏览器而异不可靠):
+     * md → 返回 content;pdf/docx → content=null,前端提示不支持在线预览。
+     */
+    @Override
+    public com.yansheng.aiknowledgebase.vo.FileContentVO getFileContent(Long id) {
+        FileEntity file = fileMapper.selectById(id);
+        if (file == null) {
+            throw new BusinessException("文件不存在");
+        }
+        verifyOwnership(file.getKnowledgeId());
+
+        com.yansheng.aiknowledgebase.vo.FileContentVO vo =
+                new com.yansheng.aiknowledgebase.vo.FileContentVO();
+        vo.setId(file.getId());
+        vo.setFileName(file.getFileName());
+        vo.setFileType(file.getFileType());
+
+        String name = file.getFileName() == null ? "" : file.getFileName().toLowerCase();
+        if (!name.endsWith(".md")) {
+            // pdf/docx 不返回内容:二进制预览不在 MVP 范围(前端渲染降级提示)
+            log.info("非 md 文件不返回原文,fileId={},fileName={}", id, file.getFileName());
+            return vo;
+        }
+        vo.setContent(ossService.getContent(file.getFileUrl()));
+        return vo;
+    }
 }

@@ -54,9 +54,19 @@
             <span class="side-label">{{ t('graph.relatedCount') }}</span>
             <span class="side-value">{{ relatedCount(selected.id) }}</span>
           </div>
-          <el-button type="primary" size="small" class="side-btn" @click="goDetail">
-            {{ t('graph.viewDetail') }}
-          </el-button>
+          <div class="side-actions">
+            <el-button type="primary" size="small" @click="goDetail">
+              {{ t('graph.viewDetail') }}
+            </el-button>
+            <el-button
+              v-if="selected.type === 'file'"
+              size="small"
+              :icon="View"
+              @click="openOriginal"
+            >
+              {{ t('filePreview.viewOriginal') }}
+            </el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -75,6 +85,8 @@
         <span class="legend-line line-similar" />{{ t('graph.similarEdge') }}
       </span>
     </div>
+
+    <FilePreview ref="previewRef" />
   </div>
 </template>
 
@@ -83,7 +95,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Document, Loading, Refresh } from '@element-plus/icons-vue'
+import { Collection, Document, Loading, Refresh, View } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import { GraphChart } from 'echarts/charts'
 import { TooltipComponent, LegendComponent } from 'echarts/components'
@@ -91,6 +103,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsType } from 'echarts/core'
 import { getKnowledgeGraph } from '@/api/modules/graph'
 import type { GraphEdgeVO, GraphNodeVO } from '@/types/api'
+import FilePreview from './components/FilePreview.vue'
 
 /** 独立 /graph 页(含标题)与 /tree 页第二视图(仅图体)共用;嵌入时数据随挂载自动加载,切走即销毁重置 */
 withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
@@ -140,6 +153,20 @@ function goDetail() {
   if (selected.value) {
     router.push(`/knowledge/${selected.value.group}`)
   }
+}
+
+/** B-112: 文件节点侧栏"查看原文"——节点 id 形如 "f-65",解析出数字文件 id */
+const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
+
+function openOriginal() {
+  const node = selected.value
+  if (!node || node.type !== 'file') return
+  const fileId = Number.parseInt(node.id.slice(2), 10)
+  if (Number.isNaN(fileId)) {
+    ElMessage.error(t('filePreview.loadFailed'))
+    return
+  }
+  previewRef.value?.open({ id: fileId, fileName: node.name })
 }
 
 async function loadGraph() {
@@ -362,8 +389,9 @@ onBeforeUnmount(() => {
     }
   }
 
-  .side-btn {
-    align-self: flex-start;
+  .side-actions {
+    display: flex;
+    gap: $space-2;
   }
 }
 

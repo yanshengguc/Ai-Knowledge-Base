@@ -26,6 +26,13 @@ export default {
     structureEdge: 'Ownership',
     similarEdge: 'Semantic similarity',
   },
+  filePreview: {
+    title: 'File Preview',
+    loading: 'Loading content…',
+    loadFailed: 'Failed to load content, please retry',
+    notSupported: 'Preview not supported for this format (md text only)',
+    viewOriginal: 'View original',
+  },
   nav: {
     knowledge: 'Knowledge',
     tree: 'Knowledge Tree',

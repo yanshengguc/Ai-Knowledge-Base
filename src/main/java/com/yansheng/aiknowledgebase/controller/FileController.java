@@ -31,6 +31,12 @@ public class FileController {
         return Result.success(fileService.listByKnowledgeId(knowledgeId));
     }
 
+    /** B-112 在线预览:返回文件原文(md 文本类);pdf/docx 返回元信息由前端提示不支持 */
+    @GetMapping("/{id}/content")
+    public Result getFileContent(@PathVariable Long id) {
+        return Result.success(fileService.getFileContent(id));
+    }
+
     /** 删除文件(级联删切片 + OSS 对象,含权限校验) */
     @DeleteMapping("/{id}")
     public Result deleteFile(@PathVariable Long id) {

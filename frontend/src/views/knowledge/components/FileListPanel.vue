@@ -26,6 +26,17 @@
           <el-tag size="small" type="danger" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
         </el-tooltip>
         <el-tag v-else size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+        <!-- B-112 在线预览:md 直接看原文,pdf/docx 后端不返回内容由抽屉提示不支持 -->
+        <el-tooltip :content="t('filePreview.viewOriginal')" placement="top">
+          <el-button
+            class="preview-btn"
+            size="small"
+            circle
+            :icon="View"
+            :aria-label="t('filePreview.viewOriginal')"
+            @click="previewRef?.open({ id: f.id, fileName: f.fileName })"
+          />
+        </el-tooltip>
         <!-- 处理中禁删:状态机未到终态,此时删会留下孤儿 chunk/向量 -->
         <el-tooltip :content="f.status === 'PROCESSING' ? t('upload.deleteBlockedProcessing') : t('common.delete')" placement="top">
           <el-button
@@ -41,23 +52,28 @@
       </div>
     </div>
     </template>
+
+    <FilePreview ref="previewRef" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete } from '@element-plus/icons-vue'
+import { Delete, View } from '@element-plus/icons-vue'
 import { deleteFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
+import FilePreview from './FilePreview.vue'
 
-// 文件列表:展示 + 删除。列表数据由父级持有(上传完成/笔记创建后父级刷新传入)
+// 文件列表:展示 + 预览 + 删除。列表数据由父级持有(上传完成/笔记创建后父级刷新传入)
 defineProps<{ files: FileVO[]; loadError?: boolean }>()
 const emit = defineEmits<{
   (e: 'deleted', fileId: number): void
   (e: 'retry'): void
 }>()
 const { t } = useI18n()
+const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
 
 function fileStatusLabel(status?: string) {
   if (status === 'SUCCESS') return t('upload.success')

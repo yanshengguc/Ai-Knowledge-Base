@@ -1,6 +1,7 @@
 import request from '@/api/request'
 import type {
   ChatResponse,
+  FileContentVO,
   FileVO,
   KnowledgeDTO,
   KnowledgeDetailVO,
@@ -53,6 +54,11 @@ export function clearChat() {
 
 export function getFileById(id: number) {
   return request.get<unknown, Result<FileVO>>(`/file/${id}`)
+}
+
+/** B-112 在线预览:md 文本类返回 content;pdf/docx content=null */
+export function getFileContent(id: number) {
+  return request.get<unknown, Result<FileContentVO>>(`/file/${id}/content`)
 }
 
 export function getFileList(knowledgeId: number) {

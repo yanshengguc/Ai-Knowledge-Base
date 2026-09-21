@@ -42,6 +42,8 @@
     <div v-else class="tree-graph-wrap">
       <GraphPanel :show-header="false" />
     </div>
+
+    <FilePreview ref="previewRef" />
   </div>
 </template>
 
@@ -53,6 +55,7 @@ import { ElMessage } from 'element-plus'
 import { Collection, Document } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
+import FilePreview from './components/FilePreview.vue'
 
 // B-107: 网图第二视图按需加载(echarts 独立 chunk,进树页不背这份体积)
 const GraphPanel = defineAsyncComponent(() => import('./GraphPanel.vue'))
@@ -64,12 +67,14 @@ interface TreeNode {
   label: string
   type: 'knowledge' | 'file'
   knowledgeId?: number
+  fileId?: number
   status?: string
   isLeaf?: boolean
 }
 
 const { t } = useI18n()
 const router = useRouter()
+const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
 
 const treeProps = {
   label: 'label',
@@ -100,6 +105,7 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
           label: f.fileName || `#${f.id}`,
           type: 'file' as const,
           knowledgeId: n.data?.knowledgeId,
+          fileId: f.id,
           status: f.status,
           isLeaf: true,
         })),
@@ -121,8 +127,12 @@ function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'inf
   return 'info'
 }
 
-/** 知识节点/文件节点点击均进入知识详情(文件无独立详情页,归属关系为 知识→文件) */
+/** 知识节点点击进详情;文件节点点击直接预览原文(B-112,9/21 PO:点击对应位置看原文) */
 function onNodeClick(data: TreeNode) {
+  if (data.fileId != null) {
+    previewRef.value?.open({ id: data.fileId, fileName: data.label })
+    return
+  }
   if (data.knowledgeId != null) {
     router.push(`/knowledge/${data.knowledgeId}`)
   }

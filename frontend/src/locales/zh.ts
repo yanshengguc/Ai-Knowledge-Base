@@ -26,6 +26,13 @@ export default {
     structureEdge: '归属关系',
     similarEdge: '语义相似',
   },
+  filePreview: {
+    title: '文件预览',
+    loading: '正在加载原文…',
+    loadFailed: '原文加载失败,请重试',
+    notSupported: '该格式暂不支持在线预览(仅支持 md 文本)',
+    viewOriginal: '查看原文',
+  },
   nav: {
     knowledge: '知识库',
     tree: '知识树',

@@ -51,6 +51,14 @@ export interface FileVO {
   updateTime?: string
 }
 
+/** B-112 文件在线预览:md 文本类返回 content;pdf/docx content=null(前端提示不支持) */
+export interface FileContentVO {
+  id: number
+  fileName?: string
+  fileType?: string
+  content?: string | null
+}
+
 // 聊天
 export interface SearchResult {
   knowledgeId: number

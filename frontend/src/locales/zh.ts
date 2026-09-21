@@ -6,6 +6,8 @@ export default {
   tree: {
     subtitle: '知识树:条目与文件的归属全景,点击直达详情',
     loadFailed: '加载失败,请重试',
+    viewTree: '树形',
+    viewGraph: '网图',
   },
   graph: {
     subtitle: '知识图谱:条目-文件归属网 + 文件语义关联(Obsidian 风格),拖拽/缩放/点节点看关联',

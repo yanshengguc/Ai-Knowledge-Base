@@ -3,9 +3,13 @@
     <div class="tree-header">
       <h2 class="tree-title">{{ t('nav.tree') }}</h2>
       <span class="tree-sub">{{ t('tree.subtitle') }}</span>
+      <el-radio-group v-model="view" size="small" class="view-switch">
+        <el-radio-button value="tree">{{ t('tree.viewTree') }}</el-radio-button>
+        <el-radio-button value="graph">{{ t('tree.viewGraph') }}</el-radio-button>
+      </el-radio-group>
     </div>
 
-    <el-card shadow="never" class="tree-card">
+    <el-card v-if="view === 'tree'" shadow="never" class="tree-card">
       <el-tree
         :props="treeProps"
         :load="loadNode"
@@ -34,16 +38,26 @@
         </template>
       </el-tree>
     </el-card>
+
+    <div v-else class="tree-graph-wrap">
+      <GraphPanel :show-header="false" />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { defineAsyncComponent, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Collection, Document } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
+
+// B-107: 网图第二视图按需加载(echarts 独立 chunk,进树页不背这份体积)
+const GraphPanel = defineAsyncComponent(() => import('./GraphPanel.vue'))
+
+const view = ref<'tree' | 'graph'>('tree')
 
 interface TreeNode {
   key: string
@@ -138,6 +152,15 @@ function onNodeClick(data: TreeNode) {
     color: $color-text-secondary;
     font-size: $font-size-sm;
   }
+
+  .view-switch {
+    margin-left: auto;
+    align-self: center;
+  }
+}
+
+.tree-graph-wrap {
+  min-width: 0;
 }
 
 .tree-card {

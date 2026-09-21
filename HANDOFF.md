@@ -2,7 +2,7 @@
 
 > ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。
 
-> 更新: 2026-09-18 | 线上前端 = `83ebf7f` 构建(**盐集 Distilled 品牌 + 知识树页 + 树加载失败反馈**,9/18 发布,SHA256 `37db84ad…70ff` 双端一致) + 后端 = `70e1408`(降级健壮性,9/15) | 测试: **9/18 三组全绿 186(154+21+11)**——限流降级修复(83ebf7f)后默认回归 154/154,Redis 恢复后同日重跑 integration 21/21 + e2e 11/11;同日攻防套件 24/24 零漏洞(ATTACK_BASE 靶机 56382) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
+> 更新: 2026-09-21 | 线上前端 = `c3d2b4b` 构建(**盐集 Distilled 品牌 + 知识树 + B-107 L3 知识图谱 /graph 页**,9/21 发布,dist SHA256 `ac09a5b3…d8848` 双端一致) + 后端 = `c3d2b4b`(B-107 /api/graph,9/21,jar SHA256 `0f27719c…fd25ec` 双端一致) | 测试: **9/21 三组全绿 193(162+21+10)**——默认回归 154+GraphServiceTest 8=162/162,integration 21/21,e2e 10/10 | 线上验证: /api/graph 68 节点(3 条目+65 文件)/158 边(65 结构+93 相似),匿名访问 401,verify_deploy 3/3 PASS | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
 
 ## 1. 项目概览
 
@@ -36,7 +36,7 @@
 4. `deploy.py put` 上传到 `/tmp`，线上校验 SHA-256 后解压到临时目录
 5. 使用 `mv` 原子替换 `/var/www/aikb`，检查 `index.html` 与关键 Chat 资源 HTTP 200
 6. 验证 `systemctl is-active aikb`、`/actuator/health`、首页和 `scripts/verify_deploy.py`
-7. 本次回滚点: `/var/www/aikb.bak-20260918-distilled`(9/18 盐集品牌版发布前,即 65792fd 线上版);历史:`/var/www/aikb.bak-20260915-emoji`、`/var/www/aikb.bak-20260912-095745`
+7. 本次回滚点: `/var/www/aikb.bak-20260921-graph`(9/21 知识图谱版发布前,即 9/18 盐集 Distilled 版)+ `/opt/aikb/app.jar.bak-20260921-backend`(9/21 后端部署前,即 70e1408 时代 jar);历史:`/var/www/aikb.bak-20260918-distilled`、`/var/www/aikb.bak-20260915-emoji`、`/var/www/aikb.bak-20260912-095745`
 
 **坑（8/29 实测）**: ①Git Bash 下跑 deploy.py,独立路径参数会被 MSYS 改写成 Windows 路径 → SFTP 报 ENOENT（SSH cmd 不受影响,字符串里的路径没事）。Git Bash 一律前缀 `MSYS_NO_PATHCONV=1`,或回 PowerShell。②新机器需 `pip install paramiko`（历史版本 3.4.1 可用）。③前端改动要另发 dist:tar 打包 frontend/dist → put 到 /tmp → 解压到 **/var/www/aikb**（nginx 静态根,与 jar 不同目录）。
 
@@ -44,6 +44,7 @@
 
 | commit | 内容 |
 |---|---|
+| `c3d2b4b` | **B-107 L3 知识图谱(9/21,已上线)**: 后端 `GET /api/graph`(节点=条目 k-{id}+文件 f-{id},边=结构边+文件级向量相似边——文件名+首切片 500 字 embedding 两两余弦,top-2 邻居+阈值 0.45+pairKey 去重;**DashScope text-embedding-v3 批量上限实测 10 条/请求**→EMBED_BATCH_SIZE=8 分批;embedding 失败降级空相似边)+ 前端 `/graph` Obsidian 风格力导向(ECharts 5.6.0,adjacency 邻居高亮/相似虚线随权重/详情侧栏/移动端断点)+ GraphServiceTest 8 用例;回归 162+integration 21+e2e 10=193 全绿;线上 68 节点/158 边/93 相似边 |
 | `70e1408` | **后端降级健壮性与回归隔离(9/15)**:Redis 不可用时知识详情直接回源、锁释放/缓存清理容错;DashVector collection 不可用时不再 NPE;Redis/DashVector/长期记忆外部依赖测试重新标记 integration/e2e;默认回归 `152/152` 通过,未部署 |
 | `65792fd` | **前端 Emoji 清理(9/15)**:用户可见 Emoji 改为 Element Plus 图标与纯文案,TypeScript/生产构建/本地预览通过;9/15 已随 dist 部署上线,9/18 起被盐集品牌版(163694d 构建)替代 |
 | `5e617a0` | **移动端智能问答体验优化并已线上发布(9/12)**:Agent 分析/调用工具/完成状态、工具轨迹与调用计数、移动端工具栏折叠、消息气泡/Markdown 表格适配、回到底部按钮、流式跟随和安全区适配;前端构建通过,线上 Chat JS/CSS HTTP 200 |
@@ -87,6 +88,10 @@ python scripts\security_attack.py
 - **长期记忆维度根因(9/15 实锤,已修复)**: `long_term_memory` collection 为 8 月 text-embedding-v2 时代建的 **1536 维**,现 embedding(text-embedding-v3)输出 **1024 维** → 写入/检索全报 `-2019 Vector length(1024) is different with collection dimension(1536)` → **生产长期记忆自上线起即降级失效**(WARN 静默)。9/15 晚已删除坏集合 → 重启生产 aikb(active+UP)→ init() 自动重建 **1024 维**(describe 实测确认),长期记忆功能线上恢复。教训:换 embedding 模型必须同步重建向量集合,降级逻辑会掩盖这类维度失配。
 - **RerankSmokeTest 断言修正(9/15)**: min-score 分数下限淘汰(0.3,宁缺毋滥)为 70e1408 引入特性,英文弱相关候选对中文 query 会被淘汰,测试从"必须返回全部候选"改为"最相关者排第一 + 至少保留 1 条"。
 - **ChatIntegrationTest 修复(9/15)**: 测试用 `opsForValue().get()` 读 List 类型 key(主代码 rightPush+trim 存 LIST)→ 真 Redis 严格类型校验报 WRONGTYPE(替身宽松未暴露);改为 `opsForList().range()` 对齐主代码。
+- **2026-09-21 三组全绿刷新——193 项全绿(154 基线+GraphServiceTest 8=默认 162/162 + integration 21/21 + e2e 10/10)**: B-107 L3 知识图谱上线当日。后端 jar SHA256 `0f27719c…fd25ec`、前端 dist `ac09a5b3…d8848` 双端一致;线上 /api/graph 实测 68 节点(3+65)/158 边(65 结构+93 相似,weight 0.545~0.836),匿名 401,verify_deploy 3/3 PASS(注册关闭模式)。回滚点 `app.jar.bak-20260921-backend` + `aikb.bak-20260921-graph`。
+- **DashScope text-embedding-v3 批量上限(9/21 实测,重要)**: 65 条整包→网关报 `The input texts limit 25`;20 条→算法层报 `batch size is invalid, it should not be larger than 10`——**真实上限 10 条/请求**,GraphServiceImpl 取 EMBED_BATCH_SIZE=8 留余量。教训:网关报错数字(25)≠算法真实限制(10),必须二分实测。
+- **application-local.properties 丢失恢复路径(9/21 实战,gitignored 不入库)**: 9/18 git 清理会话副作用文件丢失致 33 个 context 加载失败。三路恢复:①服务器 `/etc/aikb/aikb.env`(DASHSCOPE/DASHVECTOR/DEEPSEEK/SILICONFLOW/OSS/BOCHA + JWT_SECRET_KEY);②备份镜像 `Ai-Knowledge-Base-backup-mirror.git` 的 Day6 commit 明文 application.properties(本地 MySQL 密码);③`JWT_SECRET_KEY` 的 @Value 无默认值,漏了必报 `Could not resolve placeholder`。
+- **本机 git refs/remotes/origin/* 异常(9/21 发现,待观察)**: `git fetch`/`git update-ref` 对 origin/* 引用**报成功但不落盘**(跨进程/跨调用消失,非沙箱复现同样);raw 文件写入(手工 echo ref 文件)可持久。已手工恢复 origin/main=c3d2b4b 使 `git status` tracking 正常。**推送本身不受影响**(ls-remote 独立证实),仅影响本地 ahead/behind 显示;IDEA 内自跑 fetch 可能自行恢复。
 - **2026-09-18 三组全绿刷新——186 项全绿**: 巡检发现 RateLimitService 裸调 Redis 无兜底 → PO 拍板 **fail-open + WARN** 降级(163694d,新增 failOpenWhenRedisDown/failOpenWhenExpireFails 两测试)后默认回归 **154/154**;用户起真 Redis 后同日重跑 integration **21/21**(47s) + e2e **11/11**(2m03s),均 BUILD SUCCESS。同日攻防套件 **24/24 零漏洞**(靶机 56382,`ATTACK_BASE=http://127.0.0.1:56382/api`,退出码 0=漏洞数);同日盐集 Distilled 品牌版前端已发布(见头部)。
 - 本地历史遗留问题(替身 Redis/旧集群/TUN 出口)均已在 9/15 当日解决,后续新环境初始化可参考当日根因清单。
 - 前端回归: `cd frontend && npm run build`（vue-tsc + Vite）通过；移动端问答发布前已验证首页、Chat JS/CSS HTTP 200。构建仍有 Sass legacy API、Rollup PURE 注释和 Element Plus 大包警告，均为非阻断警告。

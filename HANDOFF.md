@@ -1,8 +1,8 @@
 # AI-Knowledge-Base 项目交接文档
 
-> ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。
+> ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。**Public 已生效(9/21 晚 gh 实测 visibility=PUBLIC)**
 
-> 更新: 2026-09-21 晚 | 线上前端 = `90b7a57` 构建(**知识树/图谱 + B-112 文件在线预览——点击文件节点看原文**,dist SHA256 `38fe3605…5cfd` 双端一致) + 后端 = `90b7a57`(B-112 /api/file/{id}/content,jar SHA256 `12e7adc3…4e17e` 双端一致) | 测试: **9/21 三组全绿 199(168+21+10)**——默认回归 162+FileContentTest 6=168/168,integration 21/21(B-112 改动后复跑亦绿),e2e 10/10 | 线上验证: verify_deploy 3/3 PASS,登录态实测 /api/file content 4/4(md 原文/越权拒/不存在报错/匿名 401) | 生产 `long_term_memory` 1024 维已验证恢复(9/15)
+> 更新: 2026-09-21 晚 | 线上前端 = `90b7a57` 构建(**知识树/图谱 + B-112 文件在线预览——点击文件节点看原文**,dist SHA256 `38fe3605…5cfd` 双端一致) + 后端 = `90b7a57`(B-112 /api/file/{id}/content,jar SHA256 `12e7adc3…4e17e` 双端一致) | 测试: **9/21 三组全绿 199(168+21+10)**——默认回归 162+FileContentTest 6=168/168,integration 21/21(B-112 改动后复跑亦绿),e2e 10/10 | 线上验证: verify_deploy 3/3 PASS,登录态实测 /api/file content 4/4(md 原文/越权拒/不存在报错/匿名 401) | 生产 `long_term_memory` 1024 维已验证恢复(9/15) | 文档收尾: **B-113 聊天管线合并已立 backlog**(`0e2a9a5`,普通 RAG vs Agent 双路径三差异与合并方案记录在 docs/backlog.md,PO 拍板暂不动码) | **仓库已切 Public(9/21 晚 gh 实测确认)**
 
 ## 1. 项目概览
 
@@ -44,6 +44,8 @@
 
 | commit | 内容 |
 |---|---|
+| `90b7a57` | **B-112 文件在线预览(9/21 晚,已上线)**: 后端 `GET /api/file/{id}/content`(作者归属校验同 getFileById 口径;OssService.getContent 与 delete 共用 key 解析,**5MB 上限**;md 按文件名后缀返回原文,pdf/docx content=null——contentType 因浏览器而异不可靠)+ 前端 FilePreview.vue 抽屉(renderMarkdown/DOMPurify 管线复用)+ 三处入口(树文件节点点击/图谱侧栏"查看原文"/文件列表预览按钮)+ FileContentTest 6 用例;默认 168+integration 21+e2e 10=199 全绿;jar `12e7adc3` 部署,登录态实测 4/4 |
+| `8449fb4` | **树页网图切换(9/21 晚,PO"图谱应结合知识树"拍板)**: 图体抽 GraphPanel 组件(showHeader prop,独立页/树页第二视图共用),Tree.vue 顶部"树形/网图"el-radio-button 切换(defineAsyncComponent 按需加载,Tree chunk 2.9KB 不背 echarts,GraphPanel 459KB 独立 chunk),Layout 收掉桌面+移动抽屉两处 /graph 菜单项(路由保留防外链 404);前端 dist `38341577` 发布 |
 | `c3d2b4b` | **B-107 L3 知识图谱(9/21,已上线)**: 后端 `GET /api/graph`(节点=条目 k-{id}+文件 f-{id},边=结构边+文件级向量相似边——文件名+首切片 500 字 embedding 两两余弦,top-2 邻居+阈值 0.45+pairKey 去重;**DashScope text-embedding-v3 批量上限实测 10 条/请求**→EMBED_BATCH_SIZE=8 分批;embedding 失败降级空相似边)+ 前端 `/graph` Obsidian 风格力导向(ECharts 5.6.0,adjacency 邻居高亮/相似虚线随权重/详情侧栏/移动端断点)+ GraphServiceTest 8 用例;回归 162+integration 21+e2e 10=193 全绿;线上 68 节点/158 边/93 相似边 |
 | `70e1408` | **后端降级健壮性与回归隔离(9/15)**:Redis 不可用时知识详情直接回源、锁释放/缓存清理容错;DashVector collection 不可用时不再 NPE;Redis/DashVector/长期记忆外部依赖测试重新标记 integration/e2e;默认回归 `152/152` 通过,未部署 |
 | `65792fd` | **前端 Emoji 清理(9/15)**:用户可见 Emoji 改为 Element Plus 图标与纯文案,TypeScript/生产构建/本地预览通过;9/15 已随 dist 部署上线,9/18 起被盐集品牌版(163694d 构建)替代 |
@@ -93,7 +95,7 @@ python scripts\security_attack.py
 - **application-local.properties 丢失恢复路径(9/21 实战,gitignored 不入库)**: 9/18 git 清理会话副作用文件丢失致 33 个 context 加载失败。三路恢复:①服务器 `/etc/aikb/aikb.env`(DASHSCOPE/DASHVECTOR/DEEPSEEK/SILICONFLOW/OSS/BOCHA + JWT_SECRET_KEY);②备份镜像 `Ai-Knowledge-Base-backup-mirror.git` 的 Day6 commit 明文 application.properties(本地 MySQL 密码);③`JWT_SECRET_KEY` 的 @Value 无默认值,漏了必报 `Could not resolve placeholder`。
 - **2026-09-21(晚) B-112 文件在线预览——199 项全绿(默认 168=162+FileContentTest 6 + integration 21(B-112 改动后复跑) + e2e 10)**: 后端 GET /api/file/{id}/content(md 后缀白名单返回原文,pdf/docx content=null;OssService.getContent 5MB 上限);前端 FilePreview 抽屉+树/图谱/文件列表三处入口。jar `12e7adc3…4e17e`/dist `38fe3605…5cfd` 双端一致;verify_deploy 3/3 PASS;登录态服务器端签 JWT 实测 4/4(md 269 字/越权拒 code=500/不存在报错/匿名 401)。回滚点 `app.jar.bak-20260921b-backend` + `aikb.bak-20260921c-preview`。
 - **坑(9/21): verify_deploy.py 默认 BASE=localhost:8080**——从本地跑必须传 `DEPLOY_BASE=http://<SERVER_IP>/api`,否则打本机空端口:有代理环境变量时报 502(代理拒连 localhost),清代理后报 10061 拒绝,极易误判为"服务挂了"。另: 本地会话代理变量(HTTP_PROXY=127.0.0.1:59665)会被 urllib/requests 自动使用,验真实连通性时一律 `--noproxy '*'` 或清代理。
-- **本机 git refs/remotes/origin/* 异常(9/21 发现,待观察)**: `git fetch`/`git update-ref` 对 origin/* 引用**报成功但不落盘**(跨进程/跨调用消失,非沙箱复现同样);raw 文件写入(手工 echo ref 文件)可持久。已手工恢复 origin/main=c3d2b4b 使 `git status` tracking 正常。**推送本身不受影响**(ls-remote 独立证实),仅影响本地 ahead/behind 显示;IDEA 内自跑 fetch 可能自行恢复。
+- **本机 git refs/remotes/origin/* 异常(9/21 发现,待观察)**: `git fetch`/`git update-ref` 对 origin/* 引用**报成功但不落盘**(跨进程/跨调用消失,非沙箱复现同样);raw 文件写入(手工 echo ref 文件)可持久。**9/21 晚仍复现**(status 显示 [gone]),处置已流程化:push 后 `git ls-remote origin main` 核对远端 SHA 即算收口(远端恒正确),或手工补 ref 文件消除 [gone] 显示。**推送本身不受影响**(ls-remote 独立证实),仅影响本地 ahead/behind 显示。
 - **2026-09-18 三组全绿刷新——186 项全绿**: 巡检发现 RateLimitService 裸调 Redis 无兜底 → PO 拍板 **fail-open + WARN** 降级(163694d,新增 failOpenWhenRedisDown/failOpenWhenExpireFails 两测试)后默认回归 **154/154**;用户起真 Redis 后同日重跑 integration **21/21**(47s) + e2e **11/11**(2m03s),均 BUILD SUCCESS。同日攻防套件 **24/24 零漏洞**(靶机 56382,`ATTACK_BASE=http://127.0.0.1:56382/api`,退出码 0=漏洞数);同日盐集 Distilled 品牌版前端已发布(见头部)。
 - 本地历史遗留问题(替身 Redis/旧集群/TUN 出口)均已在 9/15 当日解决,后续新环境初始化可参考当日根因清单。
 - 前端回归: `cd frontend && npm run build`（vue-tsc + Vite）通过；移动端问答发布前已验证首页、Chat JS/CSS HTTP 200。构建仍有 Sass legacy API、Rollup PURE 注释和 Element Plus 大包警告，均为非阻断警告。
@@ -130,14 +132,15 @@ python scripts\security_attack.py
 - [x] **后端默认回归恢复全绿(9/15)**:Redis 降级回源、DashVector collection 缺失防 NPE、外部依赖测试隔离;默认集合 `152/152` 通过,提交 `70e1408`。剩余 28 项历史基线需真实 Redis/DashVector/LLM 环境复核。
 - [x] rerank 打磨完成(9/5):①分数下限淘汰——rerank.min-score 配置(默认 0.3),请求改拿全量候选分数后本地先淘汰再截 topN,全淘汰返回空让上层如实作答,置 0 关闭;②兜底排序方向修复——rerank 关闭时不再对混合池整体升序 sort(两路 score 语义相反:向量=距离、BM25=相关度,整体排序必错一路),改为保持合并顺序(向量段距离升序在前 + BM25 段相关度降序在后,各自天然有序)
 - [x] 登录错误信息统一 + register.enabled（ab02ec1 已完成;该批时点回归 140 用例,当前基线 155 见第 5 节)
-- [ ] 在真实 Redis 上运行 Redis 集成测试，并为本机配置可访问 DashVector 测试白名单后运行剩余集成/E2E，目标历史 180 项 `0 failures / 0 errors`
+- [x] 在真实 Redis 上运行 Redis 集成测试，并为本机配置可访问 DashVector 测试白名单后运行剩余集成/E2E，目标历史 180 项 `0 failures / 0 errors`（9/15 首次三组全绿达成,此后持续保持;当前口径 **199 项全绿**,见第 5 节 9/21 记录）
 - [x] **前端 Emoji 清理已部署(9/15)**:`65792fd` 重新 build(vue-tsc+Vite 通过) → tar(SHA256 `4a5dbe70…b88` 双端校验一致) → 备份 `/var/www/aikb.bak-20260915-emoji` → 原子替换 → 验收:aikb active、/actuator/health UP、内外网 index/Chat JS/CSS 200、verify_deploy 3/3 PASS(注册关闭跳过 5 项);/tmp 临时包已清理
 - [x] **盐集 Distilled 品牌版已部署(9/18)**:`163694d` 构建(含知识树 /tree、盐集品牌、树加载失败反馈;vue-tsc+Vite 12.1s 通过) → tar(SHA256 `37db84ad…70ff` 双端一致) → 备份 `/var/www/aikb.bak-20260918-distilled` → 原子替换 → 验收:线上首页 `<title>盐集 Distilled · AI 知识库</title>`、index 200、aikb active、verify_deploy 3/3 PASS;Pre-Flight 探针先行的第一次实战
 
 低优先 backlog:
 - 后端分页 / .doc 老格式支持 / 统一 HTTP 连接池
 - ~~DashVector 检索用户隔离 filter~~(已闭环:file_search 9/5 改走 searchForUser,ca977d0;RetrievalServiceImpl 一直是隔离的)
-- 知识图谱(README 路线图已列;面试前优先"数字+故事"而非新功能)
+- 知识可视化 B-107:**L1 树+L3 网图已上线(9/21,树页顶栏切换)**,仅剩 L2 反链(数据现成:SearchResult.chunkId 引用链路);完整三档记录见 docs/backlog.md
+- **聊天管线合并 B-113(9/21 立,PO 拍板暂不动码)**: 普通 RAG vs Agent 双路径三差异(真流式 vs 非流式/联网注入 vs 工具自决/1 次 vs 1~6 次 LLM 调用),彻底合并前置=FunctionCallingService 流式化(~半天+199 回归);轻量去重(两处前置 5 行抽方法)可先行;方案详见 docs/backlog.md B-113
 - 简历方向: Python+LangGraph 多 Agent 复刻版(强化"场景"维度)
 
 **本地环境变化（2026-08-28）**: Docker Desktop 端口转发损坏（容器内 PONG 但宿主 6379 不可达,重置 WSL/重启均未恢复）;已改在 WSL Ubuntu-24.04 安装并 `service redis-server start` 起 Redis（apt 装了 redis-server 包）,本地靶机/回归均正常。恢复 Docker 转发后两条路径可并存。

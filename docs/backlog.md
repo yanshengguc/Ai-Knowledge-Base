@@ -63,9 +63,9 @@
 
 - [ ] B-114 知识树+检索索引（9/24 晚 PO 提案，源自其"知识树+检索索引"学习方法论；**PO+双方 AI 评审一致:作为项目后期特色功能，不打断主线，开工窗口 10 月中/Python demo 之后**）:
   - **提案核心**: 文档→Chunk→知识树（节点含 parent/children/definition/why/mechanism/related_nodes/检索关键词/面试问题索引/场景索引/source_chunks）→用户问题先经索引定位节点→取 source_chunks 融合现有 hybrid 检索→RAG。定位=从"AI 知识库"到"AI 学习型知识库";知识树负责导航定位，Vector Search 负责语义召回，Source Chunk 保证可溯源
-  - **五关评审（通过）**: 作者即用户✓(PO 自己用 AKB 学八股,dogfood 成立)/非 devtool✓/让第一个变强✓/JD 有 GraphRAG·RAPTOR 原话✓/动机非"练手"✓——几周来首个全过提案
+  - **五关评审（通过）**: 作者即用户✓(PO 自己用 AKB 学八股,dogfood 成立)/非 devtool✓/让第一个变强✓/JD 有"知识图谱/混合检索"原话✓(9/26 实测修正:GraphRAG 仅社招算法岗/研究院层,RAPTOR 全渠道 0 命中系公司名假阳性)/动机非"练手"✓——几周来首个全过提案;命名纪律:对外叫「标题层级分块+混合检索」,主动放弃 GraphRAG/RAPTOR/层次化检索词
   - **去过时项（9/24 评审砍掉）**: ①B-107 相似度图谱(68 节点/158 边)不再迭代,降级为横向关联素材;其可视化"效果不行"的根因=只有圆点连线无语义,优化方向是改造成 RAG 交互层（搜索→高亮定位节点→节点详情→source 溯源）,不是单纯美化 ②GraphRAG 完整架构过度设计,只读思想 ③"学习路径/复习 Agent"远期冻结 ④LeanRAG/RAGTree 略读;主参考=RAPTOR 层次聚合+结构感知切片
-  - **关键技术决策——规则树打底**: LLM 直接从 chunk 抽树必碎片化(同概念多节点/父子矛盾);MVP 走 md/docx 标题层级规则解析出锚定树(=B-109 提到的 StructureAwareSplitter 结构感知),LLM 只补 definition/why/mechanism+横向关联,成本降一个量级且树稳定
-  - **检索融合铁律**: 树只做路由加权层(索引命中→source_chunks 提权/前置),不动 hybrid(向量+BM25)底座;树检索失败降级回纯 RAG 并打 WARN;上线门槛=Eval Harness 15/15 基线+有树 vs 无树对比数据
-  - **拆阶段**: Phase1 MVP(2-3 晚)=标题树解析+节点详情+source_chunks 溯源页;Phase2=LLM 语义层+索引挂载;Phase3=Graph View 交互层升级(参考 Obsidian 交互思想不抄界面:点击展开/双击进入/搜索高亮/点击 source 回原文)
+  - **关键技术决策——规则树打底**: LLM 直接从 chunk 抽树必碎片化(同概念多节点/父子矛盾);MVP 走 md 标题层级规则解析出锚定树(=B-109 提到的 StructureAwareSplitter 结构感知;**docx 不在 Phase1 范围**——9/26 实测 WordParser.java:23-27 只取 getText() 丢 Heading 样式,docx 长不出树;层级可从 chunk 正文前缀离线反推回填,铁律=split() 输出逐字节不变+回归测试钉死),LLM 只补 definition/why/mechanism+横向关联,成本降一个量级且树稳定
+  - **检索融合铁律**: 树只做路由加权层(索引命中→source_chunks 提权/前置),不动 hybrid(向量+BM25)底座;树检索失败降级回纯 RAG 并打 WARN;上线门槛=RetrievalQualityEvalTest recall@5/MRR 阈值 0.80/0.70(Eval Harness 15/15 测的是工具选择不测检索质量,9/26 修正)+先跑无树基线留档+有树 vs 无树对比
+  - **拆阶段**: Phase1 MVP(4-6 晚,9/26 修正——工作面=新表+Mapper+回填脚本+切片器+节点 API+详情 UI+溯源页+全量回归,回归验证单列一晚;开工前置 1h=回填可行性验证:取 1 篇 md 用 OSS 原文重跑 StructureAwareSplitter,产出须与库内 knowledge_chunk 逐条一致)=标题树解析+节点详情+source_chunks 溯源页;Phase2=LLM 语义层+索引挂载;Phase3=Graph View 交互层升级(参考 Obsidian 交互思想不抄界面:点击展开/双击进入/搜索高亮/点击 source 回原文)
   - **技术价值**: 设计动机自然——"传统 RAG 只解决找相关文本,学习者还需要层级与关联";比"调了 Embedding API 存了向量库"多一层架构思考;与 B-110 跳转、B-107 图谱形成产品闭环

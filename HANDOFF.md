@@ -3,6 +3,7 @@
 > ⚠️ **git 历史已重写(9/18)**: 为切 Public 做 PII 清理,git-filter-repo 全历史将服务器 IP(明文已隐去)替换为 `YOUR_SERVER_IP`(唯一敏感项;API key/密码/密钥扫描确认为 0 泄漏,properties 全环境变量占位)。**此前文档中引用的所有 commit hash 均已作废**(内容等价,新 hash 顺延,如 163694d→83ebf7f / c18896e→eff84e9);tag v0.1.0 与 open-source-narrative 分支已同步 force update;纯净重写前备份仅本地留存。**Public 已生效(9/21 晚 gh 实测 visibility=PUBLIC)**
 
 > 更新: 2026-09-21 晚 | 线上前端 = `90b7a57` 构建(**知识树/图谱 + B-112 文件在线预览——点击文件节点看原文**,dist SHA256 `38fe3605…5cfd` 双端一致) + 后端 = `90b7a57`(B-112 /api/file/{id}/content,jar SHA256 `12e7adc3…4e17e` 双端一致) | 测试: **9/21 三组全绿 199(168+21+10)**——默认回归 162+FileContentTest 6=168/168,integration 21/21(B-112 改动后复跑亦绿),e2e 10/10 | 线上验证: verify_deploy 3/3 PASS,登录态实测 /api/file content 4/4(md 原文/越权拒/不存在报错/匿名 401) | 生产 `long_term_memory` 1024 维已验证恢复(9/15) | 文档收尾: **B-113 聊天管线合并已立 backlog**(`0e2a9a5`,普通 RAG vs Agent 双路径三差异与合并方案记录在 docs/backlog.md,PO 拍板暂不动码) | **仓库已切 Public(9/21 晚 gh 实测确认)**
+> 更新: 2026-09-27 | **代码保持 `90b7a57` 未动**(线上 jar/dist 均此构建);main HEAD = `2a04c7d`(docs-only: `c20bc09` 立 B-114 知识树+检索索引 → `cd8cf7b` 措辞统一 → `2a04c7d` B-114 依据修正,详见 docs/backlog.md) | 测试/线上状态同 9/21 晚记录(199 三组全绿口径不变) | 下一开发窗口: 管理端(课设硬需求,10 月上旬)→ B-114 Phase1(10 月中)
 
 ## 1. 项目概览
 

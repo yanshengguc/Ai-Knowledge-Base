@@ -12,11 +12,19 @@
     </div>
 
     <el-card v-if="view === 'tree'" shadow="never" class="tree-card">
+      <div class="tree-toolbar">
+        <span class="tree-hint">{{ t('tree.expandHint') }}</span>
+        <el-button size="small" :icon="Refresh" @click="refreshTree">
+          {{ t('tree.refresh') }}
+        </el-button>
+      </div>
       <el-tree
+        :key="treeKey"
         :props="treeProps"
         :load="loadNode"
         lazy
         node-key="key"
+        :empty-text="t('tree.empty')"
         :expand-on-click-node="false"
         highlight-current
         @node-click="onNodeClick"
@@ -54,7 +62,7 @@ import { defineAsyncComponent, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Document } from '@element-plus/icons-vue'
+import { Collection, Document, Refresh } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
 import FilePreview from './components/FilePreview.vue'
@@ -63,6 +71,7 @@ import FilePreview from './components/FilePreview.vue'
 const GraphPanel = defineAsyncComponent(() => import('./GraphPanel.vue'))
 
 const view = ref<'tree' | 'graph'>('tree')
+const treeKey = ref(0)
 
 interface TreeNode {
   key: string
@@ -120,6 +129,10 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
     ElMessage.error(t('tree.loadFailed'))
     resolve([])
   }
+}
+
+function refreshTree() {
+  treeKey.value += 1
 }
 
 function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'info' {
@@ -194,6 +207,27 @@ function onNodeClick(data: TreeNode) {
     padding: $space-3;
   }
 
+  .tree-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $space-3;
+    min-height: 36px;
+    margin-bottom: $space-2;
+    padding-bottom: $space-2;
+    border-bottom: 1px solid $color-border;
+
+    .tree-hint {
+      min-width: 0;
+      overflow: hidden;
+      color: $color-text-secondary;
+      font-size: $font-size-xs;
+      line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   :deep(.el-tree) {
     width: 100%;
   }
@@ -240,6 +274,14 @@ function onNodeClick(data: TreeNode) {
 
     .view-switch {
       align-self: flex-start;
+    }
+  }
+
+  .tree-card .tree-toolbar {
+    align-items: flex-start;
+
+    .tree-hint {
+      white-space: normal;
     }
   }
 }

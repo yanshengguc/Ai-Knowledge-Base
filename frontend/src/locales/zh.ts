@@ -9,6 +9,9 @@ export default {
     viewTree: '树形',
     viewGraph: '网图',
     viewSwitch: '切换知识视图',
+    refresh: '刷新树',
+    expandHint: '展开条目查看文件,点击文件可预览原文',
+    empty: '暂无知识条目,请先在知识库创建内容',
   },
   graph: {
     subtitle: '知识图谱:条目-文件归属网 + 文件语义关联(Obsidian 风格),拖拽/缩放/点节点看关联',

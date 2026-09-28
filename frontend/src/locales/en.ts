@@ -9,6 +9,9 @@ export default {
     viewTree: 'Tree',
     viewGraph: 'Graph',
     viewSwitch: 'Switch knowledge view',
+    refresh: 'Refresh tree',
+    expandHint: 'Expand an entry to see files; click a file to preview its content',
+    empty: 'No knowledge entries yet. Create one in Knowledge first',
   },
   graph: {
     subtitle: 'Knowledge graph: entry-file ownership + semantic similarity (Obsidian style). Drag, zoom, click nodes',

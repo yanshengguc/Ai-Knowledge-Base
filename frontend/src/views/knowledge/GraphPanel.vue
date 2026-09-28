@@ -251,6 +251,7 @@ function renderChart() {
 
   chart.setOption({
     animation: false,
+    aria: { enabled: true },
     tooltip: {
       formatter: (p: { data?: { node?: GraphNodeVO } }) =>
         p.data?.node ? `${p.data.node.name}` : '',

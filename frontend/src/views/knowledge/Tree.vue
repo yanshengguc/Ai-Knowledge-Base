@@ -31,7 +31,7 @@
       >
         <template #default="{ data }">
           <span class="tree-node" :class="{ root: data.type === 'knowledge' }">
-            <el-icon class="node-icon">
+            <el-icon class="node-icon" :class="{ 'file-icon': data.type === 'file' }">
               <Collection v-if="data.type === 'knowledge'" />
               <Document v-else />
             </el-icon>
@@ -42,7 +42,7 @@
               :type="statusTagType(data.status)"
               class="node-tag"
             >
-              {{ data.status }}
+              {{ statusLabel(data.status) }}
             </el-tag>
           </span>
         </template>
@@ -133,6 +133,12 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
 
 function refreshTree() {
   treeKey.value += 1
+}
+
+function statusLabel(status?: string): string {
+  if (status === 'SUCCESS') return t('upload.success')
+  if (status === 'FAILED') return t('upload.failed')
+  return t('upload.processing')
 }
 
 function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'info' {
@@ -249,6 +255,10 @@ function onNodeClick(data: TreeNode) {
   .node-icon {
     color: $color-primary;
     flex-shrink: 0;
+
+    &.file-icon {
+      color: $color-secondary;
+    }
   }
 
   .node-label {

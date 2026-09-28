@@ -10,7 +10,7 @@
       </el-button>
     </div>
 
-    <div class="graph-body">
+    <div class="graph-body" :class="{ 'has-selection': selected }">
       <el-card shadow="never" class="graph-card">
         <div class="graph-toolbar">
           <span class="graph-hint">{{ t('graph.interactionHint') }}</span>
@@ -52,7 +52,7 @@
           </div>
           <div v-if="selected.type === 'file' && selected.status" class="side-row">
             <span class="side-label">{{ t('graph.status') }}</span>
-            <el-tag size="small" :type="statusTagType(selected.status)">{{ selected.status }}</el-tag>
+            <el-tag size="small" :type="statusTagType(selected.status)">{{ statusLabel(selected.status) }}</el-tag>
           </div>
           <div v-if="selectedCategory" class="side-row">
             <span class="side-label">{{ t('graph.category') }}</span>
@@ -151,6 +151,12 @@ function relatedCount(id: string): number {
   return edges.value.filter((e) => e.source === id || e.target === id).length
 }
 
+function statusLabel(status?: string): string {
+  if (status === 'SUCCESS') return t('upload.success')
+  if (status === 'FAILED') return t('upload.failed')
+  return t('upload.processing')
+}
+
 function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'info' {
   if (status === 'SUCCESS') return 'success'
   if (status === 'PROCESSING') return 'warning'
@@ -239,7 +245,7 @@ function renderChart() {
     ...e,
     lineStyle:
       e.type === 'structure'
-        ? { color: '#CBD5E1', width: 1.5, type: 'solid' as const, curveness: 0 }
+        ? { color: '#94A3B8', width: 1.5, type: 'solid' as const, curveness: 0 }
         : {
             color: '#2563EB',
             width: 0.8 + e.weight * 2.2,
@@ -335,7 +341,11 @@ onBeforeUnmount(() => {
 
 .graph-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  grid-template-columns: minmax(0, 1fr);
+
+  &.has-selection {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+  }
   gap: $space-4;
   align-items: stretch;
 }
@@ -480,7 +490,7 @@ onBeforeUnmount(() => {
   }
 
   .line-structure {
-    border-top: 2px solid #cbd5e1;
+    border-top: 2px solid #94a3b8;
   }
 
   .line-similar {
@@ -498,7 +508,8 @@ onBeforeUnmount(() => {
     }
   }
 
-  .graph-body {
+  .graph-body,
+  .graph-body.has-selection {
     grid-template-columns: minmax(0, 1fr);
   }
 

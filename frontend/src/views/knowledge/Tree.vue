@@ -1,9 +1,11 @@
 <template>
   <div class="tree-page">
     <div class="tree-header">
-      <h2 class="tree-title">{{ t('nav.tree') }}</h2>
-      <span class="tree-sub">{{ t('tree.subtitle') }}</span>
-      <el-radio-group v-model="view" size="small" class="view-switch">
+      <div class="tree-heading">
+        <h2 class="tree-title">{{ t('nav.tree') }}</h2>
+        <span class="tree-sub">{{ t('tree.subtitle') }}</span>
+      </div>
+      <el-radio-group v-model="view" size="small" class="view-switch" :aria-label="t('tree.viewSwitch')">
         <el-radio-button value="tree">{{ t('tree.viewTree') }}</el-radio-button>
         <el-radio-button value="graph">{{ t('tree.viewGraph') }}</el-radio-button>
       </el-radio-group>
@@ -143,51 +145,72 @@ function onNodeClick(data: TreeNode) {
 @use '@/styles/tokens.scss' as *;
 
 .tree-page {
-  max-width: 860px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
+  padding-bottom: $space-6;
 }
 
 .tree-header {
   display: flex;
-  align-items: baseline;
-  gap: $space-3;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $space-4;
   margin-bottom: $space-4;
+
+  .tree-heading {
+    min-width: 0;
+  }
 
   .tree-title {
     margin: 0;
     font-size: $font-size-lg;
+    line-height: 1.35;
   }
 
   .tree-sub {
+    display: block;
+    margin-top: $space-1;
     color: $color-text-secondary;
     font-size: $font-size-sm;
+    line-height: 1.5;
   }
 
   .view-switch {
-    margin-left: auto;
-    align-self: center;
+    flex-shrink: 0;
   }
 }
 
 .tree-graph-wrap {
+  width: 100%;
   min-width: 0;
 }
 
 .tree-card {
+  min-height: 360px;
+
   :deep(.el-card__body) {
+    min-height: 360px;
     padding: $space-3;
   }
 
+  :deep(.el-tree) {
+    width: 100%;
+  }
+
   :deep(.el-tree-node__content) {
-    height: 32px;
+    width: 100%;
+    height: 36px;
   }
 }
 
 .tree-node {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: $space-2;
+  width: 100%;
   min-width: 0;
+  padding-right: $space-2;
 
   .node-icon {
     color: $color-primary;
@@ -195,6 +218,7 @@ function onNodeClick(data: TreeNode) {
   }
 
   .node-label {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -206,6 +230,17 @@ function onNodeClick(data: TreeNode) {
 
   &.root .node-label {
     font-weight: 600;
+  }
+}
+
+@media (max-width: $bp-md) {
+  .tree-header {
+    flex-direction: column;
+    gap: $space-3;
+
+    .view-switch {
+      align-self: flex-start;
+    }
   }
 }
 </style>

@@ -1,8 +1,10 @@
 <template>
   <div class="graph-page">
-    <div v-if="showHeader" class="graph-header">
-      <h2 class="graph-title">{{ t('nav.graph') }}</h2>
-      <span class="graph-sub">{{ t('graph.subtitle') }}</span>
+    <div v-if="props.showHeader" class="graph-header">
+      <div class="graph-heading">
+        <h2 class="graph-title">{{ t('nav.graph') }}</h2>
+        <span class="graph-sub">{{ t('graph.subtitle') }}</span>
+      </div>
       <el-button class="refresh-btn" size="small" :icon="Refresh" @click="loadGraph">
         {{ t('graph.refresh') }}
       </el-button>
@@ -10,6 +12,12 @@
 
     <div class="graph-body">
       <el-card shadow="never" class="graph-card">
+        <div class="graph-toolbar">
+          <span class="graph-hint">{{ t('graph.interactionHint') }}</span>
+          <el-button v-if="!props.showHeader" size="small" :icon="Refresh" @click="loadGraph">
+            {{ t('graph.refresh') }}
+          </el-button>
+        </div>
         <div v-if="loading" class="graph-loading">
           <el-icon class="is-loading"><Loading /></el-icon>
           <span>{{ t('graph.loading') }}</span>
@@ -106,7 +114,7 @@ import type { GraphEdgeVO, GraphNodeVO } from '@/types/api'
 import FilePreview from './components/FilePreview.vue'
 
 /** 独立 /graph 页(含标题)与 /tree 页第二视图(仅图体)共用;嵌入时数据随挂载自动加载,切走即销毁重置 */
-withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
+const props = withDefaults(defineProps<{ showHeader?: boolean }>(), { showHeader: true })
 
 echarts.use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer])
 
@@ -122,6 +130,7 @@ const selected = ref<GraphNodeVO | null>(null)
 const chartRef = ref<HTMLDivElement>()
 let chart: EChartsType | null = null
 let resizeHandler: (() => void) | null = null
+let resizeObserver: ResizeObserver | null = null
 
 /** 按条目配色(Obsidian 文件夹分色):8 色循环 */
 const PALETTE = [
@@ -194,6 +203,8 @@ function renderChart() {
     chart = echarts.init(chartRef.value)
     resizeHandler = () => chart?.resize()
     window.addEventListener('resize', resizeHandler)
+    resizeObserver = new ResizeObserver(() => chart?.resize())
+    resizeObserver.observe(chartRef.value)
     chart.on('click', (params) => {
       // ECElementEvent.data 实际载荷是 setOption 时的节点对象(含我们附加的 node 字段)
       const node = (params as unknown as { data?: { node?: GraphNodeVO } }).data?.node
@@ -239,6 +250,7 @@ function renderChart() {
   }))
 
   chart.setOption({
+    animation: false,
     tooltip: {
       formatter: (p: { data?: { node?: GraphNodeVO } }) =>
         p.data?.node ? `${p.data.node.name}` : '',
@@ -275,6 +287,7 @@ function renderChart() {
 onMounted(loadGraph)
 onBeforeUnmount(() => {
   if (resizeHandler) window.removeEventListener('resize', resizeHandler)
+  resizeObserver?.disconnect()
   chart?.dispose()
   chart = null
 })
@@ -284,49 +297,82 @@ onBeforeUnmount(() => {
 @use '@/styles/tokens.scss' as *;
 
 .graph-page {
-  max-width: 1100px;
+  width: 100%;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
 .graph-header {
   display: flex;
-  align-items: baseline;
-  gap: $space-3;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: $space-4;
   margin-bottom: $space-4;
+
+  .graph-heading {
+    min-width: 0;
+  }
 
   .graph-title {
     margin: 0;
     font-size: $font-size-lg;
+    line-height: 1.35;
   }
 
   .graph-sub {
+    display: block;
+    margin-top: $space-1;
     color: $color-text-secondary;
     font-size: $font-size-sm;
+    line-height: 1.5;
   }
 
   .refresh-btn {
-    margin-left: auto;
+    flex-shrink: 0;
   }
 }
 
 .graph-body {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
   gap: $space-4;
   align-items: stretch;
 }
 
 .graph-card {
-  flex: 1;
   min-width: 0;
+  overflow: hidden;
 
   :deep(.el-card__body) {
-    padding: $space-2;
+    padding: 0;
+  }
+}
+
+.graph-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $space-3;
+  min-height: 44px;
+  padding: $space-2 $space-3;
+  border-bottom: 1px solid $color-border;
+  background: $color-bg-card;
+
+  .graph-hint {
+    min-width: 0;
+    overflow: hidden;
+    color: $color-text-secondary;
+    font-size: $font-size-xs;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 .chart-container {
   width: 100%;
-  height: 560px;
+  min-width: 0;
+  height: clamp(400px, 62vh, 620px);
 }
 
 .graph-loading,
@@ -335,13 +381,15 @@ onBeforeUnmount(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 560px;
+  height: clamp(400px, 62vh, 620px);
   gap: $space-2;
   color: $color-text-secondary;
 }
 
 .side-card {
-  width: 260px;
+  width: auto;
+  min-width: 0;
+  height: fit-content;
   flex-shrink: 0;
 
   .side-header {
@@ -439,17 +487,50 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (max-width: 768px) {
-  .graph-body {
+@media (max-width: $bp-md) {
+  .graph-header {
     flex-direction: column;
+    gap: $space-3;
+
+    .refresh-btn {
+      align-self: flex-start;
+    }
+  }
+
+  .graph-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chart-container {
+    height: clamp(320px, 58vh, 480px);
+  }
+
+  .graph-loading,
+  .graph-empty {
+    height: clamp(320px, 58vh, 480px);
   }
 
   .side-card {
     width: 100%;
   }
+}
+
+@media (max-width: $bp-sm) {
+  .graph-toolbar {
+    align-items: flex-start;
+
+    .graph-hint {
+      white-space: normal;
+    }
+  }
 
   .chart-container {
-    height: 420px;
+    height: 340px;
+  }
+
+  .graph-loading,
+  .graph-empty {
+    height: 340px;
   }
 }
 </style>

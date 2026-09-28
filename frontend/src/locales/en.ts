@@ -8,9 +8,11 @@ export default {
     loadFailed: 'Failed to load, please retry',
     viewTree: 'Tree',
     viewGraph: 'Graph',
+    viewSwitch: 'Switch knowledge view',
   },
   graph: {
     subtitle: 'Knowledge graph: entry-file ownership + semantic similarity (Obsidian style). Drag, zoom, click nodes',
+    interactionHint: 'Drag nodes to explore, scroll to zoom, click a node for details',
     refresh: 'Refresh',
     loading: 'Building graph…',
     loadFailed: 'Failed to load graph, please retry',

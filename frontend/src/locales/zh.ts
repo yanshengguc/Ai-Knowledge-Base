@@ -8,9 +8,11 @@ export default {
     loadFailed: '加载失败,请重试',
     viewTree: '树形',
     viewGraph: '网图',
+    viewSwitch: '切换知识视图',
   },
   graph: {
     subtitle: '知识图谱:条目-文件归属网 + 文件语义关联(Obsidian 风格),拖拽/缩放/点节点看关联',
+    interactionHint: '拖拽节点查看关系,滚轮缩放,点击节点查看详情',
     refresh: '刷新',
     loading: '图谱构建中…',
     loadFailed: '图谱加载失败,请重试',

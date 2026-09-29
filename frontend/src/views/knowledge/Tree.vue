@@ -5,13 +5,9 @@
         <h2 class="tree-title">{{ t('nav.tree') }}</h2>
         <span class="tree-sub">{{ t('tree.subtitle') }}</span>
       </div>
-      <el-radio-group v-model="view" size="small" class="view-switch" :aria-label="t('tree.viewSwitch')">
-        <el-radio-button value="tree">{{ t('tree.viewTree') }}</el-radio-button>
-        <el-radio-button value="graph">{{ t('tree.viewGraph') }}</el-radio-button>
-      </el-radio-group>
     </div>
 
-    <el-card v-if="view === 'tree'" shadow="never" class="tree-card">
+    <el-card shadow="never" class="tree-card">
       <div class="tree-toolbar">
         <span class="tree-hint">{{ t('tree.expandHint') }}</span>
         <el-button size="small" :icon="Refresh" @click="refreshTree">
@@ -49,16 +45,12 @@
       </el-tree>
     </el-card>
 
-    <div v-else class="tree-graph-wrap">
-      <GraphPanel :show-header="false" />
-    </div>
-
     <FilePreview ref="previewRef" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -67,10 +59,6 @@ import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
 import FilePreview from './components/FilePreview.vue'
 
-// B-107: 网图第二视图按需加载(echarts 独立 chunk,进树页不背这份体积)
-const GraphPanel = defineAsyncComponent(() => import('./GraphPanel.vue'))
-
-const view = ref<'tree' | 'graph'>('tree')
 const treeKey = ref(0)
 
 interface TreeNode {
@@ -194,15 +182,6 @@ function onNodeClick(data: TreeNode) {
     font-size: $font-size-sm;
     line-height: 1.5;
   }
-
-  .view-switch {
-    flex-shrink: 0;
-  }
-}
-
-.tree-graph-wrap {
-  width: 100%;
-  min-width: 0;
 }
 
 .tree-card {
@@ -278,15 +257,6 @@ function onNodeClick(data: TreeNode) {
 }
 
 @media (max-width: $bp-md) {
-  .tree-header {
-    flex-direction: column;
-    gap: $space-3;
-
-    .view-switch {
-      align-self: flex-start;
-    }
-  }
-
   .tree-card .tree-toolbar {
     align-items: flex-start;
 

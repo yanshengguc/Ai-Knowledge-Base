@@ -27,7 +27,14 @@
         @node-click="onNodeClick"
       >
         <template #default="{ data }">
-          <span class="tree-node" :class="{ root: data.type === 'knowledge' }">
+          <span v-if="data.type === 'error'" class="tree-node error-node">
+            <el-icon class="node-icon"><WarningFilled /></el-icon>
+            <span class="node-label">{{ data.label }}</span>
+            <el-button link type="danger" size="small" @click.stop="refreshTree">
+              {{ t('common.retry') }}
+            </el-button>
+          </span>
+          <span v-else class="tree-node" :class="{ root: data.type === 'knowledge' }">
             <el-icon class="node-icon" :class="{ 'file-icon': data.type === 'file' }">
               <Collection v-if="data.type === 'knowledge'" />
               <Document v-else />
@@ -55,17 +62,19 @@ import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, Document, Refresh } from '@element-plus/icons-vue'
+import { Collection, Document, Refresh, WarningFilled } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
 import type { KnowledgeVO, FileVO } from '@/types/api'
 import FilePreview from './components/FilePreview.vue'
 
 const treeKey = ref(0)
+const rootNodes = ref<TreeNode[]>([])
+const rootLoaded = ref(false)
 
 interface TreeNode {
   key: string
   label: string
-  type: 'knowledge' | 'file'
+  type: 'knowledge' | 'file' | 'error'
   knowledgeId?: number
   fileId?: number
   status?: string
@@ -91,12 +100,15 @@ function queryKnowledgeId(): number | null {
   return Number.isInteger(id) && id > 0 ? id : null
 }
 
-async function focusKnowledgeNode(nodes: TreeNode[] = []) {
+async function focusKnowledgeNode(nodes: TreeNode[] = rootNodes.value) {
   const knowledgeId = queryKnowledgeId()
-  if (knowledgeId == null) return
+  if (knowledgeId == null || (!rootLoaded.value && nodes.length === 0)) return
 
   const target = nodes.find((node) => node.knowledgeId === knowledgeId)
-  if (!target) return
+  if (!target) {
+    ElMessage.warning(t('tree.knowledgeNotFound'))
+    return
+  }
 
   await nextTick()
   treeRef.value?.setCurrentKey(target.key, true)
@@ -125,6 +137,8 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
         type: 'knowledge' as const,
         knowledgeId: k.id,
       }))
+      rootNodes.value = nodes
+      rootLoaded.value = true
       resolve(nodes)
       void focusKnowledgeNode(nodes)
     } else if (n.data?.type === 'knowledge' && n.data.knowledgeId != null) {
@@ -145,13 +159,22 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
       resolve([])
     }
   } catch {
-    // 静默空节点会误导为"没有文件",必须显式反馈
+    const errorKey = n.level === 0
+      ? 'tree-load-error'
+      : `file-list-load-error-${n.data?.knowledgeId ?? 'unknown'}`
     ElMessage.error(t('tree.loadFailed'))
-    resolve([])
+    resolve([{
+      key: errorKey,
+      label: t('tree.nodeLoadFailed'),
+      type: 'error' as const,
+      isLeaf: true,
+    }])
   }
 }
 
 function refreshTree() {
+  rootNodes.value = []
+  rootLoaded.value = false
   treeKey.value += 1
 }
 
@@ -170,6 +193,10 @@ function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'inf
 
 /** 知识节点点击进详情;文件节点点击直接预览原文(B-112,9/21 PO:点击对应位置看原文) */
 function onNodeClick(data: TreeNode) {
+  if (data.type === 'error') {
+    refreshTree()
+    return
+  }
   if (data.fileId != null) {
     previewRef.value?.open({ id: data.fileId, fileName: data.label })
     return
@@ -285,6 +312,14 @@ function onNodeClick(data: TreeNode) {
 
   &.root .node-label {
     font-weight: 600;
+  }
+
+  &.error-node {
+    color: $color-danger;
+
+    .node-icon {
+      color: $color-danger;
+    }
   }
 }
 

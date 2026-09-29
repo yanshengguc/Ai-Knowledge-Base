@@ -10,8 +10,10 @@ export default {
     viewGraph: 'Graph',
     viewSwitch: 'Switch knowledge view',
     refresh: 'Refresh tree',
-    expandHint: 'Expand an entry to see files; click a file to preview its content',
+    expandHint: 'Click an entry for details; expand it and click a file to preview content',
     empty: 'No knowledge entries yet. Create one in Knowledge first',
+    nodeLoadFailed: 'Load failed, click retry',
+    knowledgeNotFound: 'The requested knowledge entry was not found',
   },
   graph: {
     subtitle: 'Knowledge graph: entry-file ownership + semantic similarity (Obsidian style). Drag, zoom, click nodes',

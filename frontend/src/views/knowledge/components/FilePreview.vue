@@ -11,7 +11,7 @@
     </div>
     <div v-else-if="loadFailed" class="fp-state">
       <el-empty :description="t('filePreview.loadFailed')">
-        <el-button type="primary" @click="load">{{ t('common.retry') }}</el-button>
+        <el-button type="primary" @click="retry">{{ t('common.retry') }}</el-button>
       </el-empty>
     </div>
     <div v-else-if="notSupported" class="fp-state">
@@ -41,6 +41,7 @@ const loading = ref(false)
 const loadFailed = ref(false)
 const notSupported = ref(false)
 const fileName = ref('')
+const activeFileId = ref<number | null>(null)
 const rawContent = ref('')
 
 const renderedHtml = computed(() =>
@@ -48,6 +49,7 @@ const renderedHtml = computed(() =>
 )
 
 function open(file: { id: number; fileName?: string }) {
+  activeFileId.value = file.id
   fileName.value = file.fileName || `#${file.id}`
   rawContent.value = ''
   notSupported.value = false
@@ -56,9 +58,20 @@ function open(file: { id: number; fileName?: string }) {
   load(file.id)
 }
 
+function retry() {
+  const id = activeFileId.value
+  if (id == null) {
+    loadFailed.value = true
+    return
+  }
+  void load(id)
+}
+
 async function load(id: number) {
+  activeFileId.value = id
   loading.value = true
   loadFailed.value = false
+  notSupported.value = false
   try {
     const res = await getFileContent(id)
     const vo = res.data
@@ -75,7 +88,7 @@ async function load(id: number) {
   }
 }
 
-defineExpose({ open })
+defineExpose({ open, retry })
 </script>
 
 <style scoped lang="scss">

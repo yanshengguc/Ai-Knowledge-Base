@@ -28,6 +28,7 @@ export default {
     category: '所属条目',
     relatedCount: '关联节点数',
     viewDetail: '查看详情',
+    openTree: '进入知识树',
     structureEdge: '归属关系',
     similarEdge: '语义相似',
   },

@@ -28,6 +28,7 @@ export default {
     category: 'Entry',
     relatedCount: 'Related nodes',
     viewDetail: 'View detail',
+    openTree: 'Open knowledge tree',
     structureEdge: 'Ownership',
     similarEdge: 'Semantic similarity',
   },

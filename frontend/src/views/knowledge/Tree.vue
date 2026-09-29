@@ -15,6 +15,7 @@
         </el-button>
       </div>
       <el-tree
+        ref="treeRef"
         :key="treeKey"
         :props="treeProps"
         :load="loadNode"
@@ -50,9 +51,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Collection, Document, Refresh } from '@element-plus/icons-vue'
 import { getKnowledgeList2, getFileList } from '@/api/modules/knowledge'
@@ -72,8 +73,39 @@ interface TreeNode {
 }
 
 const { t } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
+
+type TreeRef = {
+  setCurrentKey: (key: string, shouldAutoExpandParent?: boolean) => void
+  getNode: (key: string) => { expand: () => void } | undefined
+}
+
+const treeRef = ref<TreeRef | null>(null)
+
+function queryKnowledgeId(): number | null {
+  const raw = route.query.knowledgeId
+  const value = Array.isArray(raw) ? raw[0] : raw
+  const id = Number(value)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+async function focusKnowledgeNode(nodes: TreeNode[] = []) {
+  const knowledgeId = queryKnowledgeId()
+  if (knowledgeId == null) return
+
+  const target = nodes.find((node) => node.knowledgeId === knowledgeId)
+  if (!target) return
+
+  await nextTick()
+  treeRef.value?.setCurrentKey(target.key, true)
+  treeRef.value?.getNode(target.key)?.expand()
+}
+
+watch(() => route.query.knowledgeId, () => {
+  void focusKnowledgeNode()
+})
 
 const treeProps = {
   label: 'label',
@@ -87,14 +119,14 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
     if (n.level === 0) {
       const res = await getKnowledgeList2()
       const list = (res.data || []) as KnowledgeVO[]
-      resolve(
-        list.map((k) => ({
-          key: `k-${k.id}`,
-          label: k.title,
-          type: 'knowledge' as const,
-          knowledgeId: k.id,
-        })),
-      )
+      const nodes = list.map((k) => ({
+        key: `k-${k.id}`,
+        label: k.title,
+        type: 'knowledge' as const,
+        knowledgeId: k.id,
+      }))
+      resolve(nodes)
+      void focusKnowledgeNode(nodes)
     } else if (n.data?.type === 'knowledge' && n.data.knowledgeId != null) {
       const res = await getFileList(n.data.knowledgeId)
       const files = (res.data || []) as FileVO[]

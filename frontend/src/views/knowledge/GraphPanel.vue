@@ -64,7 +64,7 @@
           </div>
           <div class="side-actions">
             <el-button type="primary" size="small" @click="goDetail">
-              {{ t('graph.viewDetail') }}
+              {{ selected.type === 'knowledge' ? t('graph.openTree') : t('graph.viewDetail') }}
             </el-button>
             <el-button
               v-if="selected.type === 'file'"
@@ -165,9 +165,15 @@ function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'inf
 }
 
 function goDetail() {
-  if (selected.value) {
-    router.push(`/knowledge/${selected.value.group}`)
+  const node = selected.value
+  if (!node) return
+
+  if (node.type === 'knowledge') {
+    router.push({ path: '/tree', query: { knowledgeId: String(node.group) } })
+    return
   }
+
+  router.push(`/knowledge/${node.group}`)
 }
 
 /** B-112: 文件节点侧栏"查看原文"——节点 id 形如 "f-65",解析出数字文件 id */

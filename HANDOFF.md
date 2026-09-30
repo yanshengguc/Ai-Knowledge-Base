@@ -112,6 +112,8 @@ python scripts\security_attack.py
 
 进入 outline API、表结构或索引路由前，必须对 SUCCESS Markdown 文件使用生产实际 `MarkdownParser` 与当前 `StructureAwareSplitter` 配置重跑，并只读比较库内 `knowledge_chunk`：按 `chunk_index` 逐条校验数量、顺序、正文和 `content_length`；同时校验标题 level/path、Java UTF-16 source offsets、代码围栏与 LF/CRLF/CR 边界。验证前后不得写库、改状态、重建切片或调用向量写入；任一不一致立即阻断后续接入并记录原因。
 
+**2026-09-30 只读语义探针结果：阻断。** 对含代码围栏的 Markdown（```` ```md\n# 代码标题\n```\n# 真标题\n\n正文。 ````）使用已编译的生产类比较：`StructureAwareSplitter` 产出 3 个 chunk，并把代码围栏拆开；`MarkdownOutlineParser` 只识别 1 个真实标题。说明两者当前语义不一致，不能直接按标题回填现有 Chunk，也不能进入 outline API/表结构/索引路由。下一步应单独评估旧 splitter 的兼容修复与检索回归，不能在 B-114 中悄悄改变旧 Chunk。
+
 - 全量历史基线: **180 项**；默认 Maven 回归排除 `integration,e2e`，真实集成/E2E 会调用 Redis、DashVector、LLM/Embedding，可能产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4。
 - **2026-09-15 默认回归已通过**: 清理旧 `target` 产物后执行 `-DexcludedGroups=integration,e2e test`，结果 `Tests run: 152, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。本次提交为 `70e1408`，未部署。
 - **2026-09-15 后端 `70e1408` 已部署线上**（jar SHA256 双端一致 `8a59eb15…7d85`，verify_deploy 3/3 PASS，回滚点 `/opt/aikb/app.jar.bak-20260915-backend`）。

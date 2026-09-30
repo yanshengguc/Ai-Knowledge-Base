@@ -71,6 +71,18 @@ class MarkdownOutlineParserTest {
     }
 
     @Test
+    void 支持单独回车换行() {
+        String markdown = "# 第一章\r## 第二章\r正文";
+
+        List<MarkdownOutlineParser.MarkdownOutlineNode> nodes = parser.parse(markdown);
+
+        assertEquals(2, nodes.size());
+        assertEquals(List.of("第一章", "第二章"), nodes.get(1).headingPath());
+        assertEquals("## 第二章", markdown.substring(
+                nodes.get(1).sourceStartOffset(), nodes.get(1).sourceEndOffset()));
+    }
+
+    @Test
     void 空文本或无标题文本返回空列表() {
         assertTrue(parser.parse(null).isEmpty());
         assertTrue(parser.parse("普通正文\n没有标题").isEmpty());

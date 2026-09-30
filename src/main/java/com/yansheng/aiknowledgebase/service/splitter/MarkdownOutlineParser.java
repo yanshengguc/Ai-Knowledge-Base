@@ -32,12 +32,9 @@ public class MarkdownOutlineParser {
         String fenceMarker = null;
         int lineStart = 0;
         while (lineStart <= markdown.length()) {
-            int lineBreak = markdown.indexOf('\n', lineStart);
+            int lineBreak = findLineBreak(markdown, lineStart);
             int lineEnd = lineBreak >= 0 ? lineBreak : markdown.length();
             String line = markdown.substring(lineStart, lineEnd);
-            if (line.endsWith("\r")) {
-                line = line.substring(0, line.length() - 1);
-            }
 
             Matcher fenceMatcher = FENCE.matcher(line);
             if (fenceMatcher.matches() && isUniformFence(fenceMatcher.group(1))) {
@@ -81,8 +78,21 @@ public class MarkdownOutlineParser {
                 break;
             }
             lineStart = lineBreak + 1;
+            if (markdown.charAt(lineBreak) == '\r'
+                    && lineStart < markdown.length()
+                    && markdown.charAt(lineStart) == '\n') {
+                lineStart++;
+            }
         }
         return result;
+    }
+
+    private int findLineBreak(String markdown, int start) {
+        int lf = markdown.indexOf('\n', start);
+        int cr = markdown.indexOf('\r', start);
+        if (lf < 0) return cr;
+        if (cr < 0) return lf;
+        return Math.min(lf, cr);
     }
 
     private boolean isUniformFence(String marker) {

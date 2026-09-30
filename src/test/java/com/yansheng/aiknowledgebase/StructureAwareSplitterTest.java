@@ -74,6 +74,17 @@ class StructureAwareSplitterTest {
     }
 
     @Test
+    void 单独回车换行仍能识别标题分节() {
+        String text = "# 第一章\r正文\r# 第二章\r内容";
+
+        List<String> chunks = new StructureAwareSplitter(500, 100).split(text);
+
+        assertEquals(2, chunks.size());
+        assertEquals("# 第一章\n正文", chunks.get(0));
+        assertEquals("# 第二章\n内容", chunks.get(1));
+    }
+
+    @Test
     void 段落打包_装满即切_不超上限() {
         // 三个段落各 ~300 字符,chunkSize=500 → 应切成多块,每块 ≤ 500
         String p1 = CJK_SENTENCE.repeat(30);   // 330

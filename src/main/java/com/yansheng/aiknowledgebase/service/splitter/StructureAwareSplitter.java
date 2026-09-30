@@ -63,7 +63,7 @@ public class StructureAwareSplitter implements DocumentSplitter {
         List<Section> sections = new ArrayList<>();
         Section current = new Section(null);
         String fenceMarker = null;
-        for (String line : text.split("\n", -1)) {
+        for (String line : splitLines(text)) {
             Matcher fenceMatcher = FENCE.matcher(line);
             if (fenceMatcher.matches() && isUniformFence(fenceMatcher.group(1))) {
                 String marker = fenceMatcher.group(1);
@@ -89,6 +89,10 @@ public class StructureAwareSplitter implements DocumentSplitter {
             sections.add(current);
         }
         return sections;
+    }
+
+    private List<String> splitLines(String text) {
+        return List.of(text.split("\\r\\n|\\n|\\r", -1));
     }
 
     private boolean isUniformFence(String marker) {

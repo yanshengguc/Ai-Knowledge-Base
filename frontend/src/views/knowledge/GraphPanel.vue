@@ -5,7 +5,7 @@
         <h2 class="graph-title">{{ t('nav.graph') }}</h2>
         <span class="graph-sub">{{ t('graph.subtitle') }}</span>
       </div>
-      <el-button class="refresh-btn" size="small" :icon="Refresh" @click="loadGraph">
+          <el-button class="refresh-btn" size="small" :icon="Refresh" :disabled="loading" @click="loadGraph">
         {{ t('graph.refresh') }}
       </el-button>
     </div>
@@ -14,7 +14,7 @@
       <el-card shadow="never" class="graph-card">
         <div class="graph-toolbar">
           <span class="graph-hint">{{ t('graph.interactionHint') }}</span>
-          <el-button v-if="!props.showHeader" size="small" :icon="Refresh" @click="loadGraph">
+          <el-button v-if="!props.showHeader" size="small" :icon="Refresh" :disabled="loading" @click="loadGraph">
             {{ t('graph.refresh') }}
           </el-button>
         </div>
@@ -126,6 +126,7 @@ const loadFailed = ref(false)
 const nodes = ref<GraphNodeVO[]>([])
 const edges = ref<GraphEdgeVO[]>([])
 const selected = ref<GraphNodeVO | null>(null)
+const requestSeq = ref(0)
 
 const chartRef = ref<HTMLDivElement>()
 let chart: EChartsType | null = null
@@ -191,21 +192,30 @@ function openOriginal() {
 }
 
 async function loadGraph() {
+  const requestId = ++requestSeq.value
   loading.value = true
   loadFailed.value = false
   try {
     const res = await getKnowledgeGraph()
+    if (requestId !== requestSeq.value) return
+
     const vo = res.data
     nodes.value = vo?.nodes ?? []
     edges.value = vo?.edges ?? []
     selected.value = null
     await nextTick()
-    renderChart()
+    if (requestId === requestSeq.value) {
+      renderChart()
+    }
   } catch {
+    if (requestId !== requestSeq.value) return
+
     loadFailed.value = true
     ElMessage.error(t('graph.loadFailed'))
   } finally {
-    loading.value = false
+    if (requestId === requestSeq.value) {
+      loading.value = false
+    }
   }
 }
 

@@ -42,6 +42,7 @@ const loadFailed = ref(false)
 const notSupported = ref(false)
 const fileName = ref('')
 const activeFileId = ref<number | null>(null)
+const requestSeq = ref(0)
 const rawContent = ref('')
 
 const renderedHtml = computed(() =>
@@ -68,12 +69,15 @@ function retry() {
 }
 
 async function load(id: number) {
+  const requestId = ++requestSeq.value
   activeFileId.value = id
   loading.value = true
   loadFailed.value = false
   notSupported.value = false
   try {
     const res = await getFileContent(id)
+    if (requestId !== requestSeq.value) return
+
     const vo = res.data
     if (vo?.content == null) {
       notSupported.value = true
@@ -81,10 +85,14 @@ async function load(id: number) {
       rawContent.value = vo.content
     }
   } catch {
+    if (requestId !== requestSeq.value) return
+
     loadFailed.value = true
     ElMessage.error(t('filePreview.loadFailed'))
   } finally {
-    loading.value = false
+    if (requestId === requestSeq.value) {
+      loading.value = false
+    }
   }
 }
 

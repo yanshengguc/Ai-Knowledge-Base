@@ -14,6 +14,7 @@
 > 更新: 2026-09-30 | **OCP 扩展点探针完成（未部署）**：新增纯内存 `MarkdownOutlineParser` 和 `MarkdownOutlineParserTest`，输出标题 level/title/headingPath/source offsets；忽略代码围栏伪标题，支持闭合标题标记、CRLF 和无标题文本。未修改旧 `DocumentSplitter.split()`、数据库、索引链路、REST 或前端；专项测试 4/4、后端全量回归 172/172、diff check 通过。提交 `d951b8e`；后续可基于该探针设计 B-114 outline API。
 > 更新: 2026-09-30 | **Markdown 围栏解析修复完成（未部署）**：收紧 `MarkdownOutlineParser` 围栏规则，闭围栏后带语言标记、混合围栏标记不再提前结束代码块；专项测试 `6/6`，后端全量回归 `174/174`，diff check 通过。提交 `c2f7023`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。
 > 更新: 2026-09-30 | **Markdown 换行兼容修复完成（未部署）**：`MarkdownOutlineParser` 现在支持 LF、CRLF 和单独 CR 换行，保留 Java UTF-16 偏移语义；新增 1 个专项测试，专项 `7/7`，默认 Maven 回归 `175/175`（排除 integration/e2e），diff check 通过。提交 `7c82402`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。integration/e2e 未因本探针重新执行；探针已提交本地 main，尚未 push 到 origin，也未部署线上。
+> 更新: 2026-09-30 | **StructureAwareSplitter 围栏兼容修复完成（未部署）**：在不改变 `DocumentSplitter` 接口、普通标题/段落/句子/硬切规则的前提下，新增与 OutlineParser 对齐的 fenced code 状态；代码围栏内伪标题不再开启章节，支持反引号/波浪号、未闭合围栏、非法闭合后缀和混合标记边界。切片专项 `10/10`，默认 Maven 回归 `178/178`（排除 integration/e2e），diff check 通过；回滚标签 `pre-structure-splitter-fence-fix-20260930`；代码提交待生成，未接入 B-114、未部署。
 
 ## 0. 当前演进原则（持续维护）
 

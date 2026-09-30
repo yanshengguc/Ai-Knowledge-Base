@@ -25,6 +25,7 @@ import java.util.regex.Pattern;
 public class StructureAwareSplitter implements DocumentSplitter {
 
     private static final Pattern HEADING = Pattern.compile("^#{1,6}\\s.*");
+    private static final Pattern FENCE = Pattern.compile("^ {0,3}([`~]{3,})(.*)$");
     /** 句界:中文终止符直接切;英文句点要求后跟空白,避免 3.14 / e.g. 被误切 */
     private static final Pattern SENTENCE_END = Pattern.compile("[。！？!?；;]|\\.(?=\\s|$)");
 
@@ -61,8 +62,21 @@ public class StructureAwareSplitter implements DocumentSplitter {
     private List<Section> splitSections(String text) {
         List<Section> sections = new ArrayList<>();
         Section current = new Section(null);
+        String fenceMarker = null;
         for (String line : text.split("\n", -1)) {
-            if (HEADING.matcher(line).matches()) {
+            Matcher fenceMatcher = FENCE.matcher(line);
+            if (fenceMatcher.matches() && isUniformFence(fenceMatcher.group(1))) {
+                String marker = fenceMatcher.group(1);
+                String suffix = fenceMatcher.group(2);
+                if (fenceMarker == null) {
+                    fenceMarker = marker;
+                } else if (marker.charAt(0) == fenceMarker.charAt(0)
+                        && marker.length() >= fenceMarker.length()
+                        && suffix.isBlank()) {
+                    fenceMarker = null;
+                }
+                current.body.add(line);
+            } else if (fenceMarker == null && HEADING.matcher(line).matches()) {
                 if (!current.body.isEmpty()) {
                     sections.add(current);
                 }
@@ -75,6 +89,16 @@ public class StructureAwareSplitter implements DocumentSplitter {
             sections.add(current);
         }
         return sections;
+    }
+
+    private boolean isUniformFence(String marker) {
+        char first = marker.charAt(0);
+        for (int i = 1; i < marker.length(); i++) {
+            if (marker.charAt(i) != first) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 一节内:段落打包 → 超长段落句子级拆 → 超长句子硬切;每个 chunk 前置标题上下文 */

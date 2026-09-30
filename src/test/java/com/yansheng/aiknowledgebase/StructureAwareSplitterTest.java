@@ -38,6 +38,42 @@ class StructureAwareSplitterTest {
     }
 
     @Test
+    void 代码围栏内的伪标题不应开启新章节() {
+        String text = "```md\n# 代码标题\n```\n# 真标题\n正文";
+
+        List<String> chunks = new StructureAwareSplitter(500, 100).split(text);
+
+        assertEquals(2, chunks.size());
+        assertEquals("```md\n# 代码标题\n```", chunks.get(0));
+        assertEquals("# 真标题\n正文", chunks.get(1));
+    }
+
+    @Test
+    void 波浪号围栏和未闭合围栏都保护伪标题() {
+        String text = "~~~md\n# 伪标题一\n~~~\n# 真标题\n\n```md\n# 伪标题二";
+
+        List<String> chunks = new StructureAwareSplitter(500, 100).split(text);
+
+        assertEquals(2, chunks.size());
+        assertTrue(chunks.get(0).contains("# 伪标题一"));
+        assertTrue(chunks.get(1).contains("# 伪标题二"));
+        assertTrue(chunks.get(1).startsWith("# 真标题"));
+    }
+
+    @Test
+    void 带语言标记或混合标记不能提前闭合围栏() {
+        String text = "```md\n# 伪标题一\n```javascript\n# 伪标题二\n``~`\n# 伪标题三\n```\n# 真标题\n正文";
+
+        List<String> chunks = new StructureAwareSplitter(500, 100).split(text);
+
+        assertEquals(2, chunks.size());
+        assertTrue(chunks.get(0).contains("# 伪标题一"));
+        assertTrue(chunks.get(0).contains("# 伪标题二"));
+        assertTrue(chunks.get(0).contains("# 伪标题三"));
+        assertEquals("# 真标题\n正文", chunks.get(1));
+    }
+
+    @Test
     void 段落打包_装满即切_不超上限() {
         // 三个段落各 ~300 字符,chunkSize=500 → 应切成多块,每块 ≤ 500
         String p1 = CJK_SENTENCE.repeat(30);   // 330

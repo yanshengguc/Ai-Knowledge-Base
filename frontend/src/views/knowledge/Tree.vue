@@ -30,7 +30,7 @@
           <span v-if="data.type === 'error'" class="tree-node error-node">
             <el-icon class="node-icon"><WarningFilled /></el-icon>
             <span class="node-label">{{ data.label }}</span>
-            <el-button link type="danger" size="small" @click.stop="refreshTree">
+            <el-button link type="danger" size="small" @click.stop="retryNode(data)">
               {{ t('common.retry') }}
             </el-button>
           </span>
@@ -79,6 +79,7 @@ interface TreeNode {
   fileId?: number
   status?: string
   isLeaf?: boolean
+  retryKnowledgeId?: number
 }
 
 const { t } = useI18n()
@@ -86,9 +87,15 @@ const route = useRoute()
 const router = useRouter()
 const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
 
+type TreeNodeRef = {
+  loaded?: boolean
+  loadData: (callback?: () => void) => void
+  expand: () => void
+}
+
 type TreeRef = {
   setCurrentKey: (key: string, shouldAutoExpandParent?: boolean) => void
-  getNode: (key: string) => { expand: () => void } | undefined
+  getNode: (key: string) => TreeNodeRef | undefined
 }
 
 const treeRef = ref<TreeRef | null>(null)
@@ -167,6 +174,7 @@ async function loadNode(node: unknown, resolve: (data: TreeNode[]) => void) {
       key: errorKey,
       label: t('tree.nodeLoadFailed'),
       type: 'error' as const,
+      retryKnowledgeId: n.data?.knowledgeId,
       isLeaf: true,
     }])
   }
@@ -176,6 +184,22 @@ function refreshTree() {
   rootNodes.value = []
   rootLoaded.value = false
   treeKey.value += 1
+}
+
+function retryNode(data: TreeNode) {
+  if (data.retryKnowledgeId == null) {
+    refreshTree()
+    return
+  }
+
+  const parent = treeRef.value?.getNode(`k-${data.retryKnowledgeId}`)
+  if (!parent) {
+    refreshTree()
+    return
+  }
+
+  parent.loaded = false
+  parent.loadData(() => parent.expand())
 }
 
 function statusLabel(status?: string): string {
@@ -194,7 +218,7 @@ function statusTagType(status?: string): 'success' | 'warning' | 'danger' | 'inf
 /** 知识节点点击进详情;文件节点点击直接预览原文(B-112,9/21 PO:点击对应位置看原文) */
 function onNodeClick(data: TreeNode) {
   if (data.type === 'error') {
-    refreshTree()
+    retryNode(data)
     return
   }
   if (data.fileId != null) {

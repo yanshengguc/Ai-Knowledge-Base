@@ -13,7 +13,7 @@
 > 更新: 2026-09-30 | **树分支局部失败重试已完成（未部署）**：文件列表加载失败节点携带对应 `knowledgeId`，点击重试只重置并重新加载该知识节点，其他已展开分支不再被整树刷新折叠；根节点失败继续使用整树刷新兜底。提交 `16af5c1`；前端 build 2274 modules 通过；后端离线全量回归 `168/168` 通过；diff check 通过；未改后端/API/数据库，未部署。图谱重复加载和大 Markdown 渲染暂缓。
 > 更新: 2026-09-30 | **OCP 扩展点探针完成（未部署）**：新增纯内存 `MarkdownOutlineParser` 和 `MarkdownOutlineParserTest`，输出标题 level/title/headingPath/source offsets；忽略代码围栏伪标题，支持闭合标题标记、CRLF 和无标题文本。未修改旧 `DocumentSplitter.split()`、数据库、索引链路、REST 或前端；专项测试 4/4、后端全量回归 172/172、diff check 通过。提交 `d951b8e`；后续可基于该探针设计 B-114 outline API。
 > 更新: 2026-09-30 | **Markdown 围栏解析修复完成（未部署）**：收紧 `MarkdownOutlineParser` 围栏规则，闭围栏后带语言标记、混合围栏标记不再提前结束代码块；专项测试 `6/6`，后端全量回归 `174/174`，diff check 通过。提交 `c2f7023`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。
-> 更新: 2026-09-30 | **Markdown 换行兼容修复完成（未部署）**：`MarkdownOutlineParser` 现在支持 LF、CRLF 和单独 CR 换行，保留 Java UTF-16 偏移语义；新增 1 个专项测试，专项 `7/7`，后端全量回归 `175/175`，diff check 通过。提交 `7c82402`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。
+> 更新: 2026-09-30 | **Markdown 换行兼容修复完成（未部署）**：`MarkdownOutlineParser` 现在支持 LF、CRLF 和单独 CR 换行，保留 Java UTF-16 偏移语义；新增 1 个专项测试，专项 `7/7`，默认 Maven 回归 `175/175`（排除 integration/e2e），diff check 通过。提交 `7c82402`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。integration/e2e 未因本探针重新执行；探针已提交本地 main，尚未 push 到 origin，也未部署线上。
 
 ## 0. 当前演进原则（持续维护）
 
@@ -34,6 +34,7 @@
 
 个人 AI 知识库（RAG + Agent），前后端同仓库：
 - 仓库: `C:\Users\yansheng\IdeaProjects\Ai-Knowledge-Base`
+- 代码状态: B-114 探针已提交本地 `main`，工作区 clean，当前未 push 到 `origin/main`，未部署线上
 - 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DashScope LLM(qwen 系列, V4-Flash)
 - 前端: Vue 3 + TypeScript + Vite + Element Plus（`frontend/` 目录，v-html 渲染 markdown 已套 DOMPurify）
 - 访问: http://<SERVER_IP> （Nginx 静态 + 反代 /api → 127.0.0.1:8080）
@@ -106,6 +107,10 @@ python scripts\security_attack.py
 - （原"登录报错区分用户不存在/密码错误"遗留项已由 ab02ec1 修复:统一返回"用户名或密码错误",生产实测生效,2026-09-05 复核后移出遗留清单）
 
 ## 5. 测试体系
+
+### B-114 只读回填一致性门槛
+
+进入 outline API、表结构或索引路由前，必须对 SUCCESS Markdown 文件使用生产实际 `MarkdownParser` 与当前 `StructureAwareSplitter` 配置重跑，并只读比较库内 `knowledge_chunk`：按 `chunk_index` 逐条校验数量、顺序、正文和 `content_length`；同时校验标题 level/path、Java UTF-16 source offsets、代码围栏与 LF/CRLF/CR 边界。验证前后不得写库、改状态、重建切片或调用向量写入；任一不一致立即阻断后续接入并记录原因。
 
 - 全量历史基线: **180 项**；默认 Maven 回归排除 `integration,e2e`，真实集成/E2E 会调用 Redis、DashVector、LLM/Embedding，可能产生少量费用。180 = 9/1 基线 155 + 时间线摘要 12 + 重排分数淘汰 7 + 兜底排序 2 个新用例及 1 个用例修正 + file_search 隔离 4。
 - **2026-09-15 默认回归已通过**: 清理旧 `target` 产物后执行 `-DexcludedGroups=integration,e2e test`，结果 `Tests run: 152, Failures: 0, Errors: 0, Skipped: 0`，`BUILD SUCCESS`。本次提交为 `70e1408`，未部署。

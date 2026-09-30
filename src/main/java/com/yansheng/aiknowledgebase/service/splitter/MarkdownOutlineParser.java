@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
  */
 public class MarkdownOutlineParser {
 
-    private static final Pattern FENCE = Pattern.compile("^ {0,3}([`~]{3,}).*$");
+    private static final Pattern FENCE = Pattern.compile("^ {0,3}([`~]{3,})(.*)$");
     private static final Pattern HEADING = Pattern.compile("^ {0,3}(#{1,6})[ \\t]+(.+?)\\s*$");
 
     /**
@@ -40,12 +40,14 @@ public class MarkdownOutlineParser {
             }
 
             Matcher fenceMatcher = FENCE.matcher(line);
-            if (fenceMatcher.matches()) {
+            if (fenceMatcher.matches() && isUniformFence(fenceMatcher.group(1))) {
                 String marker = fenceMatcher.group(1);
+                String suffix = fenceMatcher.group(2);
                 if (fenceMarker == null) {
                     fenceMarker = marker;
                 } else if (marker.charAt(0) == fenceMarker.charAt(0)
-                        && marker.length() >= fenceMarker.length()) {
+                        && marker.length() >= fenceMarker.length()
+                        && suffix.isBlank()) {
                     fenceMarker = null;
                 }
             } else if (fenceMarker == null) {
@@ -81,6 +83,16 @@ public class MarkdownOutlineParser {
             lineStart = lineBreak + 1;
         }
         return result;
+    }
+
+    private boolean isUniformFence(String marker) {
+        char first = marker.charAt(0);
+        for (int i = 1; i < marker.length(); i++) {
+            if (marker.charAt(i) != first) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private String stripClosingHashes(String rawTitle) {

@@ -37,6 +37,26 @@ class MarkdownOutlineParserTest {
     }
 
     @Test
+    void 闭围栏后带语言标记不能提前结束代码块() {
+        String markdown = "```md\n# 代码标题\n```javascript\n# 仍是代码\n```\n# 真标题";
+
+        List<MarkdownOutlineParser.MarkdownOutlineNode> nodes = parser.parse(markdown);
+
+        assertEquals(1, nodes.size());
+        assertEquals("真标题", nodes.get(0).title());
+    }
+
+    @Test
+    void 混合围栏标记不应改变代码块状态() {
+        String markdown = "```md\n# 代码标题\n``~`\n# 仍是代码\n```\n# 真标题";
+
+        List<MarkdownOutlineParser.MarkdownOutlineNode> nodes = parser.parse(markdown);
+
+        assertEquals(1, nodes.size());
+        assertEquals("真标题", nodes.get(0).title());
+    }
+
+    @Test
     void 偏移量可以切回标题源码且兼容换行符() {
         String markdown = "前言\r\n# 第一章\r\n正文\n## 第二章\n";
 

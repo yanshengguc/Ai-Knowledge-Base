@@ -16,6 +16,7 @@
 > 更新: 2026-09-30 | **Markdown 换行兼容修复完成（未部署）**：`MarkdownOutlineParser` 现在支持 LF、CRLF 和单独 CR 换行，保留 Java UTF-16 偏移语义；新增 1 个专项测试，专项 `7/7`，默认 Maven 回归 `175/175`（排除 integration/e2e），diff check 通过。提交 `7c82402`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。integration/e2e 未因本探针重新执行；探针已提交本地 main，尚未 push 到 origin，也未部署线上。
 > 更新: 2026-09-30 | **StructureAwareSplitter 围栏兼容修复完成（未部署）**：在不改变 `DocumentSplitter` 接口、普通标题/段落/句子/硬切规则的前提下，新增与 OutlineParser 对齐的 fenced code 状态；代码围栏内伪标题不再开启章节，支持反引号/波浪号、未闭合围栏、非法闭合后缀和混合标记边界。切片专项 `10/10`，默认 Maven 回归 `178/178`（排除 integration/e2e），diff check 通过；回滚标签 `pre-structure-splitter-fence-fix-20260930`；代码提交 `933c31f`，未接入 B-114、未部署。
 > 更新: 2026-09-30 | **回填一致性二次探针仍阻断**：代码围栏/波浪号/CR 样例已与 OutlineParser 对齐；但多级标题样例 `# 架构\n\n## 接入层...` 显示旧 `StructureAwareSplitter` 产出 2 个 chunk、OutlineParser 产出 3 个标题，且无正文的父标题没有进入后续 chunk 上下文。当前只能做内存探针，不能宣称与真实库内 `knowledge_chunk` 一致；本地无 mysql CLI/pymysql，未访问数据库/OSS。下一步需先定义“无正文父标题是否进入 Chunk 上下文”的兼容语义，再单独修复并回归，仍不接入 B-114。
+> 更新: 2026-09-30 | **耦合度评估完成，暂不新增代码**：实际已降低的耦合包括 DocumentService 对 Parser/Splitter/Indexing 抽象的依赖、OutlineParser 独立探针、Tree/Graph 页面拆分和请求竞态隔离；仍存在的热点是 FileServiceImpl 协作者过多、Splitter/OutlineParser 标题规则重复、Graph 节点 ID/路由协议泄漏。当前最小高价值下一步是先完成真实语料只读对齐；在真实数据通道具备前，不为拆 Service 或统一解析器而重构。
 > 更新: 2026-09-30 | **B-114 父标题语义已定：采用 B 方案**：保持现有 Chunk 正文、数量、顺序、chunkIndex、BM25/向量语义不变；所有合法标题可作为 Outline 导航节点；无正文父标题不制造空 Chunk，`source_chunks` 只关联真实正文 Chunk，并可聚合后代 Chunk。禁止把父路径直接拼进旧 Chunk，禁止按标题文本单独匹配，禁止在旧 topK 后再做节点过滤；后续先做只读真实语料对齐，再设计独立 outline API/关联模型。
 
 ## 0. 当前演进原则（持续维护）

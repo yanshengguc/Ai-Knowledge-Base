@@ -43,7 +43,7 @@ class ChatDailyQuotaDisabledTest {
         uid = System.currentTimeMillis();
         jdbcTemplate.update(
                 "insert into token_usage (user_id, model, type, prompt_tokens, completion_tokens, total_tokens, cost_cny) "
-                        + "values (?, 'deepseek-v4-flash', 'chat', 0, 0, 99999, 0)",
+                        + "values (?, 'deepseek-flash', 'chat', 0, 0, 99999, 0)",
                 uid);
         assertDoesNotThrow(() -> chatQuotaService.check(uid, "normal-user"), "开关关闭时超限也应放行");
     }

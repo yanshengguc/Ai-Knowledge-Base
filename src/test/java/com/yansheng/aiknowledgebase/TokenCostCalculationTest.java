@@ -21,7 +21,7 @@ class TokenCostCalculationTest {
         TokenCostProperties.ModelPrice chat = new TokenCostProperties.ModelPrice();
         chat.setInputPerM(1.5);
         chat.setOutputPerM(4.5);
-        p.getModels().put("deepseek-v4-flash", chat);
+        p.getModels().put("deepseek-flash", chat);
         TokenCostProperties.ModelPrice embed = new TokenCostProperties.ModelPrice();
         embed.setInputPerM(0.5);
         embed.setOutputPerM(0.0);
@@ -35,14 +35,14 @@ class TokenCostCalculationTest {
     void oneMillionEachTokenCostsExactlySixYuan() {
         // 1M in * 1.5 + 1M out * 4.5 = 1.5 + 4.5 = 6.000000
         assertEquals(new BigDecimal("6.000000"),
-                props().estimate("deepseek-v4-flash", 1_000_000L, 1_000_000L));
+                props().estimate("deepseek-flash", 1_000_000L, 1_000_000L));
     }
 
     @Test
     void fractionalUsageComputedExactly() {
         // 500K*1.5/1M + 200K*4.5/1M = 0.75 + 0.90 = 1.650000
         assertEquals(new BigDecimal("1.650000"),
-                props().estimate("deepseek-v4-flash", 500_000L, 200_000L));
+                props().estimate("deepseek-flash", 500_000L, 200_000L));
     }
 
     @Test
@@ -56,26 +56,26 @@ class TokenCostCalculationTest {
     @Test
     void zeroTokensCostZero() {
         assertEquals(new BigDecimal("0.000000"),
-                props().estimate("deepseek-v4-flash", 0L, 0L));
+                props().estimate("deepseek-flash", 0L, 0L));
     }
 
     @Test
     void singleTokenRoundsHalfUpAtSixthDecimal() {
         // 1 token in: 1/1e6*1.5 = 0.0000015 → HALF_UP 6位 → 0.000002(不是截断的0.000001)
         assertEquals(new BigDecimal("0.000002"),
-                props().estimate("deepseek-v4-flash", 1L, 0L));
+                props().estimate("deepseek-flash", 1L, 0L));
     }
 
     @Test
     void intMaxTokensNoOverflowOrPrecisionLoss() {
         // 2147483647 in: /1e6=2147.483647, *1.5=3221.2254705 → HALF_UP 6位 → 3221.225471
         assertEquals(new BigDecimal("3221.225471"),
-                props().estimate("deepseek-v4-flash", Integer.MAX_VALUE, 0L));
+                props().estimate("deepseek-flash", Integer.MAX_VALUE, 0L));
     }
 
     @Test
     void resultAlwaysHasSixDecimalScale() {
-        assertEquals(6, props().estimate("deepseek-v4-flash", 12345L, 6789L).scale());
+        assertEquals(6, props().estimate("deepseek-flash", 12345L, 6789L).scale());
     }
 
     // ===== 异常:未知模型/null 防御 =====
@@ -93,7 +93,7 @@ class TokenCostCalculationTest {
     @Test
     void negativeTokensProduceNegativeCostObservably() {
         // 当前实现对负数不设防,负成本应被观测到(若未来加了防护,本用例提醒同步更新)
-        BigDecimal cost = props().estimate("deepseek-v4-flash", -1_000_000L, 0L);
+        BigDecimal cost = props().estimate("deepseek-flash", -1_000_000L, 0L);
         assertTrue(cost.compareTo(BigDecimal.ZERO) < 0, "负 token 当前会得到负成本,应在上游拦截");
     }
 }

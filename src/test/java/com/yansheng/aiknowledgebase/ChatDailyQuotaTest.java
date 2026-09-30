@@ -48,7 +48,7 @@ class ChatDailyQuotaTest {
     private void used(long totalTokens) {
         jdbcTemplate.update(
                 "insert into token_usage (user_id, model, type, prompt_tokens, completion_tokens, total_tokens, cost_cny) "
-                        + "values (?, 'deepseek-v4-flash', 'chat', 0, 0, ?, 0)",
+                        + "values (?, 'deepseek-flash', 'chat', 0, 0, ?, 0)",
                 uid(), totalTokens);
     }
 

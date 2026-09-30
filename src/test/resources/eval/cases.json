@@ -3,7 +3,7 @@
     "name": "tool-selection-eval",
     "version": "1",
     "updated": "2026-08-22",
-    "model": "deepseek-v4-flash",
+    "model": "deepseek-flash",
     "temperature": 0,
     "note": "数据集驱动:加用例只改本文件,不改代码(借鉴 DeepSeek Harness)"
   },

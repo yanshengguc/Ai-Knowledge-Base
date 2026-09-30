@@ -1,6 +1,15 @@
 # 产品待办（Product Backlog）
 
-> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-09-15
+> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-09-30
+
+## 迭代原则（当前 Sprint 生效）
+
+- **先保持、后扩展**：先保护现有 Parser/Splitter/Indexing/Retrieval、REST 和前端预览契约，再新增能力；不为“未来可能支持”提前重构。
+- **组合优先**：用注入的小能力组合流程，不用继承、万能基类或大而全 Service。
+- **接口隔离**：新用例新增窄接口或适配层；`FileService` 暂不强拆，等真实的查询/命令/预览新增调用方后再渐进迁移。
+- **树图分工**：知识图做总览，知识树做文档内部层级，原文/Source Chunk 做证据回溯；章节节点不直接复用当前 `GraphVO` 的 `knowledge/file` 契约。
+- **B-114 门槛**：先用纯内存 `MarkdownOutlineParser` 验证标题层级、路径和偏移，并完成“库内 Chunk 与重跑结果逐条一致”的回填可行性验证；通过后才考虑独立 outline API、表结构和索引路由。
+- **每轮收口**：一轮只做一个可验证问题，专项测试→全量回归→Git 存档→更新 HANDOFF；未通过门禁不部署。
 
 ## P0（本 Sprint 候选）
 - [x] B-101 **已闭环(9/15)**: 后端 `70e1408` 部署上线(jar SHA256 双端一致,verify_deploy 3/3 PASS,回滚点 bak-20260915-backend),线上与本地对齐
@@ -16,7 +25,7 @@
 - [ ] B-107 知识可视化（Obsidian 风格,9/15 晚 PO 提出升级方向）——分三档 MVP,按投入递增;**L1+L3 已完成（9/16 / 9/21）,仅剩 L2 反链**:
   - [x] **L1 树(9/16 完成)**: /tree 路由 + el-tree 懒加载两级树(知识条目→文件,复用 /knowledge 与 /file/list 接口,零后端改动),文件节点带状态标签(PROCESSING/SUCCESS/FAILED),点击直达知识详情;顺带品牌化:app.name=盐集 Distilled、index.html 标题、i18n zh/en。vue-tsc+vite 构建过,152 回归绿
   - **L2 反链（~1d）**: "反向链接"——chunk 被哪些 AI 回答引用过的溯源面板(数据现成:SearchResult.chunkId/ChatResponse 引用链路),对应 Obsidian Backlinks
-  - [x] **L3 网图(9/21 完成)**: /graph 路由 + ECharts 5.6.0 力导向(Obsidian 风格)。边方案实际落地=**文件级向量相似边**(原计划共引边——chat references 未落库(B-110 未做)、DashVector 存量为 chunk 级近邻查询拿不到全量,改为文件名+首切片 500 字做 embedding 两两余弦,top-2 邻居+阈值 0.45+pairKey 去重无向边):后端 GET /api/graph(线上实况 68 节点=3 条目+65 文件/158 边=65 结构+93 相似;**DashScope text-embedding-v3 批量上限实测 10 条/请求**,EMBED_BATCH_SIZE=8 分批,embedding 失败降级空相似边图仍渲染)+前端力导向(条目配色分类图例/结构实线+相似虚线随权重/emphasis adjacency 邻居高亮/点击节点详情侧栏跳知识详情)+GraphServiceTest 8 用例;回归 162+integration 21+e2e 10=193 全绿,jar 0f27719c 部署+线上 /api/graph 验证通过;**9/21 晚结合知识树(PO 拍板)**:图体抽 GraphPanel 组件,/tree 页顶部"树形/网图"切换(defineAsyncComponent 按需加载,Tree chunk 仍 2.9KB),菜单收掉独立 /graph 入口(路由保留),dist 38341577 已发布
+  - [x] **L3 网图(9/21 完成)**: /graph 路由 + ECharts 5.6.0 力导向(Obsidian 风格)。边方案实际落地=**文件级向量相似边**(原计划共引边——chat references 未落库(B-110 未做)、DashVector 存量为 chunk 级近邻查询拿不到全量,改为文件名+首切片 500 字做 embedding 两两余弦,top-2 邻居+阈值 0.45+pairKey 去重无向边):后端 GET /api/graph(线上实况 68 节点=3 条目+65 文件/158 边=65 结构+93 相似;**DashScope text-embedding-v3 批量上限实测 10 条/请求**,EMBED_BATCH_SIZE=8 分批,embedding 失败降级空相似边图仍渲染)+前端力导向(条目配色分类图例/结构实线+相似虚线随权重/emphasis adjacency 邻居高亮/点击节点详情侧栏跳知识详情)+GraphServiceTest 8 用例;回归 162+integration 21+e2e 10=193 全绿,jar 0f27719c 部署+线上 /api/graph 验证通过。**当前产品分工(9/29)**：知识图独立做总览，知识节点“进入知识树”跳转 `/tree?knowledgeId=<id>`，文件节点可直接查看原文；树和图不再在 `/tree` 内互相切换，桌面/移动导航均保留独立 `/tree` 与 `/graph` 入口，前端导航闭环已发布。
   - 技术备选: AntV G6/D3 更专业但重,MVP 用 ECharts;接口需新增 /api/graph 聚合端点(共引边可 MySQL 聚合 chat 引用记录)
   - 约束: 维持"维护期解锁",若维护期想展示,只做 L1 树(零后端改动)
 - [ ] B-108 Python+LangGraph 多 Agent 复刻版（简历方向，独立仓库，不在本仓库 Sprint 内）
@@ -68,4 +77,5 @@
   - **关键技术决策——规则树打底**: LLM 直接从 chunk 抽树必碎片化(同概念多节点/父子矛盾);MVP 走 md 标题层级规则解析出锚定树(=B-109 提到的 StructureAwareSplitter 结构感知;**docx 不在 Phase1 范围**——9/26 实测 WordParser.java:23-27 只取 getText() 丢 Heading 样式,docx 长不出树;层级可从 chunk 正文前缀离线反推回填,铁律=split() 输出逐字节不变+回归测试钉死),LLM 只补 definition/why/mechanism+横向关联,成本降一个量级且树稳定
   - **检索融合铁律**: 树只做路由加权层(索引命中→source_chunks 提权/前置),不动 hybrid(向量+BM25)底座;树检索失败降级回纯 RAG 并打 WARN;上线门槛=RetrievalQualityEvalTest recall@5/MRR 阈值 0.80/0.70(Eval Harness 15/15 测的是工具选择不测检索质量,9/26 修正)+先跑无树基线留档+有树 vs 无树对比
   - **拆阶段**: Phase1 MVP(4-6 晚,9/26 修正——工作面=新表+Mapper+回填脚本+切片器+节点 API+详情 UI+溯源页+全量回归,回归验证单列一晚;开工前置 1h=回填可行性验证:取 1 篇 md 用 OSS 原文重跑 StructureAwareSplitter,产出须与库内 knowledge_chunk 逐条一致)=标题树解析+节点详情+source_chunks 溯源页;Phase2=LLM 语义层+索引挂载;Phase3=Graph View 交互层升级(参考 Obsidian 交互思想不抄界面:点击展开/双击进入/搜索高亮/点击 source 回原文)
+  - **当前状态(9/30)**: 已完成纯内存 `MarkdownOutlineParser` 探针及围栏边界修复，专项 6/6、全量回归 174/174；仅输出标题 level/path/offset，不接入旧 `split()`、数据库、索引、REST 或前端。下一步必须先完成“重跑结果与库内 Chunk 逐条一致”的回填可行性验证，再设计独立 outline API；任何主链路接入都要单独提交、全量回归并保留回滚点。
   - **技术价值**: 设计动机自然——"传统 RAG 只解决找相关文本,学习者还需要层级与关联";比"调了 Embedding API 存了向量库"多一层架构思考;与 B-110 跳转、B-107 图谱形成产品闭环

@@ -14,6 +14,19 @@
 > 更新: 2026-09-30 | **OCP 扩展点探针完成（未部署）**：新增纯内存 `MarkdownOutlineParser` 和 `MarkdownOutlineParserTest`，输出标题 level/title/headingPath/source offsets；忽略代码围栏伪标题，支持闭合标题标记、CRLF 和无标题文本。未修改旧 `DocumentSplitter.split()`、数据库、索引链路、REST 或前端；专项测试 4/4、后端全量回归 172/172、diff check 通过。提交 `d951b8e`；后续可基于该探针设计 B-114 outline API。
 > 更新: 2026-09-30 | **Markdown 围栏解析修复完成（未部署）**：收紧 `MarkdownOutlineParser` 围栏规则，闭围栏后带语言标记、混合围栏标记不再提前结束代码块；专项测试 `6/6`，后端全量回归 `174/174`，diff check 通过。提交 `c2f7023`；未修改旧 splitter、ParserFactory、FileService、数据库、REST 或前端。
 
+## 0. 当前演进原则（持续维护）
+
+本项目进入“逐步优化、先验证再扩展”阶段，所有后续改动遵守以下边界：
+
+1. **开闭原则**：优先新增独立实现或能力，不直接改坏已稳定的 `DocumentParser`、`DocumentSplitter.split()`、`IndexingService`、`RetrievalService`、现有 REST 契约和前端 `FilePreview.open()` 契约。新能力先以探针、适配层或新增 API 验证，再决定是否接入主链路。
+2. **合成复用原则**：通过依赖注入和小能力组合流程，不用继承扩展核心服务；解析、切分、持久化、索引、检索、预览和图谱保持独立边界，禁止新增万能 `BaseNode`、`DocumentProcessor` 或大而全 Service。
+3. **接口隔离原则**：调用方只依赖所需能力。`Parser`、`Splitter`、`Indexing`、`Retrieval` 等小接口保持稳定；`FileService` 虽偏胖，暂不为抽象而抽象，只有在新增真实用例时按查询/命令/预览逐步迁移。
+4. **兼容优先**：旧接口、旧数据、旧索引和旧前端行为先保持可用；章节树不得直接塞进当前 `GraphVO(knowledge/file)`，多格式预览不得放宽现有作者校验和 Markdown 消毒边界。
+5. **小步回归**：每轮只解决一个高价值问题；重大改动前先检查 Git 并建立回滚点；专项测试通过后再跑全量回归，未验证的 Agent 建议不得直接集成或部署。
+6. **部署门禁**：本地构建和回归通过、`git diff --check` 通过、交接文档同步、线上备份可回滚后才允许发布；服务器禁止构建。
+
+当前已落地的可逆扩展点：`MarkdownOutlineParser` 仅做纯内存标题层级探针，不接入旧切片、数据库、索引或 REST；后续 B-114 必须先完成回填可行性验证，再设计独立 outline API。
+
 ## 1. 项目概览
 
 个人 AI 知识库（RAG + Agent），前后端同仓库：

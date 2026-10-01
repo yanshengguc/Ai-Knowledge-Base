@@ -41,7 +41,7 @@
 个人 AI 知识库（RAG + Agent），前后端同仓库：
 - 仓库: `C:\Users\yansheng\IdeaProjects\Ai-Knowledge-Base`
 - 代码状态: B-114 探针已提交本地 `main`，工作区 clean，当前未 push 到 `origin/main`，未部署线上
-- 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DashScope LLM(qwen 系列, V4-Flash)
+- 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DeepSeek V4.1 Flash(Chat LLM) + DashScope text-embedding-v3 + SiliconFlow bge-reranker-v2-m3
 - 前端: Vue 3 + TypeScript + Vite + Element Plus（`frontend/` 目录，v-html 渲染 markdown 已套 DOMPurify）
 - 访问: http://<SERVER_IP> （Nginx 静态 + 反代 /api → 127.0.0.1:8080）
 

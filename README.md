@@ -72,7 +72,9 @@ flowchart TB
     REDIS[("Redis<br/>缓存 / 短期记忆 / 限流")]
     OSS[("阿里云 OSS")]
     DV[("DashVector<br/>向量库")]
-    LLM["DashScope qwen<br/>(Embedding / LLM / Rerank)"]
+    LLM["DeepSeek V4.1 Flash<br/>(Chat LLM)"]
+    EMB["DashScope text-embedding-v3<br/>(Embedding)"]
+    RR["SiliconFlow bge-reranker-v2-m3<br/>(Rerank)"]
 
     UI -->|HTTP / SSE| API
     API --> AGENT --> RAG
@@ -81,9 +83,11 @@ flowchart TB
     API <--> MYSQL
     API <--> REDIS
     RAG <--> DV
-    RAG --> LLM
+    RAG --> EMB
+    RAG --> RR
+    AGENT --> LLM
     PIPE --> OSS
-    PIPE --> DV
+    PIPE --> EMB --> DV
 ```
 
 **资料入库（RAG 预处理）：**

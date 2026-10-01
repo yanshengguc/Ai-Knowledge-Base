@@ -26,6 +26,17 @@
           <el-tag size="small" type="danger" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
         </el-tooltip>
         <el-tag v-else size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
+        <!-- B-114 大纲导航:仅 md 文件,独立入口,不改动原文预览按钮语义 -->
+        <el-tooltip v-if="isMarkdownFile(f)" :content="t('outline.entry')" placement="top">
+          <el-button
+            class="outline-btn"
+            size="small"
+            circle
+            :icon="List"
+            :aria-label="t('outline.entry')"
+            @click="outlineRef?.open({ id: f.id, fileName: f.fileName })"
+          />
+        </el-tooltip>
         <!-- B-112 在线预览:md 直接看原文,pdf/docx 后端不返回内容由抽屉提示不支持 -->
         <el-tooltip :content="t('filePreview.viewOriginal')" placement="top">
           <el-button
@@ -54,17 +65,19 @@
     </template>
 
     <FilePreview ref="previewRef" />
+    <OutlinePanel ref="outlineRef" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, View } from '@element-plus/icons-vue'
+import { Delete, List, View } from '@element-plus/icons-vue'
 import { deleteFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
 import FilePreview from './FilePreview.vue'
+import OutlinePanel from './OutlinePanel.vue'
 
 // 文件列表:展示 + 预览 + 删除。列表数据由父级持有(上传完成/笔记创建后父级刷新传入)
 defineProps<{ files: FileVO[]; loadError?: boolean }>()
@@ -74,6 +87,7 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 const previewRef = ref<InstanceType<typeof FilePreview> | null>(null)
+const outlineRef = ref<InstanceType<typeof OutlinePanel> | null>(null)
 
 function fileStatusLabel(status?: string) {
   if (status === 'SUCCESS') return t('upload.success')
@@ -84,6 +98,11 @@ function fileTagType(status?: string) {
   if (status === 'SUCCESS') return 'success'
   if (status === 'FAILED') return 'danger'
   return 'warning'
+}
+
+// 仅 Markdown 文件提供大纲入口(后端大纲层只对 md 生效)
+function isMarkdownFile(f: FileVO) {
+  return (!!f.fileType && f.fileType.includes('markdown')) || (f.fileName || '').toLowerCase().endsWith('.md')
 }
 
 // AI 来源:后端把来源编码进 fileType(text/markdown;source=ai-chat)

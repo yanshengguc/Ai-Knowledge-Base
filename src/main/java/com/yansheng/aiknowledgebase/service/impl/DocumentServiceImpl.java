@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.service.ChunkService;
 import com.yansheng.aiknowledgebase.service.DocumentService;
 import com.yansheng.aiknowledgebase.service.IndexingService;
+import com.yansheng.aiknowledgebase.service.OutlineIndexService;
 import com.yansheng.aiknowledgebase.service.parser.DocumentParser;
 import com.yansheng.aiknowledgebase.service.parser.ParserFactory;
 import com.yansheng.aiknowledgebase.service.splitter.DocumentSplitter;
@@ -21,15 +22,19 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentSplitter documentSplitter;
     private final ChunkService chunkService;
     private final IndexingService indexingService;
+    /** B-114 Outline 导航层(仅 md;失败降级不影响主链路) */
+    private final OutlineIndexService outlineIndexService;
 
     public DocumentServiceImpl(ParserFactory parserFactory,
                                DocumentSplitter documentSplitter,
                                ChunkService chunkService,
-                               IndexingService indexingService) {
+                               IndexingService indexingService,
+                               OutlineIndexService outlineIndexService) {
         this.parserFactory = parserFactory;
         this.documentSplitter = documentSplitter;
         this.chunkService = chunkService;
         this.indexingService = indexingService;
+        this.outlineIndexService = outlineIndexService;
     }
 
 
@@ -73,6 +78,9 @@ public class DocumentServiceImpl implements DocumentService {
         log.info("向量化入库完成,fileId={},chunkCount={}",
                 fileId,
                 chunkEntities.size());
+
+        // B-114 导航层:主链路成功后追加,失败只降级(不改切片、不改向量、不改检索)
+        indexOutlineIfMarkdown(file, fileId, text);
     }
 
     @Override
@@ -87,5 +95,22 @@ public class DocumentServiceImpl implements DocumentService {
         indexingService.indexChunks(fileId, chunkEntities);
 
         log.info("笔记索引完成,fileId={},chunkCount={}", fileId, chunkEntities.size());
+    }
+
+    /**
+     * B-114 Outline 导航层:仅 md 文件(标题层级是树的前提)。
+     * 失败只打 WARN:导航层不是主链路,新环境漏建表时文件仍应处理成功。
+     */
+    private void indexOutlineIfMarkdown(MultipartFile file, Long fileId, String text) {
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || !fileName.toLowerCase().endsWith(".md")) {
+            return;
+        }
+        try {
+            int nodeCount = outlineIndexService.indexFile(fileId, text);
+            log.info("Outline 导航层完成,fileId={},nodeCount={}", fileId, nodeCount);
+        } catch (Exception e) {
+            log.warn("Outline 导航层生成失败,fileId={},不影响切片与检索主链路", fileId, e);
+        }
     }
 }

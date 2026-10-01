@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.yansheng.aiknowledgebase.mapper.OutlineMapper">
+
+    <insert id="insertNodes" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO knowledge_outline_node
+        (file_id, parent_id, node_index, level, title, heading_path,
+         source_start_offset, source_end_offset, create_time)
+        VALUES
+        <foreach collection="list" item="node" separator=",">
+            (#{node.fileId}, #{node.parentId}, #{node.nodeIndex}, #{node.level}, #{node.title},
+             #{node.headingPath}, #{node.sourceStartOffset}, #{node.sourceEndOffset}, #{node.createTime})
+        </foreach>
+    </insert>
+
+    <!-- 回填 parent_id:先序插入后父节点 id 才可知,CASE WHEN 单语句完成 -->
+    <update id="updateParents">
+        UPDATE knowledge_outline_node
+        SET parent_id = CASE id
+        <foreach collection="list" item="node">
+            WHEN #{node.id} THEN #{node.parentId}
+        </foreach>
+        END
+        WHERE id IN
+        <foreach collection="list" item="node" open="(" separator="," close=")">
+            #{node.id}
+        </foreach>
+    </update>
+
+    <insert id="insertRefs">
+        INSERT INTO knowledge_outline_chunk (node_id, chunk_id, chunk_index, create_time)
+        VALUES
+        <foreach collection="list" item="ref" separator=",">
+            (#{ref.nodeId}, #{ref.chunkId}, #{ref.chunkIndex}, #{ref.createTime})
+        </foreach>
+    </insert>
+
+    <delete id="deleteNodesByFileId">
+        DELETE FROM knowledge_outline_node WHERE file_id = #{fileId}
+    </delete>
+
+    <select id="selectNodesByFileId" resultType="com.yansheng.aiknowledgebase.entity.OutlineNodeEntity">
+        SELECT id, file_id, parent_id, node_index, level, title, heading_path,
+               source_start_offset, source_end_offset, create_time
+        FROM knowledge_outline_node
+        WHERE file_id = #{fileId}
+        ORDER BY node_index
+    </select>
+
+    <select id="selectNodeById" resultType="com.yansheng.aiknowledgebase.entity.OutlineNodeEntity">
+        SELECT id, file_id, parent_id, node_index, level, title, heading_path,
+               source_start_offset, source_end_offset, create_time
+        FROM knowledge_outline_node
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectRefsByFileId" resultType="com.yansheng.aiknowledgebase.entity.OutlineChunkRefEntity">
+        SELECT r.node_id AS nodeId, r.chunk_id AS chunkId, r.chunk_index AS chunkIndex
+        FROM knowledge_outline_chunk r
+        JOIN knowledge_outline_node n ON r.node_id = n.id
+        WHERE n.file_id = #{fileId}
+    </select>
+
+    <select id="selectRefsByNodeId" resultType="com.yansheng.aiknowledgebase.vo.OutlineSourceChunkVO">
+        SELECT r.chunk_id AS chunkId,
+               r.chunk_index AS chunkIndex,
+               c.content_length AS contentLength,
+               c.content AS preview
+        FROM knowledge_outline_chunk r
+        JOIN knowledge_chunk c ON c.id = r.chunk_id
+        WHERE r.node_id = #{nodeId}
+        ORDER BY r.chunk_index
+    </select>
+</mapper>

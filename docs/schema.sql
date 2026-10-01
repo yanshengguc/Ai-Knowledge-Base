@@ -76,3 +76,34 @@ CREATE TABLE IF NOT EXISTS token_usage (
     INDEX idx_user_time (user_id, create_time),
     INDEX idx_type_time (type, create_time)
 );
+
+-- ===== B-114 Outline 导航层(10/01 追加,不改写既有表) =====
+-- 语义(B 方案):Outline 只做导航层;空父标题不生成空 Chunk;
+-- source_chunks 只关联真实正文/后代 Chunk;旧 chunk 与其向量不回填改写。
+CREATE TABLE IF NOT EXISTS knowledge_outline_node (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    file_id BIGINT NOT NULL,
+    parent_id BIGINT NULL COMMENT '父节点 id,根节点为 NULL',
+    node_index INT NOT NULL COMMENT '文件内先序序号,从 0 开始',
+    level INT NOT NULL COMMENT '标题层级 1-6',
+    title VARCHAR(500) NOT NULL,
+    heading_path VARCHAR(1000) NOT NULL COMMENT '完整标题路径,以 / 分隔',
+    source_start_offset INT NOT NULL COMMENT '标题行起始 UTF-16 下标',
+    source_end_offset INT NOT NULL COMMENT '标题行结束 UTF-16 下标(不含换行)',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_outline_file_id (file_id),
+    INDEX idx_outline_parent_id (parent_id),
+    CONSTRAINT fk_outline_node_file FOREIGN KEY (file_id) REFERENCES knowledge_file(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_outline_chunk (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    node_id BIGINT NOT NULL,
+    chunk_id BIGINT NOT NULL,
+    chunk_index INT NOT NULL COMMENT '冗余:便于溯源排序,免 join knowledge_chunk',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_outline_node_chunk (node_id, chunk_id),
+    INDEX idx_outline_ref_chunk_id (chunk_id),
+    CONSTRAINT fk_outline_chunk_node FOREIGN KEY (node_id) REFERENCES knowledge_outline_node(id) ON DELETE CASCADE,
+    CONSTRAINT fk_outline_chunk_chunk FOREIGN KEY (chunk_id) REFERENCES knowledge_chunk(id) ON DELETE CASCADE
+);

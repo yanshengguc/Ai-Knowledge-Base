@@ -16,20 +16,35 @@ const router = createRouter({
         { path: 'tree', name: 'knowledge-tree', component: () => import('@/views/knowledge/Tree.vue') },
         { path: 'graph', name: 'knowledge-graph', component: () => import('@/views/knowledge/Graph.vue') },
         { path: 'chat', name: 'chat', component: () => import('@/views/chat/Chat.vue') },
+        {
+          path: 'admin',
+          name: 'admin',
+          component: () => import('@/views/admin/Admin.vue'),
+          meta: { requiresAdmin: true },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('@/views/NotFound.vue') },
   ],
 })
 
-// 登录守卫:未登录跳登录页
-router.beforeEach((to) => {
+// 登录守卫:未登录跳登录页;管理端路由额外校验白名单身份
+router.beforeEach(async (to) => {
   const token = getToken()
   if (!token && to.name !== 'login' && to.name !== 'register') {
     return { name: 'login' }
   }
   if (token && (to.name === 'login' || to.name === 'register')) {
     return { name: 'knowledge' }
+  }
+  if (to.meta.requiresAdmin) {
+    // 动态导入:避免 router -> store -> api/request -> router 的循环依赖
+    const { useUserStore } = await import('@/stores/user')
+    const userStore = useUserStore()
+    await userStore.ensureProfile()
+    if (!userStore.isAdmin) {
+      return { name: 'knowledge' }
+    }
   }
   return true
 })

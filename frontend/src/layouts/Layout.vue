@@ -22,6 +22,11 @@
           <el-icon><ChatDotRound /></el-icon>
           <span>{{ t('nav.chat') }}</span>
         </el-menu-item>
+        <!-- 管理端入口仅对白名单用户可见(真正的拦截在后端 requireAdmin) -->
+        <el-menu-item v-if="userStore.isAdmin" index="/admin">
+          <el-icon><Setting /></el-icon>
+          <span>{{ t('nav.admin') }}</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -93,6 +98,10 @@
           <el-icon><ChatDotRound /></el-icon>
           <span>{{ t('nav.chat') }}</span>
         </el-menu-item>
+        <el-menu-item v-if="userStore.isAdmin" index="/admin">
+          <el-icon><Setting /></el-icon>
+          <span>{{ t('nav.admin') }}</span>
+        </el-menu-item>
       </el-menu>
     </el-drawer>
 
@@ -107,7 +116,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Collection, DataAnalysis, Operation, Share } from '@element-plus/icons-vue'
+import { Collection, DataAnalysis, Operation, Setting, Share } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'
@@ -124,7 +133,11 @@ function onResize() {
   if (!isMobile.value) mobileMenuVisible.value = false
 }
 
-onMounted(() => window.addEventListener('resize', onResize))
+onMounted(() => {
+  window.addEventListener('resize', onResize)
+  // 刷新页面后 pinia 状态会重置,需重新拉取以决定管理端入口是否显示
+  userStore.ensureProfile()
+})
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
 function onCommand(cmd: string) {

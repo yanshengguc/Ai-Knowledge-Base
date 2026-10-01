@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.yansheng.aiknowledgebase.mapper.AdminMapper">
+
+    <select id="selectGlobalCounts" resultType="java.util.HashMap">
+        SELECT
+            (SELECT COUNT(*) FROM `user`)             AS userCount,
+            (SELECT COUNT(*) FROM knowledge)          AS knowledgeCount,
+            (SELECT COUNT(*) FROM knowledge_file)     AS fileCount,
+            (SELECT COUNT(*) FROM knowledge_chunk)    AS chunkCount
+    </select>
+
+    <select id="selectFileStatusDistribution" resultType="java.util.HashMap">
+        SELECT status AS status, COUNT(*) AS count
+        FROM knowledge_file
+        GROUP BY status
+    </select>
+
+    <select id="selectGlobalTokenSummary" resultType="java.util.HashMap">
+        SELECT
+            coalesce(sum(total_tokens), 0)                                                             AS totalTokens,
+            coalesce(sum(cost_cny), 0)                                                                 AS totalCost,
+            coalesce(sum(case when create_time >= curdate() then total_tokens else 0 end), 0)          AS todayTokens,
+            coalesce(sum(case when create_time >= curdate() then cost_cny else 0 end), 0)              AS todayCost,
+            coalesce(sum(case when type = 'chat' then total_tokens else 0 end), 0)                     AS chatTokens,
+            coalesce(sum(case when type = 'embedding' then total_tokens else 0 end), 0)                AS embeddingTokens
+        FROM token_usage
+    </select>
+
+    <sql id="userKeywordFilter">
+        <where>
+            <if test="keyword != null and keyword != ''">
+                username LIKE CONCAT('%', #{keyword}, '%')
+            </if>
+        </where>
+    </sql>
+
+    <select id="selectUsers" resultType="com.yansheng.aiknowledgebase.vo.AdminUserVO">
+        SELECT id, username, nickname
+        FROM `user`
+        <include refid="userKeywordFilter"/>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countUsers" resultType="long">
+        SELECT COUNT(*)
+        FROM `user`
+        <include refid="userKeywordFilter"/>
+    </select>
+
+</mapper>

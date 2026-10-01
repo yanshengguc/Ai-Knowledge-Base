@@ -219,3 +219,5 @@ python scripts\verify_deploy.py
 python scripts\deploy.py cmd "<命令>"
 python scripts\deploy.py put "<本地路径>" "<服务器路径>"
 ```
+
+> 更新: 2026-10-01 | **管理端 MVP（只读）已开发完成，未部署**：Sprint 3 主线 B-115。后端=配置驱动 admin 白名单（`admin.usernames`，环境变量 `ADMIN_USERNAMES`，零 DDL）+ `GET /api/admin/overview` + `GET /api/admin/users`（分页/关键词/不回传 password）+ `GET /api/user/me`（带 admin 标识）；前端=`/admin` 路由守卫 + 只读概览页 + 导航项仅 admin 可见。新增 AdminMapper(+xml)/AdminService(+impl)/AdminController/4 个 VO/Admin.vue。验证：默认回归 **189/189** 绿（179 + AdminServiceTest 10）、AdminMapperIntegrationTest **5/5** 绿（连真实本地 MySQL 实跑四个只读 SQL）、前端 vue-tsc + vite 构建通过。未跑：集测整组（本机 Redis 6379 未启动，环境性 NO-GO）、e2e（烧钱，DoD 不要求）。线上仍为 `76ba7cf` jar/dist；**部署阻塞**：需 DEPLOY_HOST/USER/PASSWORD + `ADMIN_USERNAMES` 取值（追加到 `/etc/aikb/aikb.env` 后重启）

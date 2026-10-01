@@ -5,9 +5,11 @@ import com.yansheng.aiknowledgebase.dto.LoginDTO;
 import com.yansheng.aiknowledgebase.dto.UserRegisterDTO;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.service.AdminService;
 import com.yansheng.aiknowledgebase.service.RateLimitService;
 import com.yansheng.aiknowledgebase.service.UserService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
+import com.yansheng.aiknowledgebase.vo.UserProfileVO;
 import com.yansheng.aiknowledgebase.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,11 +20,14 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     private final UserService userService;
     private final RateLimitService rateLimitService;
+    private final AdminService adminService;
     @Value("${register.enabled:true}")
     private boolean registerEnabled;
-    public UserController(UserService userService, RateLimitService rateLimitService) {
+    public UserController(UserService userService, RateLimitService rateLimitService,
+                          AdminService adminService) {
         this.userService = userService;
         this.rateLimitService = rateLimitService;
+        this.adminService = adminService;
     }
     @GetMapping("/{id}")
     public Result getUserById(@PathVariable long id){
@@ -34,6 +39,19 @@ public class UserController {
         UserVO userVO=userService.getUserById(id);
         return Result.success(userVO);
 
+    }
+    /** 当前登录用户档案:前端据此决定管理端导航与 /admin 路由是否可见(不落库,admin 来自配置白名单) */
+    @GetMapping("/me")
+    public Result<UserProfileVO> me(){
+        UserEntity current = UserContext.get();
+        if (current == null) {
+            throw new BusinessException("登录已过期,请重新登录");
+        }
+        UserProfileVO vo = new UserProfileVO();
+        vo.setId(current.getId());
+        vo.setUsername(current.getUsername());
+        vo.setAdmin(adminService.isAdmin(current.getUsername()));
+        return Result.success(vo);
     }
     @PostMapping("/register")
     public Result<Void> register(@RequestBody UserRegisterDTO dto, HttpServletRequest request){

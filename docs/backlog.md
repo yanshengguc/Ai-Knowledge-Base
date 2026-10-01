@@ -18,8 +18,9 @@
 - [x] B-101 **已闭环(9/15)**: 后端 `70e1408` 部署上线(jar SHA256 双端一致,verify_deploy 3/3 PASS,回滚点 bak-20260915-backend),线上与本地对齐
 - [x] B-102 **已闭环(9/15 晚)**: integration 21/21 + e2e 11/11 + 默认回归 152/152 = 184 项全绿。根因三连:Chat WRONGTYPE(测试 bug)/DashVector region 误写 cn-hangzhou(实为 cn-shenzhen)/长期记忆 collection 1536 维 vs embedding 1024 维(删坏集合重建+生产重启验证 dimension=1024)
 
-## P0（Sprint 3 进行中 · 2026-10-01）
-- [ ] B-115 管理端 MVP（只读）**Sprint 3 主线**：课设硬需求（原计划 10 月上旬，已到期）。范围=配置驱动 admin 鉴权（`admin.usernames` 白名单，零 DDL）+ `GET /api/admin/overview`（用户/知识/文件/切片数 + 文件状态分布 + 全站 Token 汇总）+ `GET /api/admin/users`（服务端分页 + 关键词 + 不回传 password）+ 前端 `/admin` 路由守卫与只读页 + 导航项仅 admin 可见。**不含**用户增删改与 `user.role` 字段（跨 DDL，本地无 mysql 客户端无法验证，推迟下一轮）
+## P0（Sprint 3 已收口 · 2026-10-01）
+- [x] B-115 管理端 MVP（只读）**Sprint 3 主线 · 已上线 2026-10-01**：课设硬需求（原计划 10 月上旬，已到期）。范围=配置驱动 admin 鉴权（`admin.usernames` 白名单，零 DDL）+ `GET /api/admin/overview`（用户/知识/文件/切片数 + 文件状态分布 + 全站 Token 汇总）+ `GET /api/admin/users`（服务端分页 + 关键词 + 不回传 password）+ 前端 `/admin` 路由守卫与只读页 + 导航项仅 admin 可见。**不含**用户增删改与 `user.role` 字段（跨 DDL，本地无 mysql 客户端无法验证，推迟下一轮）。**闭环(10-01)**：后端 jar SHA256 `3e10c9e9…afe4803`、前端 dist tar SHA256 `1eef2b2a…ecc0289c` 双端一致；`verify_deploy 3/3 PASS`；`/`、`/admin`、新资源 HTTP 200，`aikb active`；默认回归 189/189 绿；匿名与坏 token 访问 `/api/admin/*`、`/api/user/me` 均 401
+- [ ] B-116 管理端写操作（用户增删改 + `user.role` 字段）**下一轮**：跨 DDL，需先具备本地 mysql 客户端或只读数据通道以验证迁移；同时补齐 admin 端点「管理员 token→200 / 非管理员 token→业务拒绝」的 HTTP 正向验证（需可登录测试账号）
 ## P1（**维护期解锁**——9/15 晚 Sprint 2 计划会 PO 拍板:AKB 转纯维护模式,不开新功能线）
 - [ ] B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），减 1MB+ 单 chunk
 - [ ] B-104 后端分页（知识/文件列表服务端分页）

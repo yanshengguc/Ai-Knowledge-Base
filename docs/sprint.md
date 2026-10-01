@@ -31,7 +31,7 @@
 
 ## 阻塞
 - [x] ~~部署输入未就绪~~ → **已解除**：PO 提供 `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_PASSWORD`；`ADMIN_USERNAMES` 已写入服务器 `/etc/aikb/aikb.env`（原文件已备份，值不落档）并重启生效，进程环境变量已实测确认
-- [!] **admin 端点已登录态 HTTP 验证缺口（本 Sprint 遗留）**：生产 `REGISTER_ENABLED=false` 无法自建账号，且无现有账号口令，故「管理员 token → 200」「非管理员 token → 业务拒绝」两条路径**未做 HTTP 实测**；逻辑层已由 AdminServiceTest（白名单命中 / 拒绝先于查库）覆盖。解锁条件=PO 提供可登录测试账号
+- [x] ~~admin 端点已登录态 HTTP 验证缺口~~ → **已闭环(2026-10-01)**：PO 提供测试账号后完成 HTTP 实测 —— 负向：合法但非白名单 token 调 `/api/admin/overview`、`/api/admin/users` 均返回 `code:500 权限不足`，`/api/user/me` 显示 `admin=false`；正向：白名单内 token 三项全 200（`overview` userCount=34 / knowledgeCount=15 / fileCount=74 / chunkCount=1131、fileStatus={SUCCESS:74}、tokenUsage 六键齐；`users` total=34、字段仅 id/username/nickname 无 password、`size=999` 收敛为 50）
 - [!] **本地集测组跑不起来（环境依赖，非本次改动）**：本机 MySQL 3306 通，但 Redis 6379 未监听、无 Docker Desktop/Memurai，所有 @Tag("integration") 用例在登录/限流处失败（RegisterSwitchTest 2 项中 1 项因 Redis 拒绝连接失败）
 - [!] **B-114 只读回填一致性门槛**（不排入本 Sprint）：本地无 mysql CLI/pymysql，摸不到真实 `knowledge_chunk`；解锁条件=PO 提供只读数据通道
 

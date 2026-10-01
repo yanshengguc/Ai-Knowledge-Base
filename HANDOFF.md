@@ -20,6 +20,7 @@
 > 更新: 2026-09-30 | **回填一致性二次探针仍阻断**：代码围栏/波浪号/CR 样例已与 OutlineParser 对齐；但多级标题样例 `# 架构\n\n## 接入层...` 显示旧 `StructureAwareSplitter` 产出 2 个 chunk、OutlineParser 产出 3 个标题，且无正文的父标题没有进入后续 chunk 上下文。当前只能做内存探针，不能宣称与真实库内 `knowledge_chunk` 一致；本地无 mysql CLI/pymysql，未访问数据库/OSS。下一步需先定义“无正文父标题是否进入 Chunk 上下文”的兼容语义，再单独修复并回归，仍不接入 B-114。
 > 更新: 2026-09-30 | **耦合度评估完成，暂不新增代码**：实际已降低的耦合包括 DocumentService 对 Parser/Splitter/Indexing 抽象的依赖、OutlineParser 独立探针、Tree/Graph 页面拆分和请求竞态隔离；仍存在的热点是 FileServiceImpl 协作者过多、Splitter/OutlineParser 标题规则重复、Graph 节点 ID/路由协议泄漏。当前最小高价值下一步是先完成真实语料只读对齐；在真实数据通道具备前，不为拆 Service 或统一解析器而重构。
 > 更新: 2026-09-30 | **B-114 父标题语义已定：采用 B 方案**：保持现有 Chunk 正文、数量、顺序、chunkIndex、BM25/向量语义不变；所有合法标题可作为 Outline 导航节点；无正文父标题不制造空 Chunk，`source_chunks` 只关联真实正文 Chunk，并可聚合后代 Chunk。禁止把父路径直接拼进旧 Chunk，禁止按标题文本单独匹配，禁止在旧 topK 后再做节点过滤；后续先做只读真实语料对齐，再设计独立 outline API/关联模型。
+> 更新: 2026-10-01 | **模型切换 + 前端韧性修复已发布**：线上后端 = `76ba7cf` 构建（jar SHA256 `39e6c765…27819`，含 `800c027` 聊天模型切 DeepSeek V4.1 Flash：`spring.ai.openai.chat.options.model=deepseek-flash` + TokenCost 键同步，旧值为 `deepseek-v4-flash`）；线上前端 = `76ba7cf` dist（tar SHA256 `7f8e5517…4be55`，index = `index-hQXR4-7W.js`，含 `c767e73` FilePreview/GraphPanel 请求竞态保护 + `16af5c1` 树分支局部失败重试）。测试：默认 Maven 回归 `179/179` 全绿、`git diff --check` 通过；部署验收 `verify_deploy 3/3 PASS`，首页与 Tree/Graph/Layout/FilePreview/Chat/vendor 资源全 HTTP 200，`aikb active` / health `UP`。回滚点：后端 `/opt/aikb/app.jar.bak-20261001-pre-model-switch`（md5 `ee6b9575…f844`）、前端 `/var/www/aikb.bak-20261001-76ba7cf`。**夹带项（授权范围外，显式留痕）**：`933c31f` 围栏内伪标题不再开章节 + `d835b6e` 切片输出统一 LF 随 HEAD 一并上线，理由=保住线上 jar 等于 main HEAD 的可追溯铁律；影响面仅新上传 md 的切片，不改接口、不改库内存量数据；代价=库内并存新旧口径 chunk，B-114 对齐需按新口径重跑（详见 docs/sprint.md 夹带项区）。
 
 ## 0. 当前演进原则（持续维护）
 
@@ -40,7 +41,7 @@
 
 个人 AI 知识库（RAG + Agent），前后端同仓库：
 - 仓库: `C:\Users\yansheng\IdeaProjects\Ai-Knowledge-Base`
-- 代码状态: B-114 探针已提交本地 `main`，工作区 clean，当前未 push 到 `origin/main`，未部署线上
+- 代码状态: `main` HEAD = `76ba7cf`，**已构建并部署线上**（后端 jar + 前端 dist 均 `76ba7cf`，SHA256 双端一致）；工作区仅 docs 待提交，领先 `origin/main` 36 个提交，尚未 push
 - 后端: Java 17 + Spring Boot 3.3.4 + MyBatis + MySQL 8 + Redis + DashVector(向量库) + 阿里云 OSS + DeepSeek V4.1 Flash(Chat LLM) + DashScope text-embedding-v3 + SiliconFlow bge-reranker-v2-m3
 - 前端: Vue 3 + TypeScript + Vite + Element Plus（`frontend/` 目录，v-html 渲染 markdown 已套 DOMPurify）
 - 访问: http://<SERVER_IP> （Nginx 静态 + 反代 /api → 127.0.0.1:8080）

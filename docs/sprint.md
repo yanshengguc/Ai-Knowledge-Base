@@ -1,37 +1,52 @@
+# Sprint 2 · 目标：维护期收口——线上与本地对齐，未部署改动清零
 
-## Sprint 1 评审会(2026-09-15 晚,PO=用户 + SM/Dev=AI)
+> 补记 2026-10-01（原文件停在 9/15 Sprint 1 评审会；9/16~9/30 十余轮交付未落盘，本次按 Scrum 协议回填）
 
-**Sprint 目标"未部署/未验证清零"——达成。** DoD 逐项核对:
+## 角色分工
+- PO：用户（AI 起草）
+- SM：TraeCode 会话
+- Dev：TraeCode 会话（一体模式）
 
-| DoD 项 | 结果 |
-|---|---|
-| 默认回归全绿 | ✅ 152/152 |
-| verify_deploy.py PASS | ✅ 3/3(后端部署当日) |
-| 线上 jar = 70e1408 | ✅ SHA256 双端一致 |
-| HANDOFF.md 同步 | ✅ 头部状态+第 5 节根因全记录 |
-| sprint.md 实时更新 | ✅ |
+## 任务
+状态：[ ] 待开发 · [~] 开发中 · [R] 待评审 · [Q] 待验证 · [x] 完成 · [!] 阻塞
 
-增量交付:①前端 65792fd 上线(Emoji 清理)②后端 70e1408 上线(降级健壮性)③**184 项测试全绿**(152+21+11,历史首次含真实 Redis/DashVector/LLM 的集成与 e2e)④生产长期记忆修复(1536→1024 维重建,describe 实测)⑤测试代码 2 处修正(ChatIntegrationTest/RerankSmokeTest)。commits: d749309 / 93568aa / 1eac476 / 388890c。
+### 已完成（9/16~9/30，均已上线；本次回填记录）
+- [x] T-1 B-107 L1 知识树 `/tree`（9/16，152 回归绿）
+- [x] T-2 盐集 Distilled 品牌版（9/18，`163694d` 构建，回滚点 `aikb.bak-20260918-distilled`）
+- [x] T-3 B-107 L3 知识图谱 `/graph` ECharts 力导向（9/21，`c3d2b4b`，193 全绿）
+- [x] T-4 B-112 文件在线预览（9/21 晚，`90b7a57`，199 全绿，jar `12e7adc3` / dist `38fe3605`）
+- [x] T-5 树/图导航分离 + 图谱节点跳知识树（9/21 `8449fb4` / 9/29 `8424fb8`，168 回归绿）
+- [x] T-6 前端韧性：树与预览错误态、树分支局部失败重试、请求竞态保护（9/29 `8647665`、9/30 `c767e73` / `16af5c1`）
 
-## 反思会(2026-09-15 晚)
+### 本轮（2026-10-01）
+- [x] T-7 回填 sprint.md + 同步 HANDOFF 状态
+- [x] T-8 后端发布：HEAD `76ba7cf` jar 已上线（SHA256 `39e6c765…27819` 双端一致，179/179 回归绿，verify_deploy 3/3 PASS，回滚点 `/opt/aikb/app.jar.bak-20261001-pre-model-switch`）
+- [x] T-9 前端发布：`76ba7cf` dist 已上线（tar SHA256 `7f8e5517…4be55`，index `index-hQXR4-7W.js`，Tree/Graph/Layout/FilePreview/Chat/vendor 资源全 200，回滚点 `/var/www/aikb.bak-20261001-76ba7cf`）
+- [!] T-10 B-114 真实语料只读回填对齐（阻塞，见下）
 
-**做得好(Keep)**:
-- 根因定位方法论:逐层排除(裸 socket→netty→Lettuce→DBSIZE 鉴别替身;SDK 探测排除 endpoint 格式/鉴权),每个结论都有铁证
-- 降级设计经受住考验:向量库/Redis 全挂时主流程无感,但也要警惕它**掩盖故障**(维度失配沉默 16 天)
-- PO 一次直觉输入("深圳那个嘛")即破案——文档记录 vs 生产实配,永远信生产实配
+## 阻塞
+- [!] **B-114 只读回填一致性门槛阻断**：旧 `StructureAwareSplitter` 与 `MarkdownOutlineParser` 语义不一致（含围栏样例 3 chunk vs 1 标题；多级标题样例 2 chunk vs 3 标题）
+  - 缺什么：本地无 mysql CLI / pymysql，摸不到真实库内 `knowledge_chunk`
+  - 需要谁：PO 提供只读数据通道（装 mysql 客户端，或允许走 SSH 只读脚本）
+  - 语义已定（9/30 B 方案）：Outline 仅作导航层；无正文父标题不生成空 Chunk；`source_chunks` 只关联真实正文 Chunk
 
-**待改进(Improve)**:
-- HANDOFF 记录与生产实配曾不一致(region 抄错)→ **行动项 A**:交接文档中的环境配置须标注"来源:生产实配核对"而非凭记忆转写
-- 换 embedding 模型时未同步重建向量集合→ **行动项 B**:MEMORY-CARDS 增加"embedding 模型与 collection 维度绑定"坑位(面试可讲:降级逻辑的双刃剑)
-- 测试断言漂移(全量返回 vs min-score 特性)→ **行动项 C**:新特性上线时同步审查既有 e2e 断言语义
-
-**Sprint 2 建议(待 PO 拍板)**:主线已切面试冲刺(8/30 后 AKB ≤1h/日仅维护),建议 **AKB 转纯维护模式**,B-103/B-104(P1)延后到面试后;今日三大根因沉淀为面试素材后,主力回算法线(哈希表 217)+面试准备。
-�解除,无阻塞**。Sprint 1 T-1~T-5 全闭环,待评审/反思会。
+## 本次发布的夹带项（显式留痕，不悄悄带过）
+- `StructureAwareSplitter` 行为变更：`933c31f` 围栏内伪标题不再开章节、`d835b6e` 输出统一 LF
+  - 决定：随 HEAD 一并上线
+  - 理由：保住"线上 jar = main HEAD"可追溯铁律；cherry-pick 剥离会造出偏离 main 的生产构建，代价更大
+  - 影响面：仅影响**新上传** md 的切片；不改接口、不改库内存量数据
+  - 已知代价：库内将并存"旧口径存量 chunk / 新口径新增 chunk"，B-114 对齐需按新口径重跑
 
 ## DoD
-- 默认回归全绿(152/152) · verify_deploy.py PASS · 线上 jar = 70e1408 · HANDOFF.md 同步 · sprint.md 实时更新
+- 默认回归全绿（排除 integration/e2e）· jar/dist SHA256 双端一致 · verify_deploy PASS · 回滚点就绪 · HANDOFF 与 sprint.md 同步
 
 ## 约定（继承工作流铁律）
 - 任何代码改动必须全量回归全绿才可提交部署；小批次交付 → E2E 核实 → commit+push
 - 严禁服务器构建(OOM)；deploy.py 只读 DEPLOY_PASSWORD 环境变量；部署走 PowerShell(MSYS 路径改写坑)
 - 节点/密钥/密码不落文档不进输出
+- 新增（本次反思会）：授权范围外的改动若因技术原因必须夹带，必须在本文件"夹带项"区显式留痕
+
+## 反思会（2026-10-01）
+- Keep：9/16~9/29 连续多轮前端交付零回滚，每轮专项 + 全量回归 + 回滚点齐备
+- Improve：sprint.md 停更 15 天（9/15→10/1），交付只记在 HANDOFF → 行动项：把"sprint.md 实时落盘"钉进每轮收口清单
+- Improve：未部署积压到 36 个提交，含影响线上行为的模型切换 → 行动项：Sprint 目标必须显式包含"未部署清零"

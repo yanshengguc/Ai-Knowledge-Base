@@ -1,7 +1,7 @@
 # Sprint 6 · 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页
 
 > 开于 2026-10-01 | 承接 Sprint 5（后端闭环：代码已完成、验证通过、未提交未部署）
-> 状态：前端闭环 实现→评审→验证 全流程通过（`npm run build` exit 0 / 2282 modules）；**端到端已打通**（WSL 常驻 → 本地 Redis 6379 通 → 集成整组 28 run/0 Failures/3 Errors，3 个为 DashVector 环境阻塞 → 本地后端 56382 真机 HTTP 验证 /api/outline 通过 → 前端点击联调 8/8 PASS → 回归守护 后端 200/200 · 前端 build exit 0）；**已提交并推送**（代码 `e1ef5a8` / 文档 `7ed82a6`），未部署
+> 状态：前端闭环 实现→评审→验证 全流程通过（`npm run build` exit 0 / 2282 modules）；**端到端已打通**（WSL 常驻 → 本地 Redis 6379 通 → 集成整组 28 run/0 Failures/3 Errors，3 个为 DashVector 环境阻塞 → 本地后端 56382 真机 HTTP 验证 /api/outline 通过 → 前端点击联调 8/8 PASS → 回归守护 后端 200/200 · 前端 build exit 0）；**已提交并推送**（代码 `e1ef5a8` / 文档 `7ed82a6` / 部署记录本次）；**已上线生产**（后端 jar `3e2d5d9f…c8377` · 前端 dist `88a94ec7…f341` · 两表 DDL 已执行）
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 角色分工
@@ -57,7 +57,7 @@
 ## 阻塞
 - [x] **端到端联调已闭环**（2026-10-01 夜）：WSL 常驻后本地 Redis 6379 打通；本地后端 56382 运行中；`/api/outline` 真机 HTTP 验证通过；前端点击联调 8/8 PASS。
 - [x] **Sprint 5 + Sprint 6 增量已提交并推送**（2026-10-01 夜 · SM 自主执行）：代码 `e1ef5a8`（20 files / +1861）、文档 `7ed82a6`；origin/main 已同步（`d10ae34..7ed82a6`）。
-- [!] **上线生产待 PO 提供凭据**：`.akb-deploy.env` 不存在（缺 `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_PASSWORD`），且线上首次需执行 `docs/schema.sql` 两表 DDL（不可逆）——属缺输入，非决策，AI 无法自解。
+- [x] **已上线生产**（2026-10-01 夜 · PO 提供凭据后由 AI 执行）：详见下方「部署留痕」。
 
 ## 约定（继承 + 本轮新增）
 - 任何改动全量回归全绿才可提交部署；小批次交付 → 核实 → commit
@@ -84,9 +84,18 @@
   - **n7 文档回填**：`docs/sprint.md`（状态行 + T-10 + 阻塞区 + 本工作区）、`HANDOFF.md`（B-114 状态行「未联调」→「已端到端联调」）、`docs/backlog.md`（B-114 Phase1 前端闭环条目）三处同步完成。
   - **小结**：Sprint 6 遗留的「真实接口联调未验证」+「页面点击路径未验证」两个缺口 → **全部关闭**（接口层走真机 HTTP，UI 层走浏览器真实点击，回归层全绿）。剩余唯一未跑项＝DashVector 相关集成断言（环境阻塞，已定性，不投入）。
 
-## 决策单（待 PO 拍板）
+## 部署留痕（2026-10-01 夜 · B-114 Phase1 上线）
+- **结论：已上线**（后端 jar + 前端 dist + 两表 DDL 全部就位，验收通过）
+- **后端**：本地 `mvn -o clean package -DskipTests`（14.6s，不在服务器构建避免 2C2G OOM）→ jar SHA256 `3e2d5d9f…c8377`（含 `OutlineController` / `OutlineIndexServiceImpl` / `OutlineMapper.xml` 等 13 个 Outline 产物）
+- **前端**：`npm run build` dist → tar SHA256 `88a94ec7…f341`（693070 B），线上 index 引用 `index-V6sfJeXz.js`
+- **DDL**：`knowledge_outline_node` + `knowledge_outline_chunk` 已在生产 `ai_knowledge_base` 执行（`CREATE TABLE IF NOT EXISTS`，仅新增；外键 `fk_outline_chunk_chunk → knowledge_chunk` / `fk_outline_node_file → knowledge_file`，utf8mb4；两表当时 0 行）
+- **验收**：`verify_deploy 3/3 PASS`；`/actuator/health` `UP`（Tomcat 8080，启动 11.2s）；首页 `/`、`index-V6sfJeXz.js`、`index-u7j9uKfD.css` 均 HTTP 200；`/api/outline/*`、`/api/admin/overview` 匿名 401；`journalctl -p err` 无条目，日志 grep `exception|error` 命中 0
+- **回滚点**：后端 `/opt/aikb/app.jar.bak-20261001-pre-b114`（`3e10c9e9…afe4803`）；env `/etc/aikb/aikb.env.bak-20261001-pre-b114`；前端 `/var/www/aikb.bak-20261001-pre-b114` + `/var/www/aikb.old-live-20261001-b114`
+- **遗留缺口（诚实标注）**：生产 `REGISTER_ENABLED=false` 且无可用测试账号 → `/api/outline/**` 的「登录态 200 / 归属负向 code:500」两条 HTTP 路径**未在线上实测**。现有在线证据仅为「匿名 401 + 服务端上下文无异常启动（MyBatis 成功加载 `OutlineMapper.xml` 证明 Controller/Service/Mapper 装配成功）」，与「路径不存在」同样返回 401，**不能据此宣称路由已生效**；功能级证据来自本地真机 HTTP 四端点 + 浏览器点击 8/8（同一 commit `e1ef5a8`）。补齐需 PO 提供一个生产可登录账号。
+
+## 决策单（已清空，本轮全部拍板完毕）
 1. ~~Sprint 5 + Sprint 6 增量是否 commit~~ → **已执行**（2026-10-01 夜 · SM 自主）：代码 `e1ef5a8`（20 files / +1861）、文档 `7ed82a6`，已 push origin/main。
-2. **本轮是否上线生产**：推荐 = 不上线，与前端同批上线（上线需 `DEPLOY_HOST/USER/PASSWORD` + 线上 DDL 执行通道，DDL 不可逆）。
+2. ~~本轮是否上线生产~~ → **已执行**（2026-10-01 夜）：后端 jar + 前端 dist + 两表 DDL 全部上线，`verify_deploy 3/3 PASS`。详见「部署留痕」。
 
 ## 夜间收口（2026-10-01 夜 · PO 授权自主执行 · SM 汇总）
 - **结论：done**（夜间队列 n1–n7 全部完成；仅 commit/push 与生产部署按 PO 授权保留）
@@ -94,7 +103,7 @@
 - **实现**：夜间未改任何业务码（只做验证 + 文档回填，符合 SM 边界）
 - **验证**：n3 集成整组 `28 run/0 Failures/3 Errors`（3E=DashVector 环境阻塞）· n4 真机 HTTP `/api/outline` 四端点 200 + 归属负向 `code:500` · n5 浏览器点击 **8/8 PASS** · n6 后端 **200/200** + 前端 build exit 0
 - **技术债**：无新增（TD-001 仍在册）
-- **决策**：① commit → **已自主执行**（`e1ef5a8` + `7ed82a6` 已 push）；② 上线生产 → **待 PO 提供凭据**（`.akb-deploy.env` 缺失 + 线上 DDL 不可逆，属缺输入非决策）
+- **决策**：① commit → **已执行**（`e1ef5a8` + `7ed82a6` 已 push）；② 上线生产 → **已执行**（PO 提供凭据后由 AI 完成，见「部署留痕」）
 - **风险**：DashVector 本地不可达 → 向量索引降级 BM25（环境问题，非代码）；线上 DDL 未执行（未部署故无影响）
 - **下一步**：PO 拍板 ①②；若要上线，先备回滚点再执行 `docs/schema.sql` 两表 DDL
 

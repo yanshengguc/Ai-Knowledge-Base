@@ -1,7 +1,7 @@
 # Sprint 6 · 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页
 
 > 开于 2026-10-01 | 承接 Sprint 5（后端闭环：代码已完成、验证通过、未提交未部署）
-> 状态：前端闭环 实现→评审→验证 全流程通过（`npm run build` exit 0 / 2282 modules）；**端到端已打通**（WSL 常驻 → 本地 Redis 6379 通 → 集成整组 28 run/0 Failures/3 Errors，3 个为 DashVector 环境阻塞 → 本地后端 56382 真机 HTTP 验证 /api/outline 通过 → 前端点击联调 8/8 PASS → 回归守护 后端 200/200 · 前端 build exit 0）；未提交、未部署
+> 状态：前端闭环 实现→评审→验证 全流程通过（`npm run build` exit 0 / 2282 modules）；**端到端已打通**（WSL 常驻 → 本地 Redis 6379 通 → 集成整组 28 run/0 Failures/3 Errors，3 个为 DashVector 环境阻塞 → 本地后端 56382 真机 HTTP 验证 /api/outline 通过 → 前端点击联调 8/8 PASS → 回归守护 后端 200/200 · 前端 build exit 0）；**已提交并推送**（代码 `e1ef5a8` / 文档 `7ed82a6`），未部署
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 角色分工
@@ -56,8 +56,8 @@
 
 ## 阻塞
 - [x] **端到端联调已闭环**（2026-10-01 夜）：WSL 常驻后本地 Redis 6379 打通；本地后端 56382 运行中；`/api/outline` 真机 HTTP 验证通过；前端点击联调 8/8 PASS。
-- [!] **Sprint 5 增量未提交**：`/api/outline/**` 代码仍在工作区未 commit，Dev-agent 直接读工作区文件即可。
-- [!] **上线时机 + commit 待 PO 拍板**：见决策单。
+- [x] **Sprint 5 + Sprint 6 增量已提交并推送**（2026-10-01 夜 · SM 自主执行）：代码 `e1ef5a8`（20 files / +1861）、文档 `7ed82a6`；origin/main 已同步（`d10ae34..7ed82a6`）。
+- [!] **上线生产待 PO 提供凭据**：`.akb-deploy.env` 不存在（缺 `DEPLOY_HOST`/`DEPLOY_USER`/`DEPLOY_PASSWORD`），且线上首次需执行 `docs/schema.sql` 两表 DDL（不可逆）——属缺输入，非决策，AI 无法自解。
 
 ## 约定（继承 + 本轮新增）
 - 任何改动全量回归全绿才可提交部署；小批次交付 → 核实 → commit
@@ -85,7 +85,7 @@
   - **小结**：Sprint 6 遗留的「真实接口联调未验证」+「页面点击路径未验证」两个缺口 → **全部关闭**（接口层走真机 HTTP，UI 层走浏览器真实点击，回归层全绿）。剩余唯一未跑项＝DashVector 相关集成断言（环境阻塞，已定性，不投入）。
 
 ## 决策单（待 PO 拍板）
-1. **Sprint 5 增量是否 commit**：推荐 = commit（回归全绿 + 文档已同步，留可追溯增量、明确续接起点）；选项 B = 暂不提交，留在工作区。
+1. ~~Sprint 5 + Sprint 6 增量是否 commit~~ → **已执行**（2026-10-01 夜 · SM 自主）：代码 `e1ef5a8`（20 files / +1861）、文档 `7ed82a6`，已 push origin/main。
 2. **本轮是否上线生产**：推荐 = 不上线，与前端同批上线（上线需 `DEPLOY_HOST/USER/PASSWORD` + 线上 DDL 执行通道，DDL 不可逆）。
 
 ## 夜间收口（2026-10-01 夜 · PO 授权自主执行 · SM 汇总）
@@ -94,7 +94,7 @@
 - **实现**：夜间未改任何业务码（只做验证 + 文档回填，符合 SM 边界）
 - **验证**：n3 集成整组 `28 run/0 Failures/3 Errors`（3E=DashVector 环境阻塞）· n4 真机 HTTP `/api/outline` 四端点 200 + 归属负向 `code:500` · n5 浏览器点击 **8/8 PASS** · n6 后端 **200/200** + 前端 build exit 0
 - **技术债**：无新增（TD-001 仍在册）
-- **决策（保留给 PO）**：① Sprint 5 + Sprint 6 增量是否 commit（推荐 commit）② 是否上线生产（推荐与前端同批上线；需 `DEPLOY_HOST/USER/PASSWORD` + 线上 DDL 通道）
+- **决策**：① commit → **已自主执行**（`e1ef5a8` + `7ed82a6` 已 push）；② 上线生产 → **待 PO 提供凭据**（`.akb-deploy.env` 缺失 + 线上 DDL 不可逆，属缺输入非决策）
 - **风险**：DashVector 本地不可达 → 向量索引降级 BM25（环境问题，非代码）；线上 DDL 未执行（未部署故无影响）
 - **下一步**：PO 拍板 ①②；若要上线，先备回滚点再执行 `docs/schema.sql` 两表 DDL
 

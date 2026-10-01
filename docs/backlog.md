@@ -1,6 +1,6 @@
 # 产品待办（Product Backlog）
 
-> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-09-30
+> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-10-01
 
 ## 迭代原则（当前 Sprint 生效）
 
@@ -84,4 +84,4 @@
   - **检索融合铁律**: 树只做路由加权层(索引命中→source_chunks 提权/前置),不动 hybrid(向量+BM25)底座;树检索失败降级回纯 RAG 并打 WARN;上线门槛=RetrievalQualityEvalTest recall@5/MRR 阈值 0.80/0.70(Eval Harness 15/15 测的是工具选择不测检索质量,9/26 修正)+先跑无树基线留档+有树 vs 无树对比
   - **拆阶段**: Phase1 MVP(4-6 晚,9/26 修正——工作面=新表+Mapper+回填脚本+切片器+节点 API+详情 UI+溯源页+全量回归,回归验证单列一晚;开工前置 1h=回填可行性验证:取 1 篇 md 用 OSS 原文重跑 StructureAwareSplitter,产出须与库内 knowledge_chunk 逐条一致)=标题树解析+节点详情+source_chunks 溯源页;Phase2=LLM 语义层+索引挂载;Phase3=Graph View 交互层升级(参考 Obsidian 交互思想不抄界面:点击展开/双击进入/搜索高亮/点击 source 回原文)
   - **当前状态(9/30)**: 已完成纯内存 `MarkdownOutlineParser` 探针及围栏/换行边界修复，并完成 `StructureAwareSplitter` 的最小围栏与换行兼容修复；切片专项 `11/11`、默认回归 `179/179`（Maven 默认排除 integration/e2e）。现有 `split()` 接口、普通段落/句子/硬切行为保持，输出统一 LF；代码围栏伪标题不再开启章节。二次只读语义探针确认围栏/波浪号/CR 已对齐，但多级标题中“无正文父标题是否进入后续 Chunk 上下文”仍未定义：旧 splitter 产出 2 个 chunk，OutlineParser 产出 3 个标题，不能宣称真实库内 Chunk 已一致。当前本地无 mysql CLI/pymysql，未访问数据库/OSS；**语义决策已确定采用 B 方案**：Outline 作为导航层，空父标题不生成空 Chunk，`source_chunks` 只关联真实正文/后代 Chunk，旧 Chunk 与检索语义不变。耦合度评估显示主流程和树/图边界已实际降低，但 FileServiceImpl、标题规则重复、Graph 节点协议仍是热点；下一步优先真实只读语料对齐，不为拆 Service 或统一解析器而重构。当前改动已提交本地 main，尚未 push 到 origin，也未部署线上。
-  - **技术价值**: 设计动机自然——"传统 RAG 只解决找相关文本,学习者还需要层级与关联";比"调了 Embedding API 存了向量库"多一层架构思考;与 B-110 跳转、B-107 图谱形成产品闭环
+  - **回填可行性实证（Sprint 4 · 2026-10-01 · 只读对账）**: 新增只读探针 `B114BackfillAlignmentProbeTest`（裸 JDBC + OSS SDK，不启 Spring 上下文故不依赖 Redis；`@Tag("integration")` 默认回归排除；只 SELECT + OSS GET）。对本地库筛出 4 个可对账文件（md + file_url 非空 + SUCCESS），用当前 `StructureAwareSplitter(500,100)` 重跑原文与库内 chunk 逐条比对：**file_id=52 上课讲义.md → 0/34 一致**（库内 20 条 `CHAR_LENGTH` 恒为 500，即固定窗口口径；重跑 34 条为结构感知口径）；**file_id=146/148/150 → 各 4/4 全一致**（08-28 创建，结构感知口径）。汇总逐条一致率 **12/46**。**结论：① "与库内逐条一致"作为 Phase1 门槛对存量数据不成立——库内两套口径并存（08-24 固定窗口 / 08-28 结构感知）；② 结构感知口径自身可复现（新批 100% 一致），B 方案（空父标题不生成空 Chunk）在新批数据上成立；③ Phase1 前正确动作是"定义迁移边界"而非"对齐存量"——旧 chunk 与其向量不回填改写，改为新增 Outline 导航层 + source_chunks 关联，与 9/30 已定 B 方案一致。** 未覆盖线上库（1131 条 chunk 口径分布未知，需只读数据通道）。复跑：`mvn test -Dtest=B114BackfillAlignmentProbeTest -DexcludedGroups=e2e -DfailIfNoTests=false`  - **技术价值**: 设计动机自然——"传统 RAG 只解决找相关文本,学习者还需要层级与关联";比"调了 Embedding API 存了向量库"多一层架构思考;与 B-110 跳转、B-107 图谱形成产品闭环

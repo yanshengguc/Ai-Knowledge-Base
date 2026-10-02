@@ -1,7 +1,7 @@
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 
 > 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）
-> 状态：**计划已定，待开工**（PO 2026-10-02 讨论拍板：一步步来）
+> 状态：**进行中——T-1（B-111）已完成实现+评审+验证，待 PO 验收后进 T-2**（PO 2026-10-02 拍板：一步步来）
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 背景与决策（PO 2026-10-02 讨论结论）
@@ -28,12 +28,12 @@
 ## 任务
 状态：[ ] 待开发 · [~] 开发中 · [R] 待评审 · [Q] 待验证 · [x] 完成 · [!] 阻塞
 
-- [ ] T-1 B-111 回答渲染美化：代码高亮（highlight.js 按需加载）+ `.markdown-body` 排版增强（表格/引用块/标题层级/行距）；**DOMPurify 白名单不动**
+- [x] T-1 B-111 回答渲染美化：代码高亮（highlight.js 按需加载）+ `.markdown-body` 排版增强（表格/引用块/标题层级/行距）；**DOMPurify 白名单不动** · **完成（2026-10-02）**：实现 + 评审 PASS + 验证全绿 + 浏览器真实渲染复核全项 PASS，证据见下方「本轮迭代留痕（Sprint 8 · T-1）」
 - [ ] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化**
 - [ ] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后
 - [ ] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70）
-- [ ] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）
-- [ ] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）
+- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2~T-4 待续
+- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-4 eval 基线待续
 
 ## DoD
 - 全量回归保持全绿（当前基线 222/0/0），前端 `npm run build` exit 0
@@ -50,7 +50,47 @@
 ## 下一步预告（Sprint 9）
 - B-114 Phase2：标题树挂载到混合检索做路由加权（树只提权，不动 hybrid 底座；失败降级回纯 RAG 并打 WARN）→ 上线门槛 = 有树 vs 无树对比 + Sprint 8 基线指标
 
+## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-1 / B-111）
+
+> 结论：**T-1 完成**（实现 → 独立评审 PASS → 独立验证全绿 → 浏览器真实渲染复核全项通过）；**待 PO 验收**（未 commit、未 push、未部署）
+
+- **实现（Dev-agent，唯一可写者）**
+  - `frontend/src/utils/markdown.ts`：接入 `highlight.js/lib/core` + **12 个语言按需 `registerLanguage`**（javascript/typescript/java/python/xml/css/scss/bash/sql/json/yaml/markdown，避开 190+ 语言全量包）；用 `marked.use({ renderer: { code } })` 覆写代码块渲染（marked v18 原生支持，**未引入 marked-highlight**）
+  - `renderMarkdown(src: string): string` **签名与同步语义未变**，三个调用点（`Chat.vue` L56-57 / L106、`Detail.vue` L11）**一行未改**
+  - 未知/未注册语言**确定性降级**为转义纯文本（不使用 `highlightAuto`，避免流式下开销）；`hljs.getLanguage` 守卫 + `try/catch` 兜底，**保证 renderMarkdown 永不抛错**（它是模板内同步调用，抛错会白屏）
+  - **DOMPurify `sanitize(html)` 默认配置零改动**（渲染器只改 marked 侧，不触碰 sanitize）
+  - 排版增强落在 `Chat.vue` / `Detail.vue` 的 `.markdown-body` 与 `FilePreview.vue` 的 `.markdown-preview`：表格（表头底色/斑马纹/边框）、引用块（主色左竖条 + 浅底 + 圆角）、标题层级（h1~h4 梯度，h2 下边框）、行距、代码块/行内 code、`hr`、链接。配色**全部取自 `tokens.scss` token**，**未引入任何外部 hljs 主题 CSS**
+  - `frontend/package.json`：仅新增 `highlight.js ^11.12.0`（lock 增量 10 行 = 声明 1 + `node_modules/highlight.js` 9，hljs 无传递依赖）
+- **评审（独立只读 agent）· PASS**
+  - 硬约束逐条 ✅：DOMPurify 白名单零改动 / API 契约零变化 / 三个调用点零改动（`git diff -U0` 证明全部 hunk 落在 `<style>` 区）/ 依赖合规 / 范围合规（仅 6 文件，无未追踪残留）
+  - 无 high / medium；低风险观察项 2 条（见下「技术债/观察项」）
+  - XSS 专项结论：**无回归面**——`escapeHtml` 与 marked v18 默认 code renderer 编码映射**逐字符等价**；`hljs.highlight().value` 自身转义输入；语言名拼入 class 前已转义；且 DOMPurify 仍是最终闸门
+- **验证（独立 agent）· 全绿**
+  - `npm run build` → **exit 0**（`2296 modules transformed`，`built in 11.98s`）
+  - `mvn -o test` → **`Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（与基线 222/0/0 一致，后端仅形式门禁，本轮后端一行未改）
+  - **真实 DOM 清洗验证（关键，实现者只做了静态核对）**：esbuild 打包**真实 `markdown.ts`** + jsdom 构造真实 DOM，`DOMPurify.isSupported = true`（**非 passthrough**），断言全绿：```java 围栏 → `<span class="hljs-keyword">` + `<code class="hljs language-java">` **经真实 DOMPurify 清洗后存活**；未知/无语言围栏无 `hljs` class 且 `<b>` 正确转义；`<h2>`/`<blockquote>`/`<table>` 均产出；XSS 用例（`<script>` / `onerror` / `javascript:`）被真实移除
+- **浏览器真实渲染复核（本次补跑，闭环纯前端最易出事的环节）**
+  - 手段：`vite preview` 起静态页，加载**真实构建产物**（`markdown-hQcwHLj9.js` + `Chat-BIxk6Di-.css` + `index-u7j9uKfD.css`），页面自动渲染，**本页 console 零 error**
+  - 实测：`.hljs-keyword` × 7、computed `color: rgb(37, 99, 235)`（= `$color-primary`）；`.hljs-comment` = `rgb(148, 163, 184)` + italic；`table` `border-collapse: collapse`；`th` `background-color: rgb(248, 250, 252)`、`border-top-width: 0.8px`；`blockquote` `border-left-width: 2.4px`、`border-left-color: rgb(37, 99, 235)`；`h2` `border-bottom-width: 0.8px`；未知语言块 `<b>` 以文本呈现（`#out pre b` = 0）；无 `script` / `onerror` 残留
+  - 复核用临时页与 preview 服务**已删除 / 已停止**，工作区无残留
+- **体积留痕（基线 → 改动后）**
+
+| chunk | 基线 raw/gzip (kB) | 改动后 raw/gzip (kB) | 变化 |
+| --- | --- | --- | --- |
+| `markdown-*`（应用 chunk：markdown.ts + highlight.js + 12 语言） | 0.17 / 0.16 | **86.48 / 24.15** | **+86.31 / +23.99**（hljs 落点） |
+| `markdown-CwvEFpAO.js`（vendor：marked + dompurify） | 72.63 / 24.02 | 72.63 / 24.02 | **0（字节级不变，缓存不失效）** |
+| `index-u7j9uKfD.css` | 358.34 / 48.17 | 358.34 / 48.17 | 0 |
+| `element-plus-*` | 1,109.26 / 346.09 | 1,109.29 / 346.10 | +0.03（重哈希，非 hljs） |
+
+- **顺带修复（在 T-1 目标范围内）**：`FilePreview.vue` 的 v-html 子选择器原为 plain 嵌套写法，被 Vue scoped 编译为 `.markdown-preview[data-v-x] h1[data-v-x]`，而 v-html 注入的子节点拿不到 `data-v-*` ⇒ **原规则全部落空**（只有容器自身样式生效）。改为 `:deep()` 后排版增强在文件预览里**才真正生效**（编译产物已核：`.markdown-preview[data-v-bdc0dbad] h1{...}`）
+- **技术债 / 观察项（低风险，未修，留痕）**
+  1. `escaped === true` 分支在 marked v18 实测**不可达**（token.escaped 恒为 undefined）；其内容与默认 renderer 语义一致，属无害冗余
+  2. 三处样式存在轻微不一致：单元格内距（`$space-1 $space-2` vs 字面量 `6px 10px`）、h1 字号（1.3 / 1.35 / 1.4em）——系三个独立 scoped 组件容器宽度不同所致
+  3. highlight.js 落在**应用 chunk** 而非 vendor chunk（`vite.config.ts` 的 `manualChunks.markdown` 仅含 marked/dompurify）；是否归入 vendor 属 T-3/后续缓存策略话题
+- **未验证项（如实标注）**：真机/移动端视觉未看；**未部署、未 commit/push**（PO 保留该拍板权）；`element-plus` chunk 微增 0.03 kB 未深挖归因（非本任务范围）
+
 ---
+
 # Sprint 7（已归档）· 目标：B-116 管理端写操作 + `user.role` 二值模型
 
 > 开于 2026-10-02 | 承接 Sprint 6（B-114 Phase1 大纲导航层已上线生产）

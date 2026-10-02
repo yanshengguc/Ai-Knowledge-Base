@@ -107,6 +107,14 @@
 - **未验证项**：护栏 2「最后一个生效管理员」的 HTTP 口径不可达（白名单恒使生效管理员 ≥1），仅逻辑层单测覆盖 —— 如实标注
 - **下一步（待 PO 拍板）**：commit/push → 生产建回滚点 → 执行生产 DDL → 部署 jar + dist → 线上验收
 
+## 部署留痕（2026-10-02 · B-116 上线）
+- **结论：已上线**（后端 jar + 前端 dist + `user.role` DDL 全部就位，公网验收通过）
+- **后端**：本地 `mvn -o clean package -DskipTests`（服务器 2C2G 严禁构建）→ jar SHA256 `64a4b1b2…e781`（117,059,625 B），**本地与线上一致**；`systemctl restart aikb` → `active`，直连 `:8080/actuator/health` = `UP`（约 15s）
+- **前端**：`npm run build` dist tar SHA256 `0849e6bf…a716`；线上首页引用 `index-763dzdoR.js`；**独立复核**：线上 `Admin-DLyvAin6.js` 与本地构建 **SHA256 完全一致**（`5926f971…71d7`，7686 B），且含 B-116 标记 `admin.role` / `admin.resetPassword` / `admin.deleteUser`
+- **DDL**：生产 `ai_knowledge_base` 执行 `ALTER TABLE user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT 'admin/user' AFTER nickname;`（预检列不存在 → 新建）；`SELECT role,COUNT(*)` = `user→34`；用户总数 **前 34 / 后 34 一致**，未改写既有数据
+- **验收**：公网 `/` = 200；`/assets/index-763dzdoR.js` = 200、`/assets/index-u7j9uKfD.css` = 200；匿名 `GET /api/admin/overview` = **401**；`journalctl -u aikb -p err` 无新条目
+- **回滚点**：后端 `/opt/aikb/app.jar.bak-20261002-pre-b116`（旧 jar `3e2d5d9f…c8377`）、env `/etc/aikb/aikb.env.bak-20261002-pre-b116`、前端 `/var/www/aikb.bak-20261002-pre-b116` + 原子替换上一版 `/var/www/aikb.old-live-20261002-b116`；DDL 回滚备查 `ALTER TABLE user DROP COLUMN role;`
+- **未完成**：生产**登录态写操作实测**未跑（生产 `REGISTER_ENABLED=false`，无法自建临时账号）→ 待 PO 提供生产管理员账号后补测（口径：四端点正向 + 非 admin·自己·非法 role·不存在 id·名下有数据 负向，看 body code）
 ---
 
 # Sprint 6（已归档）· 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页

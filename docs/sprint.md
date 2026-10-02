@@ -1,4 +1,115 @@
-# Sprint 6 · 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页
+# Sprint 7 · 目标：B-116 管理端写操作 + `user.role` 二值模型
+
+> 开于 2026-10-02 | 承接 Sprint 6（B-114 Phase1 大纲导航层已上线生产）
+> 状态：**收口**（实现 → 评审 PASS → 验证全绿 已完成；`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0 · 前端 build exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约。**commit/push 与生产 DDL/部署待 PO 拍板**）
+> 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
+
+## 角色分工
+- PO：用户（拍板权：commit/push、生产部署、DDL 上线、产品方向）
+- SM：本会话（维护 `sprint.md` / `backlog.md` / `HANDOFF.md`、跟阻塞、守流程；只改文档）
+- Dev：子 agent（每轮迭代新起独立实例）
+- 评审 / 验证：独立子 agent（禁止与 Dev 同一实例；只读，不写业务码）
+
+## 迭代节奏（继承 Sprint 6）
+1. **Dev-agent** 实现 → 交付三件套：改了什么 / 怎么跑 / 预期看到什么
+2. **评审-agent**（只读）审范围、契约一致性、硬约束、夹带 → PASS / FAIL + 问题清单
+3. **验证-agent** 跑门禁命令 → 只留真实结果，未跑项标「未验证」
+4. SM 回写本文件，PO 验收
+- 评审 FAIL 处理沿用协议：1 轮回 Dev、2 轮三岗会诊、3 轮挂牌 PO
+
+## 并发写隔离（硬约束）
+- 同一时刻只允许一个可写 agent；本轮同时涉及后端 + 前端，但**由单一 Dev-agent 串行完成**，不并行开第二写者，故暂无需 worktree
+- 若后续拆成「后端 / 前端」两个写者，必须先用 `git worktree` 隔离分支，评审通过后再合并
+
+## 本轮范围
+
+**允许改**
+- `src/main/java/**`：`AdminController` / `AdminService(+Impl)` / `UserService(+Impl)` / `UserMapper(+xml)` / `AdminMapper(+xml)` / `entity/UserEntity` / 新增 DTO、VO
+- `src/test/**`：新增/扩展管理端写操作测试（单测 + integration）
+- `frontend/src/**`：`views/admin/Admin.vue`（角色列 + 操作列）、`api/modules/admin.ts`、`locales/zh.ts`、`locales/en.ts`
+- `docs/schema.sql`：新增 `user.role` 列（`CREATE TABLE` 同步 + 迁移块）
+
+**不许碰**
+- 检索链路、聊天链路、RAG 管线、Parser/Splitter/Outline
+- 既有 `/api/outline/**`、`/api/file/**`、`/api/knowledge/**`、`/api/chat/**` 契约
+- `ADMIN_USERNAMES` 白名单既有机制（本轮只做**叠加**，不删除该机制）
+- 登录 / JWT 逻辑（**role 不写入 JWT**，避免令牌失效面扩大）
+- `docs/schema.sql` 中既有表结构（只 `ADD COLUMN`，不改写既有列）
+- 不引入新的大依赖
+
+## 权限模型（PO 已拍板 · 二值平滑过渡）
+- `user.role`：`admin` / `user` 二值，`NOT NULL DEFAULT 'user'`
+- **生效判据（过渡期叠加）**：`isAdmin(username) = username ∈ ADMIN_USERNAMES || role == 'admin'`
+  - 白名单用户天然是管理员，不受表内 `role` 影响（平滑过渡，防存量管理员被改表意外降权）
+  - 表内 `role='admin'` 由管理端写操作授予 / 撤销
+- **安全护栏（硬性，逐条须有测试）**
+  1. 不允许对自己执行「删除 / 降角色 / 重置密码」（目标 id == 当前登录 id → 拒绝）
+  2. 不允许移除「最后一个生效管理员」（操作后生效 admin 数须 ≥ 1，防自锁）
+  3. 删除用户前须校验名下无 `knowledge` / `knowledge_file`（有则拒绝，防孤儿数据）
+  4. `role` 仅接受 `admin` / `user` 白名单值，非法值拒绝
+  5. 所有写接口先 `requireAdmin()`（拒绝必须发生在任何 DB 写之前）
+  6. 任何响应不得回传 `password`
+
+## 接口契约（新增，Controller 统一 `/api/admin` 前缀；`Result<T>` 包装）
+- `POST   /api/admin/users` → 管理员建号（body：`username` / `password` / `nickname?` / `role?`，默认 `user`）
+- `PATCH  /api/admin/users/{id}/role` → 改角色（body：`{ "role": "admin" | "user" }`）
+- `PUT    /api/admin/users/{id}/password` → 重置密码（body：`{ "password": "..." }`）
+- `DELETE /api/admin/users/{id}` → 删除用户
+- 失败一律 `HTTP 200 + body code:500`（BusinessException 铁律，验证看 body 不看状态码）
+- 用户列表 `AdminUserVO` 增加 `role` 字段（**仍不含 password**）
+
+## 任务
+状态：[ ] 待开发 · [~] 开发中 · [R] 待评审 · [Q] 待验证 · [x] 完成 · [!] 阻塞
+
+- [x] T-1 DDL：`user` 表加 `role VARCHAR(20) NOT NULL DEFAULT 'user'`；本地库执行迁移（通道=`C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe`，非 PATH）· 生产 DDL 待 PO 拍板
+- [x] T-2 后端：`UserEntity.role` + `UserMapper` / `AdminMapper` 读写 role；`isAdmin` 叠加 role 判据
+- [x] T-3 后端：`AdminService` 四个写方法（create / updateRole / resetPassword / delete）+ 六条安全护栏
+- [x] T-4 后端：`AdminController` 四个写端点；`AdminUserVO` 加 role
+- [x] T-5 测试：`AdminServiceTest` 扩展（鉴权前置 + 六护栏 + 成功路径，mock mapper）
+- [x] T-6 测试：新增 `AdminWriteIntegrationTest`（`@Tag integration` / `local` profile，真实 MySQL 建→改→删 全链路，测后清理）
+- [x] T-7 前端：`admin.ts` 写接口封装 + `Admin.vue` 角色列与操作列（自己那行禁用）+ i18n zh/en
+- [x] T-8 评审：独立评审-agent（范围 / 契约 / 护栏 / 夹带）
+- [x] T-9 验证：独立验证-agent 跑门禁（`mvn test` 默认回归 + integration 写链路 + `npm run build`）
+
+## DoD
+- 本地 DDL 已执行且 `role` 列就位；新老用户默认 `user`
+- 四个写端点在本地真实 HTTP 验证：正向成功 + 负向（非 admin / 自己 / 最后一个 admin / 名下有数据 / 非法 role）看 **body code**
+- 默认回归全绿（当前基线 200/200）+ 前端 `npm run build` exit 0
+- `AdminUserVO` 结构上不含 password（单测钉死）
+- 未跑项显式标注「未验证」
+
+## 阻塞
+- [x] **B-116 原记录阻塞「本地无 mysql 客户端」已解除**（2026-10-02 实测）：`C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe` 存在（8.0.44），本地库 `ai_knowledge_base` 可连（`user` 表 803 行、当前无 role 列）
+- [ ] 生产 DDL 上线 + 部署：待 PO 提供凭据并拍板
+- 环境：本地 Redis 需 WSL 常驻才通 6379（继承 Sprint 6 配方）
+
+## 约定（继承 Sprint 6）
+- 任何改动全量回归全绿才可提交部署；小批次交付 → 核实 → commit
+- 严禁服务器构建(OOM)；节点/密钥/密码/名单不落档不进输出
+- 每次迭代必须调用多 agent（Dev / 评审 / 验证分离），禁止 SM 自编自审自验
+- 收口必须区分「逻辑层已证」与「真实数据/HTTP 层已验证」，未跑项显式标注
+
+## 本轮迭代留痕（多 agent · 2026-10-02）
+- 迭代 1：Dev-agent 实现 T-1~T-7 → 评审-agent（只读）**PASS**（无 high/medium；2 条低风险观察项）→ 验证-agent **全绿**
+- 评审观察项（不阻断，均未修，作设计权衡留痕）：① `createUser` 用户名唯一性为「先查后插」，存在理论并发重名窗口；② 护栏 2（最后一个生效管理员）在一致状态下几乎不可达（操作者本身必为生效管理员且禁止自操作 ⇒ 生效集合恒 ≥2），实为防御性分支
+
+## Sprint 7 收口（2026-10-02 · SM 汇总）
+- **结论：done**（代码层 实现 + 评审 + 验证 全通过；**commit/push 与生产 DDL/部署待 PO 拍板**）
+- **需求**：B-116 管理端写操作（用户增删改）+ `user.role` 二值模型（`admin`/`user`，叠加在 `ADMIN_USERNAMES` 白名单之上平滑过渡）
+- **实现**（Dev-agent）：`user` 表新增 `role`（本地库已迁移）；`isAdmin` = 白名单快速路径 ∪ 表内 `role='admin'`；`AdminService(+Impl)` 四个写方法 + 六条安全护栏；`AdminController` 四端点；`AdminUserVO` 加 `role`（仍无 password）；新增 3 个 DTO；前端 `Admin.vue` 角色列 + 操作列（自己那行禁用）+ 4 个写接口封装 + i18n 中英；新增 `AdminWriteIntegrationTest`
+- **验证**（独立验证-agent 复跑）：
+  - 门禁：`mvn -o test` **222/0/0**（基线 200 + 新增 22，非回归）· `mvn -o test -Dtest=AdminWriteIntegrationTest -DexcludedGroups=` **3/0/0**（真实 MySQL 建→改→重→删）· `npm run build` **exit 0**
+  - 真实 HTTP（本地 56382）：四端点正向均 `code:200`；负向「非管理员 / 非法 role / 操作自己 / 不存在 id / 名下有数据」→ 均 **HTTP 200 + body `code:500`** 且文案正确；`GET /api/admin/users` 实测**无 password 字段**（字段=id/username/nickname/role）
+  - 清理：临时账号计数归 0（用户数回到 **803**）、临时 knowledge 0 行、后端进程已停、端口未监听
+- **技术债**：无新增（评审 2 条观察项为设计权衡，不记为债）
+- **决策记录**：① 权限模型 = admin/user 二值 + 白名单叠加（PO 已拍板）；② 写操作范围 = 建号 / 改角色 / 重置密码 / 删号；③ `role` **不写入 JWT**（避免令牌失效面扩大）；④ 删号前置校验名下无 knowledge/file（防孤儿数据）
+- **风险**：① 生产 DDL（`ALTER TABLE user ADD COLUMN role`）未执行，未部署前线上无影响；② 本地 803 用户库已迁移，生产 34 用户库待迁移
+- **未验证项**：护栏 2「最后一个生效管理员」的 HTTP 口径不可达（白名单恒使生效管理员 ≥1），仅逻辑层单测覆盖 —— 如实标注
+- **下一步（待 PO 拍板）**：commit/push → 生产建回滚点 → 执行生产 DDL → 部署 jar + dist → 线上验收
+
+---
+
+# Sprint 6（已归档）· 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页
 
 > 开于 2026-10-01 | 承接 Sprint 5（后端闭环：代码已完成、验证通过、未提交未部署）
 > 状态：前端闭环 实现→评审→验证 全流程通过（`npm run build` exit 0 / 2282 modules）；**端到端已打通**（WSL 常驻 → 本地 Redis 6379 通 → 集成整组 28 run/0 Failures/3 Errors，3 个为 DashVector 环境阻塞 → 本地后端 56382 真机 HTTP 验证 /api/outline 通过 → 前端点击联调 8/8 PASS → 回归守护 后端 200/200 · 前端 build exit 0）；**已提交并推送**（代码 `e1ef5a8` / 文档 `7ed82a6` / 部署记录本次）；**已上线生产**（后端 jar `3e2d5d9f…c8377` · 前端 dist `88a94ec7…f341` · 两表 DDL 已执行）

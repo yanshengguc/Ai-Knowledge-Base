@@ -112,10 +112,9 @@ public class ChatServiceImpl implements ChatService {
                           java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone,
                           boolean enableWebSearch) {
         // 1. 检索 + 历史 + 长期记忆 + Prompt(与 ask 相同)
-        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
-        List<Map<String, String>> history = historyService.getHistory(userId);
-        List<String> memories = longTermMemoryService.recall(userId, question, 3);
-        String prompt = promptService.buildChatPrompt(question, searchResults, history, memories);
+        ChatContext ctx = buildChatContext(userId, question);
+        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = ctx.searchResults();
+        String prompt = ctx.prompt();
         if (enableWebSearch) {
             prompt = appendWebSearchContext(prompt, question);
         }
@@ -158,10 +157,9 @@ public class ChatServiceImpl implements ChatService {
                                    java.util.function.Consumer<com.yansheng.aiknowledgebase.entity.ToolTraceEvent> onTool,
                                    java.util.function.Consumer<java.util.List<com.yansheng.aiknowledgebase.entity.SearchResult>> onDone) {
         // 与快速路径同一段前置:检索 + 历史 + 长期记忆 + Prompt(保证两条模式上下文一致)
-        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = retrievalService.retrieveTopK(question);
-        List<Map<String, String>> history = historyService.getHistory(userId);
-        List<String> memories = longTermMemoryService.recall(userId, question, 3);
-        String prompt = promptService.buildChatPrompt(question, searchResults, history, memories);
+        ChatContext ctx = buildChatContext(userId, question);
+        List<com.yansheng.aiknowledgebase.entity.SearchResult> searchResults = ctx.searchResults();
+        String prompt = ctx.prompt();
 
         historyService.append(userId, "user", question);
 
@@ -181,6 +179,22 @@ public class ChatServiceImpl implements ChatService {
 
         onToken.accept(answer);
         onDone.accept(searchResults);
+    }
+
+    /**
+     * 抽出快速路径与 Agent 路径共用的前置:检索 + 历史 + 长期记忆 + 拼 Prompt。
+     * 抽取前后行为逐字等价(语句顺序与副作用均不变);web 搜索追加与 user 消息落库仍留在各自调用点。
+     */
+    private ChatContext buildChatContext(Long userId, String question) {
+        List<SearchResult> searchResults = retrievalService.retrieveTopK(question);
+        List<Map<String, String>> history = historyService.getHistory(userId);
+        List<String> memories = longTermMemoryService.recall(userId, question, 3);
+        String prompt = promptService.buildChatPrompt(question, searchResults, history, memories);
+        return new ChatContext(searchResults, prompt);
+    }
+
+    /** 聊天前置上下文的轻量载体:仅承载调用点后续真正用到的检索结果与 Prompt。 */
+    private record ChatContext(List<SearchResult> searchResults, String prompt) {
     }
 
     @Override

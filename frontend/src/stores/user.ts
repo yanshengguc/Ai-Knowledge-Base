@@ -6,6 +6,7 @@ import type { LoginDTO, RegisterDTO } from '@/types/api'
 export const useUserStore = defineStore('user', {
   state: () => ({
     token: getToken() || '',
+    id: null as number | null,
     username: localStorage.getItem('akb_username') || '',
     // 管理端可见性:由后端白名单判定,前端只持有展示用的布尔值(真正的拦截在后端)
     isAdmin: false,
@@ -30,6 +31,7 @@ export const useUserStore = defineStore('user', {
       }
       try {
         const res = await getMe()
+        this.id = res.data?.id ?? null
         this.isAdmin = !!res.data?.admin
         if (res.data?.username) {
           this.username = res.data.username
@@ -41,6 +43,7 @@ export const useUserStore = defineStore('user', {
     },
     logout() {
       this.token = ''
+      this.id = null
       this.username = ''
       this.isAdmin = false
       clearToken()

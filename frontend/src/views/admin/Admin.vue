@@ -68,6 +68,47 @@
           <el-table-column :label="t('admin.nickname')">
             <template #default="{ row }">{{ row.nickname || '-' }}</template>
           </el-table-column>
+          <el-table-column :label="t('admin.role')" width="120">
+            <template #default="{ row }">
+              <el-tag :type="row.role === 'admin' ? 'success' : 'info'" effect="light" size="small">
+                {{ row.role === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column :label="t('admin.actions')" width="240">
+            <template #default="{ row }">
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :disabled="isSelf(row)"
+                :title="isSelf(row) ? t('admin.selfOperationDisabled') : undefined"
+                @click="onChangeRole(row)"
+              >
+                {{ row.role === 'admin' ? t('admin.demote') : t('admin.promote') }}
+              </el-button>
+              <el-button
+                link
+                type="primary"
+                size="small"
+                :disabled="isSelf(row)"
+                :title="isSelf(row) ? t('admin.selfOperationDisabled') : undefined"
+                @click="onResetPassword(row)"
+              >
+                {{ t('admin.resetPassword') }}
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                size="small"
+                :disabled="isSelf(row)"
+                :title="isSelf(row) ? t('admin.selfOperationDisabled') : undefined"
+                @click="onDeleteUser(row)"
+              >
+                {{ t('common.delete') }}
+              </el-button>
+            </template>
+          </el-table-column>
         </el-table>
         <el-empty v-if="!usersLoading && users.length === 0" :description="t('admin.userEmpty')" />
         <el-pagination
@@ -88,7 +129,18 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Refresh, Search } from '@element-plus/icons-vue'
-import { getAdminOverview, getAdminUsers, type AdminOverview, type AdminUser } from '@/api/modules/admin'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  deleteAdminUser,
+  getAdminOverview,
+  getAdminUsers,
+  resetAdminUserPassword,
+  updateAdminUserRole,
+  type AdminOverview,
+  type AdminRole,
+  type AdminUser,
+} from '@/api/modules/admin'
+import { useUserStore } from '@/stores/user'
 
 const { t } = useI18n()
 
@@ -102,6 +154,9 @@ const total = ref(0)
 const page = ref(1)
 const size = 10
 const keyword = ref('')
+const userStore = useUserStore()
+/** 当前登录用户 id:用于禁用"自己这一行"的写操作按钮 */
+const currentUserId = computed(() => userStore.id)
 
 const STATUS_LABELS: Record<string, { label: string; tag: 'success' | 'danger' | 'warning' | 'info' }> = {
   SUCCESS: { label: 'SUCCESS', tag: 'success' },
@@ -182,6 +237,72 @@ function onSearch() {
 function onPageChange(next: number) {
   page.value = next
   loadUsers()
+}
+
+/** 自己这一行禁用写操作(后端亦会拒绝自我操作,此处仅做前端防误触) */
+function isSelf(row: AdminUser) {
+  return currentUserId.value != null && row.id === currentUserId.value
+}
+
+async function onChangeRole(row: AdminUser) {
+  const nextRole: AdminRole = row.role === 'admin' ? 'user' : 'admin'
+  const roleLabel = nextRole === 'admin' ? t('admin.roleAdmin') : t('admin.roleUser')
+  try {
+    await ElMessageBox.confirm(
+      t('admin.changeRoleConfirm', { name: row.username, role: roleLabel }),
+      t('common.confirm'),
+      { type: 'warning', confirmButtonText: t('common.confirm'), cancelButtonText: t('common.cancel') },
+    )
+  } catch {
+    return
+  }
+  try {
+    await updateAdminUserRole(row.id, nextRole)
+    ElMessage.success(t('admin.roleUpdated'))
+    await loadUsers()
+  } catch {
+    /* 请求拦截器已提示失败原因 */
+  }
+}
+
+async function onResetPassword(row: AdminUser) {
+  let value: string
+  try {
+    const res = await ElMessageBox.prompt(t('admin.resetPasswordPrompt', { name: row.username }), t('common.confirm'), {
+      inputType: 'password',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      inputValidator: (v: string) => (v && v.trim() ? true : t('admin.resetPasswordRequired')),
+    })
+    value = res.value
+  } catch {
+    return
+  }
+  try {
+    await resetAdminUserPassword(row.id, value.trim())
+    ElMessage.success(t('admin.resetPasswordSuccess'))
+  } catch {
+    /* 请求拦截器已提示失败原因 */
+  }
+}
+
+async function onDeleteUser(row: AdminUser) {
+  try {
+    await ElMessageBox.confirm(t('admin.deleteUserConfirm', { name: row.username }), t('common.confirm'), {
+      type: 'warning',
+      confirmButtonText: t('common.delete'),
+      cancelButtonText: t('common.cancel'),
+    })
+  } catch {
+    return
+  }
+  try {
+    await deleteAdminUser(row.id)
+    ElMessage.success(t('admin.userDeleted'))
+    await loadUsers()
+  } catch {
+    /* 请求拦截器已提示失败原因 */
+  }
 }
 
 onMounted(loadAll)

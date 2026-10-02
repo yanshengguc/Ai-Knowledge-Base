@@ -16,4 +16,7 @@ public class AdminUserVO {
     private String username;
 
     private String nickname;
+
+    /** admin / user(仅展示);生效判据仍叠加 ADMIN_USERNAMES 白名单 */
+    private String role;
 }

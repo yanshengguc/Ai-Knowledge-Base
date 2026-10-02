@@ -39,7 +39,7 @@
     </sql>
 
     <select id="selectUsers" resultType="com.yansheng.aiknowledgebase.vo.AdminUserVO">
-        SELECT id, username, nickname
+        SELECT id, username, nickname, role
         FROM `user`
         <include refid="userKeywordFilter"/>
         ORDER BY id
@@ -50,6 +50,54 @@
         SELECT COUNT(*)
         FROM `user`
         <include refid="userKeywordFilter"/>
+    </select>
+
+    <select id="selectRoleByUsername" resultType="java.lang.String">
+        SELECT role
+        FROM `user`
+        WHERE username = #{username}
+    </select>
+
+    <select id="selectAdminUsernames" resultType="java.lang.String">
+        SELECT username
+        FROM `user`
+        WHERE role = 'admin'
+    </select>
+
+    <select id="selectUserById" resultType="com.yansheng.aiknowledgebase.vo.AdminUserVO">
+        SELECT id, username, nickname, role
+        FROM `user`
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insertUser">
+        INSERT INTO `user`(username, password, nickname, role)
+        VALUES(#{username}, #{password}, #{nickname}, #{role})
+    </insert>
+
+    <update id="updateRole">
+        UPDATE `user`
+        SET role = #{role}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updatePassword">
+        UPDATE `user`
+        SET password = #{password}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteUser">
+        DELETE FROM `user`
+        WHERE id = #{id}
+    </delete>
+
+    <select id="countKnowledgeByUserId" resultType="long">
+        SELECT COUNT(*) FROM knowledge WHERE user_id = #{userId}
+    </select>
+
+    <select id="countFilesByUserId" resultType="long">
+        SELECT COUNT(*) FROM knowledge_file WHERE user_id = #{userId}
     </select>
 
 </mapper>

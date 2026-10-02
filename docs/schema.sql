@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS `user` (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(100) NOT NULL,
-    nickname VARCHAR(50)
+    nickname VARCHAR(50),
+    role VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT 'admin/user'
 );
 
 -- 知识条目表
@@ -107,3 +108,9 @@ CREATE TABLE IF NOT EXISTS knowledge_outline_chunk (
     CONSTRAINT fk_outline_chunk_node FOREIGN KEY (node_id) REFERENCES knowledge_outline_node(id) ON DELETE CASCADE,
     CONSTRAINT fk_outline_chunk_chunk FOREIGN KEY (chunk_id) REFERENCES knowledge_chunk(id) ON DELETE CASCADE
 );
+
+-- ===== B-116 user.role 二值权限模型(10/02 追加,不改写既有表) =====
+-- 语义:role ∈ {admin,user};与 ADMIN_USERNAMES 白名单叠加做平滑过渡(白名单优先,表内 role 只做增补)。
+-- MySQL 8 不支持 ADD COLUMN IF NOT EXISTS;列已存在时会报 1060 Duplicate column name,
+-- 属预期报错,忽略即可(本语句幂等重跑安全:重复执行 = 重复报 1060,不影响既有数据)。
+ALTER TABLE `user` ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT 'admin/user' AFTER nickname;

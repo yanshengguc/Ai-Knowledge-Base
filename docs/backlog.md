@@ -1,6 +1,6 @@
 # 产品待办（Product Backlog）
 
-> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-10-01
+> 来源:HANDOFF.md(2026-09-15)待办与低优先 backlog 整理 | 维护者:PO=用户(AI 起草) | 更新:2026-10-02
 
 ## 迭代原则（当前 Sprint 生效）
 
@@ -20,7 +20,7 @@
 
 ## P0（Sprint 3 已收口 · 2026-10-01）
 - [x] B-115 管理端 MVP（只读）**Sprint 3 主线 · 已上线 2026-10-01**：课设硬需求（原计划 10 月上旬，已到期）。范围=配置驱动 admin 鉴权（`admin.usernames` 白名单，零 DDL）+ `GET /api/admin/overview`（用户/知识/文件/切片数 + 文件状态分布 + 全站 Token 汇总）+ `GET /api/admin/users`（服务端分页 + 关键词 + 不回传 password）+ 前端 `/admin` 路由守卫与只读页 + 导航项仅 admin 可见。**不含**用户增删改与 `user.role` 字段（跨 DDL，本地无 mysql 客户端无法验证，推迟下一轮）。**闭环(10-01)**：后端 jar SHA256 `3e10c9e9…afe4803`、前端 dist tar SHA256 `1eef2b2a…ecc0289c` 双端一致；`verify_deploy 3/3 PASS`；`/`、`/admin`、新资源 HTTP 200，`aikb active`；默认回归 189/189 绿；匿名与坏 token 访问 `/api/admin/*`、`/api/user/me` 均 401
-- [~] B-116 管理端写操作（用户增删改 + `user.role` 字段）**Sprint 7 主线 · 已上线生产（2026-10-02，部署留痕见 docs/sprint.md）；线上登录态写操作实测待 PO 提供生产账号**：范围=`user.role` 二值(admin/user) 叠加 `ADMIN_USERNAMES` 白名单 + 四个写端点(`POST /api/admin/users`、`PATCH /{id}/role`、`PUT /{id}/password`、`DELETE /{id}`) + 六条安全护栏(禁自操作/防移除最后生效管理员/删前校验名下无 knowledge·file/role 白名单/写前 requireAdmin/响应无 password) + 前端 Admin.vue 角色列与操作列。**闭环证据**：`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0(真实 MySQL 建→改→重→删) · 前端 `npm run build` exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约(非 admin/自己/非法 role/不存在 id/名下有数据 均 HTTP 200 + code:500) · `AdminUserVO` 实测无 password。**原「本地无 mysql 客户端」阻塞已解除**(mysql.exe 8.0.44，已有本机迁移通道)。**未上线**：生产 DDL `ALTER TABLE user ADD COLUMN role` 待 PO 拍板；护栏 2 的 HTTP 口径不可达，仅逻辑层单测覆盖
+- [x] B-116 管理端写操作（用户增删改 + `user.role` 字段）**Sprint 7 主线 · 已上线生产并完成线上登录态实测（2026-10-02，部署与实测留痕见 docs/sprint.md）**：范围=`user.role` 二值(admin/user) 叠加 `ADMIN_USERNAMES` 白名单 + 四个写端点(`POST /api/admin/users`、`PATCH /{id}/role`、`PUT /{id}/password`、`DELETE /{id}`) + 六条安全护栏(禁自操作/防移除最后生效管理员/删前校验名下无 knowledge·file/role 白名单/写前 requireAdmin/响应无 password) + 前端 Admin.vue 角色列与操作列。**闭环证据**：`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0(真实 MySQL 建→改→重→删) · 前端 `npm run build` exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约(非 admin/自己/非法 role/不存在 id/名下有数据 均 HTTP 200 + code:500) · `AdminUserVO` 实测无 password。**原「本地无 mysql 客户端」阻塞已解除**(mysql.exe 8.0.44，已有本机迁移通道)。**已上线**：生产 DDL `ALTER TABLE user ADD COLUMN role` 已执行（34 用户全 user）、jar/dist 已部署；**线上登录态实测通过**（临时管理员 `aikb_s7_verify`，测后彻底清理：user 34→35→34、`aikb_%`=0、孤儿 0）。护栏 2 的 HTTP 口径不可达，仅逻辑层单测覆盖
 ## P1（**维护期解锁**——9/15 晚 Sprint 2 计划会 PO 拍板:AKB 转纯维护模式,不开新功能线）
 - [ ] B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），减 1MB+ 单 chunk
 - [ ] B-104 后端分页（知识/文件列表服务端分页）

@@ -1,7 +1,7 @@
 # Sprint 7 · 目标：B-116 管理端写操作 + `user.role` 二值模型
 
 > 开于 2026-10-02 | 承接 Sprint 6（B-114 Phase1 大纲导航层已上线生产）
-> 状态：**收口**（实现 → 评审 PASS → 验证全绿 已完成；`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0 · 前端 build exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约。**commit/push 与生产 DDL/部署待 PO 拍板**）
+> 状态：**已收口并上线**（实现 → 评审 PASS → 验证全绿 → 生产上线 → 线上登录态写操作实测通过；`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0 · 前端 build exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约 · **生产登录态正/负向矩阵全部符合契约、临时数据已彻底清理**）
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 角色分工
@@ -80,7 +80,7 @@
 
 ## 阻塞
 - [x] **B-116 原记录阻塞「本地无 mysql 客户端」已解除**（2026-10-02 实测）：`C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe` 存在（8.0.44），本地库 `ai_knowledge_base` 可连（`user` 表 803 行、当前无 role 列）
-- [ ] 生产 DDL 上线 + 部署：待 PO 提供凭据并拍板
+- [x] 生产 DDL 上线 + 部署 + 线上登录态写操作实测（2026-10-02 完成，见「部署留痕」）
 - 环境：本地 Redis 需 WSL 常驻才通 6379（继承 Sprint 6 配方）
 
 ## 约定（继承 Sprint 6）
@@ -94,7 +94,7 @@
 - 评审观察项（不阻断，均未修，作设计权衡留痕）：① `createUser` 用户名唯一性为「先查后插」，存在理论并发重名窗口；② 护栏 2（最后一个生效管理员）在一致状态下几乎不可达（操作者本身必为生效管理员且禁止自操作 ⇒ 生效集合恒 ≥2），实为防御性分支
 
 ## Sprint 7 收口（2026-10-02 · SM 汇总）
-- **结论：done**（代码层 实现 + 评审 + 验证 全通过；**commit/push 与生产 DDL/部署待 PO 拍板**）
+- **结论：done**（代码层 实现 + 评审 + 验证 全通过；commit/push 与生产 DDL/部署已于 2026-10-02 完成，见「部署留痕」）
 - **需求**：B-116 管理端写操作（用户增删改）+ `user.role` 二值模型（`admin`/`user`，叠加在 `ADMIN_USERNAMES` 白名单之上平滑过渡）
 - **实现**（Dev-agent）：`user` 表新增 `role`（本地库已迁移）；`isAdmin` = 白名单快速路径 ∪ 表内 `role='admin'`；`AdminService(+Impl)` 四个写方法 + 六条安全护栏；`AdminController` 四端点；`AdminUserVO` 加 `role`（仍无 password）；新增 3 个 DTO；前端 `Admin.vue` 角色列 + 操作列（自己那行禁用）+ 4 个写接口封装 + i18n 中英；新增 `AdminWriteIntegrationTest`
 - **验证**（独立验证-agent 复跑）：
@@ -103,9 +103,9 @@
   - 清理：临时账号计数归 0（用户数回到 **803**）、临时 knowledge 0 行、后端进程已停、端口未监听
 - **技术债**：无新增（评审 2 条观察项为设计权衡，不记为债）
 - **决策记录**：① 权限模型 = admin/user 二值 + 白名单叠加（PO 已拍板）；② 写操作范围 = 建号 / 改角色 / 重置密码 / 删号；③ `role` **不写入 JWT**（避免令牌失效面扩大）；④ 删号前置校验名下无 knowledge/file（防孤儿数据）
-- **风险**：① 生产 DDL（`ALTER TABLE user ADD COLUMN role`）未执行，未部署前线上无影响；② 本地 803 用户库已迁移，生产 34 用户库待迁移
+- **风险**：① 生产 DDL（`ALTER TABLE user ADD COLUMN role`）已于 2026-10-02 执行并完成部署；② 本地 803 用户库与生产 34 用户库均已迁移（生产全为 user）
 - **未验证项**：护栏 2「最后一个生效管理员」的 HTTP 口径不可达（白名单恒使生效管理员 ≥1），仅逻辑层单测覆盖 —— 如实标注
-- **下一步（待 PO 拍板）**：commit/push → 生产建回滚点 → 执行生产 DDL → 部署 jar + dist → 线上验收
+- **下一步**：已完成（commit/push → 生产建回滚点 → 生产 DDL → 部署 jar + dist → 线上验收，见「部署留痕」）
 
 ## 部署留痕（2026-10-02 · B-116 上线）
 - **结论：已上线**（后端 jar + 前端 dist + `user.role` DDL 全部就位，公网验收通过）
@@ -114,7 +114,7 @@
 - **DDL**：生产 `ai_knowledge_base` 执行 `ALTER TABLE user ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'user' COMMENT 'admin/user' AFTER nickname;`（预检列不存在 → 新建）；`SELECT role,COUNT(*)` = `user→34`；用户总数 **前 34 / 后 34 一致**，未改写既有数据
 - **验收**：公网 `/` = 200；`/assets/index-763dzdoR.js` = 200、`/assets/index-u7j9uKfD.css` = 200；匿名 `GET /api/admin/overview` = **401**；`journalctl -u aikb -p err` 无新条目
 - **回滚点**：后端 `/opt/aikb/app.jar.bak-20261002-pre-b116`（旧 jar `3e2d5d9f…c8377`）、env `/etc/aikb/aikb.env.bak-20261002-pre-b116`、前端 `/var/www/aikb.bak-20261002-pre-b116` + 原子替换上一版 `/var/www/aikb.old-live-20261002-b116`；DDL 回滚备查 `ALTER TABLE user DROP COLUMN role;`
-- **未完成**：生产**登录态写操作实测**未跑（生产 `REGISTER_ENABLED=false`，无法自建临时账号）→ 待 PO 提供生产管理员账号后补测（口径：四端点正向 + 非 admin·自己·非法 role·不存在 id·名下有数据 负向，看 body code）
+- **登录态写操作实测（2026-10-02 补测 · 结论：通过）**：临时管理员 `aikb_s7_verify`（测后彻底删除）完成全矩阵。**正向**：管理员登录 → `GET /api/user/me` `admin=true` → `GET /api/admin/users` `code:200` → `POST /api/admin/users` 建普通用户 → `PATCH /{idB}/role` 改 admin → `PUT /{idB}/password` 重置并新口令登录成功。**负向**（均 HTTP 200 + body `code:500`）：非管理员调四个写端点 + GET → `权限不足`；操作自己 → `不能修改自己的角色`/`不能重置自己的密码`/`不能删除自己`；非法 role → `非法的角色`；不存在 id → `用户不存在`；名下有 knowledge → `该用户名下仍有知识或文件,无法删除`；匿名 → HTTP 401。**字段证据**：`GET /api/admin/users` 行内字段 = `id, username, nickname, role`，无 password。**清理自证**：`user` 总数 34 → 35 → 34；`aikb_%` 计数 0；`role <> 'user'` 残留 0；孤儿 knowledge/files 0；未改 `aikb.env`；未做 DDL；`git status` 干净。**未跑项**：`POST /api/admin/users` 无 id 路径参数，「不存在 id」用例不适用
 ---
 
 # Sprint 6（已归档）· 目标：B-114 Phase1 前端闭环——大纲导航面板 + 节点详情 + source_chunks 溯源页

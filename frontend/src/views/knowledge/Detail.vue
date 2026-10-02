@@ -164,6 +164,7 @@ onMounted(loadDetail)
 
   :deep(p) { margin: 0 0 10px; &:last-child { margin-bottom: 0; } }
   :deep(ul), :deep(ol) { padding-left: 1.4em; margin: 0 0 10px; }
+  :deep(li) { margin: 3px 0; }
   :deep(pre) {
     background: $color-bg;
     border: 1px solid $color-border;
@@ -171,27 +172,42 @@ onMounted(loadDetail)
     padding: $space-3;
     overflow-x: auto;
     font-size: $font-size-xs;
+    margin: 0 0 10px;
   }
   :deep(code) {
     font-family: $font-family-mono;
     background: $color-bg;
+    border: 1px solid $color-border;
     border-radius: 3px;
     padding: 1px 4px;
     font-size: 0.92em;
   }
-  :deep(pre code) { background: transparent; padding: 0; }
-  :deep(h1), :deep(h2), :deep(h3) { font-weight: 600; margin: 14px 0 8px; }
-  :deep(h1) { font-size: 1.2em; }
-  :deep(h2) { font-size: 1.1em; }
-  :deep(h3) { font-size: 1em; }
+  :deep(pre code) { background: transparent; border: none; padding: 0; }
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { font-weight: 600; margin: 14px 0 8px; line-height: 1.4; }
+  :deep(h1) { font-size: 1.4em; }
+  :deep(h2) { font-size: 1.2em; padding-bottom: $space-1; border-bottom: 1px solid $color-border; }
+  :deep(h3) { font-size: 1.05em; }
+  :deep(h4) { font-size: 1em; color: $color-text-secondary; }
   :deep(blockquote) {
-    border-left: 3px solid $color-border;
-    padding-left: $space-3;
+    border-left: 3px solid $color-primary;
+    background: $color-primary-light;
+    padding: $space-2 $space-3;
     color: $color-text-secondary;
     margin: 0 0 10px;
+    border-radius: 0 $radius-sm $radius-sm 0;
   }
-  :deep(a) { color: $color-primary; }
-  :deep(table) { width: 100%; border-collapse: collapse; margin: 0 0 10px; }
-  :deep(th), :deep(td) { border: 1px solid $color-border; padding: 5px 8px; font-size: $font-size-sm; }
+  :deep(a) { color: $color-primary; text-decoration: none; &:hover { text-decoration: underline; } }
+  :deep(table) { width: 100%; border-collapse: collapse; margin: 0 0 10px; font-size: $font-size-sm; }
+  :deep(th), :deep(td) { border: 1px solid $color-border; padding: 6px 10px; text-align: left; }
+  :deep(th) { background: $color-bg; font-weight: 600; }
+  :deep(tbody tr:nth-child(even)) { background: $color-bg; }
+  :deep(hr) { border: none; border-top: 1px solid $color-border; margin: $space-4 0; }
+  :deep(img) { max-width: 100%; }
+  :deep(.hljs-comment), :deep(.hljs-quote) { color: $color-text-muted; font-style: italic; }
+  :deep(.hljs-keyword), :deep(.hljs-selector-tag), :deep(.hljs-literal), :deep(.hljs-section), :deep(.hljs-doctag), :deep(.hljs-type), :deep(.hljs-name) { color: $color-primary; }
+  :deep(.hljs-string), :deep(.hljs-attr), :deep(.hljs-template-tag), :deep(.hljs-template-variable), :deep(.hljs-addition) { color: $color-success; }
+  :deep(.hljs-number), :deep(.hljs-symbol), :deep(.hljs-bullet), :deep(.hljs-meta), :deep(.hljs-link) { color: $color-accent; }
+  :deep(.hljs-title), :deep(.hljs-built_in), :deep(.hljs-variable), :deep(.hljs-selector-id), :deep(.hljs-selector-class) { color: $color-secondary; }
+  :deep(.hljs-deletion) { color: $color-danger; }
 }
 </style>

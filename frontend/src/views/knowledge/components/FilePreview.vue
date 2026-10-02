@@ -119,59 +119,75 @@ defineExpose({ open, retry })
   color: $color-text;
   word-break: break-word;
 
-  h1, h2, h3, h4 {
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
     margin: $space-4 0 $space-2;
     line-height: 1.4;
   }
 
-  h1 { font-size: 1.35em; }
-  h2 { font-size: 1.2em; border-bottom: 1px solid $color-border; padding-bottom: $space-1; }
-  h3 { font-size: 1.08em; }
+  :deep(h1) { font-size: 1.35em; }
+  :deep(h2) { font-size: 1.2em; border-bottom: 1px solid $color-border; padding-bottom: $space-1; }
+  :deep(h3) { font-size: 1.08em; }
+  :deep(h4) { font-size: 1em; color: $color-text-secondary; }
 
-  p { margin: $space-2 0; }
+  :deep(p) { margin: $space-2 0; }
 
-  ul, ol { padding-left: 1.4em; margin: $space-2 0; }
+  :deep(ul), :deep(ol) { padding-left: 1.4em; margin: $space-2 0; }
+  :deep(li) { margin: 2px 0; }
 
-  blockquote {
+  :deep(blockquote) {
     margin: $space-2 0;
-    padding: $space-1 $space-3;
+    padding: $space-2 $space-3;
     border-left: 3px solid $color-primary;
-    background: $color-bg;
+    background: $color-primary-light;
     color: $color-text-secondary;
+    border-radius: 0 $radius-sm $radius-sm 0;
   }
 
-  code {
+  :deep(code) {
+    font-family: $font-family-mono;
     background: $color-bg;
+    border: 1px solid $color-border;
     padding: 1px 5px;
     border-radius: $radius-sm;
     font-size: 0.92em;
   }
 
-  pre {
+  :deep(pre) {
     background: $color-bg;
+    border: 1px solid $color-border;
     padding: $space-3;
     border-radius: $radius-sm;
     overflow-x: auto;
-
-    code { background: none; padding: 0; }
   }
 
-  table {
+  :deep(pre code) { background: none; border: none; padding: 0; }
+
+  :deep(table) {
     border-collapse: collapse;
     margin: $space-3 0;
     width: 100%;
-
-    th, td {
-      border: 1px solid $color-border;
-      padding: $space-1 $space-2;
-      text-align: left;
-    }
-
-    th { background: $color-bg; font-weight: 600; }
   }
 
-  hr { border: none; border-top: 1px solid $color-border; margin: $space-4 0; }
+  :deep(th), :deep(td) {
+    border: 1px solid $color-border;
+    padding: $space-1 $space-2;
+    text-align: left;
+  }
 
-  img { max-width: 100%; }
+  :deep(th) { background: $color-bg; font-weight: 600; }
+  :deep(tbody tr:nth-child(even)) { background: $color-bg; }
+
+  :deep(hr) { border: none; border-top: 1px solid $color-border; margin: $space-4 0; }
+
+  :deep(img) { max-width: 100%; }
+
+  :deep(a) { color: $color-primary; }
+
+  :deep(.hljs-comment), :deep(.hljs-quote) { color: $color-text-muted; font-style: italic; }
+  :deep(.hljs-keyword), :deep(.hljs-selector-tag), :deep(.hljs-literal), :deep(.hljs-section), :deep(.hljs-doctag), :deep(.hljs-type), :deep(.hljs-name) { color: $color-primary; }
+  :deep(.hljs-string), :deep(.hljs-attr), :deep(.hljs-template-tag), :deep(.hljs-template-variable), :deep(.hljs-addition) { color: $color-success; }
+  :deep(.hljs-number), :deep(.hljs-symbol), :deep(.hljs-bullet), :deep(.hljs-meta), :deep(.hljs-link) { color: $color-accent; }
+  :deep(.hljs-title), :deep(.hljs-built_in), :deep(.hljs-variable), :deep(.hljs-selector-id), :deep(.hljs-selector-class) { color: $color-secondary; }
+  :deep(.hljs-deletion) { color: $color-danger; }
 }
 </style>

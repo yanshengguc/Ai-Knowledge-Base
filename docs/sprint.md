@@ -1,4 +1,57 @@
-# Sprint 7 · 目标：B-116 管理端写操作 + `user.role` 二值模型
+# Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
+
+> 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）
+> 状态：**计划已定，待开工**（PO 2026-10-02 讨论拍板：一步步来）
+> 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
+
+## 背景与决策（PO 2026-10-02 讨论结论）
+- **维护期正式结束**：9/15「AKB 转纯维护模式，不开新功能线」口径作废，转功能迭代；`docs/backlog.md` 迭代原则与 P1 区已同步改写，B-114 确立为主线
+- **Phase2 不直接挂载**：Sprint 8 先补「尺子」——建检索质量 eval（recall@5 / MRR）+ 跑**无树基线**留档；**真挂载顺延 Sprint 9**（有树 vs 无树对比）
+- 理由：现有 Eval Harness 15/15 测的是**工具选择**，不测检索质量；2C2G 生产上无量化门槛的检索改动，无法判断"变好"还是只是"没坏"
+- **风险隔离**：Sprint 8 全部为可回滚、**不改检索行为**的改动，与 B-116 观察期不冲突
+
+## 本轮范围
+
+**允许改**
+- `frontend/src/utils/markdown.ts` + 相关样式（B-111）
+- `frontend/vite.config.ts` / `frontend/package.json`（B-103 构建期依赖）
+- 聊天入口 Service（B-113 仅抽私有方法，行为零变化）
+- `src/test/**`：新增检索质量 eval（recall@5 / MRR）
+- `docs/**`、`HANDOFF.md`
+
+**不许碰**
+- 检索底座（向量 + BM25 融合逻辑）、`StructureAwareSplitter.split()` 行为
+- 聊天主链路语义与流式行为（B-113 只做等价抽取）
+- `docs/schema.sql` 既有表结构、JWT / 鉴权逻辑、既有 REST 契约
+- 不引入新的大依赖（highlight.js 走已装 marked 生态；unplugin 为构建期依赖）
+
+## 任务
+状态：[ ] 待开发 · [~] 开发中 · [R] 待评审 · [Q] 待验证 · [x] 完成 · [!] 阻塞
+
+- [ ] T-1 B-111 回答渲染美化：代码高亮（highlight.js 按需加载）+ `.markdown-body` 排版增强（表格/引用块/标题层级/行距）；**DOMPurify 白名单不动**
+- [ ] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化**
+- [ ] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后
+- [ ] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70）
+- [ ] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）
+- [ ] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）
+
+## DoD
+- 全量回归保持全绿（当前基线 222/0/0），前端 `npm run build` exit 0
+- B-111：代码块有高亮、表格/引用/标题有增强排版，DOMPurify 白名单**零改动**
+- B-113：去重前后同一测试集输出一致，无流式行为差异
+- B-103：构建产物体积有前后对比数字
+- T-4：无树基线 recall@5 / MRR 有确切数字并落档，作为 Sprint 9 对比基准
+- 未跑项显式标注「未验证」
+
+## 阻塞
+- 无（本地 Redis 需 WSL 常驻才通 6379，继承 Sprint 6/7 配方；mysql.exe 在 `C:\Program Files\MySQL\MySQL Server 8.0\bin\`，不在 PATH）
+- 观察期：B-116 生产回滚产物按 PO「先观察几天」保留中，清理需 PO 另行确认
+
+## 下一步预告（Sprint 9）
+- B-114 Phase2：标题树挂载到混合检索做路由加权（树只提权，不动 hybrid 底座；失败降级回纯 RAG 并打 WARN）→ 上线门槛 = 有树 vs 无树对比 + Sprint 8 基线指标
+
+---
+# Sprint 7（已归档）· 目标：B-116 管理端写操作 + `user.role` 二值模型
 
 > 开于 2026-10-02 | 承接 Sprint 6（B-114 Phase1 大纲导航层已上线生产）
 > 状态：**已收口并上线**（实现 → 评审 PASS → 验证全绿 → 生产上线 → 线上登录态写操作实测通过；`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0 · 前端 build exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约 · **生产登录态正/负向矩阵全部符合契约、临时数据已彻底清理**）

@@ -13,6 +13,7 @@
 - **原则关系**：开闭是目标；里氏代换保证扩展实现可替换；依赖倒转让高层依赖抽象；合成复用、接口隔离和单一职责辅助形成稳定边界。
 - **迪米特权衡**：优先减少跨层和第三方内部知识的扩散，但不为“少知道”堆叠空 Facade；允许把框架适配集中在一个局部函数，换取更低的实现复杂度和更高的运行/维护效率。
 - **变更门槛**：大改动前必须先检查 Git 并提交或建立可回滚存档；小改动也要专项测试、全量回归和交接记录，未验证不部署。
+- **维护期已结束（2026-10-02 PO 拍板）**：9/15「AKB 转纯维护模式、不开新功能线」口径作废，转功能迭代，B-114 为主线。Phase2 挂载的前置 = 先建检索质量 eval 尺子（recall@5 ≥ 0.80 / MRR ≥ 0.70）+ 无树基线留档（Sprint 8），有树 vs 无树对比通过后再上线。
 
 ## P0（本 Sprint 候选）
 - [x] B-101 **已闭环(9/15)**: 后端 `70e1408` 部署上线(jar SHA256 双端一致,verify_deploy 3/3 PASS,回滚点 bak-20260915-backend),线上与本地对齐
@@ -21,7 +22,7 @@
 ## P0（Sprint 3 已收口 · 2026-10-01）
 - [x] B-115 管理端 MVP（只读）**Sprint 3 主线 · 已上线 2026-10-01**：课设硬需求（原计划 10 月上旬，已到期）。范围=配置驱动 admin 鉴权（`admin.usernames` 白名单，零 DDL）+ `GET /api/admin/overview`（用户/知识/文件/切片数 + 文件状态分布 + 全站 Token 汇总）+ `GET /api/admin/users`（服务端分页 + 关键词 + 不回传 password）+ 前端 `/admin` 路由守卫与只读页 + 导航项仅 admin 可见。**不含**用户增删改与 `user.role` 字段（跨 DDL，本地无 mysql 客户端无法验证，推迟下一轮）。**闭环(10-01)**：后端 jar SHA256 `3e10c9e9…afe4803`、前端 dist tar SHA256 `1eef2b2a…ecc0289c` 双端一致；`verify_deploy 3/3 PASS`；`/`、`/admin`、新资源 HTTP 200，`aikb active`；默认回归 189/189 绿；匿名与坏 token 访问 `/api/admin/*`、`/api/user/me` 均 401
 - [x] B-116 管理端写操作（用户增删改 + `user.role` 字段）**Sprint 7 主线 · 已上线生产并完成线上登录态实测（2026-10-02，部署与实测留痕见 docs/sprint.md）**：范围=`user.role` 二值(admin/user) 叠加 `ADMIN_USERNAMES` 白名单 + 四个写端点(`POST /api/admin/users`、`PATCH /{id}/role`、`PUT /{id}/password`、`DELETE /{id}`) + 六条安全护栏(禁自操作/防移除最后生效管理员/删前校验名下无 knowledge·file/role 白名单/写前 requireAdmin/响应无 password) + 前端 Admin.vue 角色列与操作列。**闭环证据**：`mvn -o test` 222/0/0 · `AdminWriteIntegrationTest` 3/0/0(真实 MySQL 建→改→重→删) · 前端 `npm run build` exit 0 · 本地真实 HTTP 四端点正/负向 body code 全部符合契约(非 admin/自己/非法 role/不存在 id/名下有数据 均 HTTP 200 + code:500) · `AdminUserVO` 实测无 password。**原「本地无 mysql 客户端」阻塞已解除**(mysql.exe 8.0.44，已有本机迁移通道)。**已上线**：生产 DDL `ALTER TABLE user ADD COLUMN role` 已执行（34 用户全 user）、jar/dist 已部署；**线上登录态实测通过**（临时管理员 `aikb_s7_verify`，测后彻底清理：user 34→35→34、`aikb_%`=0、孤儿 0）。护栏 2 的 HTTP 口径不可达，仅逻辑层单测覆盖
-## P1（**维护期解锁**——9/15 晚 Sprint 2 计划会 PO 拍板:AKB 转纯维护模式,不开新功能线）
+## P1（**功能迭代**——2026-10-02 PO 拍板:维护期正式结束,转功能迭代,B-114 为主线）
 - [ ] B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），减 1MB+ 单 chunk
 - [ ] B-104 后端分页（知识/文件列表服务端分页）
 
@@ -87,6 +88,11 @@
   - **回填可行性实证（Sprint 4 · 2026-10-01 · 只读对账）**: 新增只读探针 `B114BackfillAlignmentProbeTest`（裸 JDBC + OSS SDK，不启 Spring 上下文故不依赖 Redis；`@Tag("integration")` 默认回归排除；只 SELECT + OSS GET）。对本地库筛出 4 个可对账文件（md + file_url 非空 + SUCCESS），用当前 `StructureAwareSplitter(500,100)` 重跑原文与库内 chunk 逐条比对：**file_id=52 上课讲义.md → 0/34 一致**（库内 20 条 `CHAR_LENGTH` 恒为 500，即固定窗口口径；重跑 34 条为结构感知口径）；**file_id=146/148/150 → 各 4/4 全一致**（08-28 创建，结构感知口径）。汇总逐条一致率 **12/46**。**结论：① "与库内逐条一致"作为 Phase1 门槛对存量数据不成立——库内两套口径并存（08-24 固定窗口 / 08-28 结构感知）；② 结构感知口径自身可复现（新批 100% 一致），B 方案（空父标题不生成空 Chunk）在新批数据上成立；③ Phase1 前正确动作是"定义迁移边界"而非"对齐存量"——旧 chunk 与其向量不回填改写，改为新增 Outline 导航层 + source_chunks 关联，与 9/30 已定 B 方案一致。** 未覆盖线上库（1131 条 chunk 口径分布未知，需只读数据通道）。复跑：`mvn test -Dtest=B114BackfillAlignmentProbeTest -DexcludedGroups=e2e -DfailIfNoTests=false`  - **Phase1 后端闭环（Sprint 5 · 2026-10-01 · 已上线 2026-10-01 夜）**: 新增两表 `knowledge_outline_node`（标题树，含 parent_id/node_index/level/title/heading_path/源偏移）与 `knowledge_outline_chunk`（节点↔真实 chunk 关联，双外键 ON DELETE CASCADE），DDL 已追加进 `docs/schema.sql` 且本地库已建表；新增 `OutlineIndexServiceImpl`（先序建树 + 幂等重建 + 顺序对齐关联）+ `OutlineController`（`GET /api/outline/file/{id}`、`GET /api/outline/node/{id}`、`POST /api/outline/file/{id}/rebuild`），并在 `DocumentServiceImpl` 仅对 md 文件追加落库（失败降级 WARN，不影响主链路）。**关联判据实测修正**：`StructureAwareSplitter` 给同节每个 chunk 都前置标题（不只首块），故判据=「标题重复即同节续块；同名新节与续块无法区分时停止关联并打 WARN」；空父标题入树但 source_chunks 为空（B 方案）。证据：专项 `11/11`、默认回归 `200/200`（基线 189 全绿，`split()` 行为零变化）；真实 MySQL 持久化验证（裸 MyBatis 不启 Spring、事务内 rollback）**1/1 全绿**（含级联删空断言；此前误报根因=裸 JDBC 执行 DELETE 不经 MyBatis 一级缓存，修正=断言前 `session.clearCache()`）。**未覆盖**：前端节点详情/溯源页（Sprint 6）、Phase2 检索索引挂载、存量固定窗口批（预期降级为空关联）  - **技术价值**: 设计动机自然——"传统 RAG 只解决找相关文本,学习者还需要层级与关联";比"调了 Embedding API 存了向量库"多一层架构思考;与 B-110 跳转、B-107 图谱形成产品闭环
 
   - **Phase1 前端闭环（Sprint 6 · 2026-10-01 · 实现+评审+验证通过，未提交未部署）**: 新增 `frontend/src/api/outline.ts`（封装 /api/outline 三端点，TS 类型逐字段对齐后端 4 个 VO）+ `frontend/src/views/knowledge/components/OutlinePanel.vue`（标题树导航 + 节点详情 + sourceChunks 溯源；空态与失败态分离；竞态序号防覆盖；点击溯源卡复用 FilePreview 打开原文）；`FileListPanel.vue` md 文件行新增「查看大纲」入口；`locales/zh.ts`/`en.ts` 文案。多 agent 迭代：Dev → 评审 PASS（2 个低severity 项）→ Dev 修复轮 → 验证 PASS。证据：`npm run build` exit 0 · 2282 modules · 11.95s。**已联调（2026-10-01 夜）**：本地后端 56382 真机 HTTP 验证通过（file/258 nodeCount=4；node 端点 200 + 溯源 1 条 + preview 截断 200 字；rebuild 幂等 data=4；非作者 token → body code:500 权限不足）；集成整组 `28 run / 0 Failures / 3 Errors`（3 个为 DashVector 环境阻塞）。**页面点击路径已通过**：浏览器验证-agent 走 `/knowledge/1408` → `outline_test.md`「查看大纲」→ 标题树 4 节点层级正确（架构 L1/接入层 L2/网关 L3/服务层 L2）+ 节点详情 + 溯源卡「查看原文」打开 FilePreview，8/8 PASS。**已上线（2026-10-01 夜）**：后端 jar `3e2d5d9f…c8377`、前端 dist `88a94ec7…f341`、两表 DDL 已在生产执行（仅新增、执行时 0 行）。**生产实测（2026-10-01 夜补测）**：登录态 `GET /api/outline/file/{id}` → 200 / nodeCount=4、节点详情 200、`rebuild` 幂等 data=4、归属负向 code:500「权限不足」；临时账号与临时知识/文件测后已清理（级联校验 0 行）。
+
+## Sprint 8 计划（2026-10-02 定 · 详见 docs/sprint.md）
+- T-1 B-111 回答渲染美化（纯前端）· T-2 B-113 轻量去重（行为零变化）· T-3 B-103 element-plus 按需导入 · T-4 检索质量 eval 底座（recall@5 / MRR + **无树基线留档**）
+- 特征：全部可回滚、不改检索行为；与 B-116 生产观察期不冲突
+- B-114 Phase2（真挂载）顺延 **Sprint 9**，门槛 = 有树 vs 无树对比 + Sprint 8 基线指标
 
 ## 技术债（TD）
 - TD-001 Outline 归属校验口径重复：`FileServiceImpl.verifyOwnership` 与 `OutlineIndexServiceImpl.verifyOwnership` 各写一份（语义相同，可能漂移）。影响=安全口径一致性；决定=本轮先记，不为此抽公共件重构主链路；触发条件=出现第三处同口径校验，或任一处口径需变更；回滚=无（纯组织性）

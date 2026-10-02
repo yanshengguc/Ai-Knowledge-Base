@@ -1,7 +1,7 @@
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 
 > 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）
-> 状态：**进行中——T-1（B-111）已完成实现+评审+验证，待 PO 验收后进 T-2**（PO 2026-10-02 拍板：一步步来）
+> 状态：**进行中——T-2（B-113）已完成实现+独立评审 PASS+独立验证全绿，待 PO 验收后进 T-3**（PO 2026-10-02 拍板：一步步来）
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 背景与决策（PO 2026-10-02 讨论结论）
@@ -29,11 +29,11 @@
 状态：[ ] 待开发 · [~] 开发中 · [R] 待评审 · [Q] 待验证 · [x] 完成 · [!] 阻塞
 
 - [x] T-1 B-111 回答渲染美化：代码高亮（highlight.js 按需加载）+ `.markdown-body` 排版增强（表格/引用块/标题层级/行距）；**DOMPurify 白名单不动** · **完成（2026-10-02）**：实现 + 评审 PASS + 验证全绿 + 浏览器真实渲染复核全项 PASS，证据见下方「本轮迭代留痕（Sprint 8 · T-1）」
-- [ ] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化**
+- [x] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化** · **完成（2026-10-02）**：实现 + 独立评审 PASS（无 high/medium/low） + 独立验证全绿（`mvn -o test` 222/0/0），证据见下方「本轮迭代留痕（Sprint 8 · T-2 / B-113）」
 - [ ] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后
 - [ ] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70）
-- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2~T-4 待续
-- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-4 eval 基线待续
+- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2 轮**已 PASS（2026-10-02，无 high/medium/low）**；T-3~T-4 待续
+- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-2 轮**已全绿（2026-10-02：222/0/0）**；T-4 eval 基线待续
 
 ## DoD
 - 全量回归保持全绿（当前基线 222/0/0），前端 `npm run build` exit 0
@@ -88,6 +88,30 @@
   2. 三处样式存在轻微不一致：单元格内距（`$space-1 $space-2` vs 字面量 `6px 10px`）、h1 字号（1.3 / 1.35 / 1.4em）——系三个独立 scoped 组件容器宽度不同所致
   3. highlight.js 落在**应用 chunk** 而非 vendor chunk（`vite.config.ts` 的 `manualChunks.markdown` 仅含 marked/dompurify）；是否归入 vendor 属 T-3/后续缓存策略话题
 - **未验证项（如实标注）**：真机/移动端视觉未看；**未部署、未 commit/push**（PO 保留该拍板权）；`element-plus` chunk 微增 0.03 kB 未深挖归因（非本任务范围）
+
+## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-2 / B-113）
+
+> 结论：**T-2 完成**（实现 → 独立评审 PASS → 独立验证全绿）；**待 PO 验收**（未 commit、未 push、未部署）
+
+- **实现（Dev-agent，唯一可写者）**
+  - `src/main/java/com/yansheng/aiknowledgebase/service/impl/ChatServiceImpl.java`：新增私有方法 `buildChatContext(Long userId, String question)` + 私有 `record ChatContext(List<SearchResult> searchResults, String prompt)`（置于 `streamAskWithAgent` 之后、`clear` 之前）
+  - 抽取内容 = **恰好那 4 条**逐字重复语句（`retrieveTopK` → `getHistory` → `recall(...,3)` → `buildChatPrompt`），语句、参数与执行顺序**逐字不变**
+  - 两处调用点各替换为：`ChatContext ctx = buildChatContext(userId, question);` / `List<...SearchResult> searchResults = ctx.searchResults();` / `String prompt = ctx.prompt();`
+  - **顺序零漂移**：快速路径 `if (enableWebSearch) prompt = appendWebSearchContext(prompt, question);` 仍在 `historyService.append(userId,"user",question)` **之前**；Agent 路径保持「先拼 Prompt 再落 user 消息」；三处 `onDone.accept(searchResults)` 同源保留
+  - **未夹带**：`ask`/`ask(...)`/`appendWebSearchContext`/`clear`/`history`、4 参重载委托行、`generateStream` 三个回调、尾部 `memoryContent`+`remember`、`ChatService` 接口与方法签名——全部原样未动；无 import 变更、无新增依赖
+  - `record ChatContext` 两字段在两个调用点**均被真实读取**，无死字段；原调用点后续确实未再使用 `history`/`memories`，不纳入返回值不构成漏返回
+  - 环境坑复现：Edit 对仓库路径报 Access denied → 改用「Write 临时 py 脚本 + python 精确替换（断言命中数=1）+ 原位写回」，保持原行尾、无 BOM，临时脚本已删
+- **评审（独立只读 agent）· PASS**
+  - 无 high / medium / low
+  - `git diff --stat` = 仅 `ChatServiceImpl.java`（+22 / −8）；`git status --porcelain` 无 `??` 未追踪残留
+  - 行为等价性逐条 ✅（4 条语句逐字一致 / 执行与副作用顺序不变 / `onDone.accept(searchResults)` 同源保留 / 异常传播未变，未吞异常）
+  - 夹带检查 ✅；无谓抽象检查 ✅（无死成员；`java.version=17`，项目已有 `ToolTraceEvent` 等既有 record 用法）
+- **验证（独立 agent）· 全绿**
+  - `mvn -o test` → **`Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（与基线 222/0/0 一致，偏离 0）
+  - 日志中 `ERROR` 行为测试内预期噪音（DashVector 白名单降级路径 + `RateLimitServiceTest` 模拟 Redis 宕机注入），Errors 仍为 0
+  - 范围复核：仅 `ChatServiceImpl.java` 未暂存修改；`HEAD` 仍 `964e39a`（未提交）
+- **体积/性能**：纯等价抽取，无产物体积或运行期行为变化（无需前后对比）
+- **未验证项（如实标注）**：真机/移动端未做；**未部署、未 commit/push**（PO 保留该拍板权）；未与远端比对 ahead/behind
 
 ---
 

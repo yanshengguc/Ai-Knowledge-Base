@@ -50,7 +50,7 @@
 - [ ] B-113 聊天管线合并（9/21 晚 PO 看完 Agent 模式链路图后提出"要不要直接合并,感觉有点那啥了";**PO 拍板:先记 backlog,现在不动**）:
   - **现状三差异（= 合并的真实门槛,不是删个开关那么简单）**: ①普通=真流式逐 token 打字机,Agent=非流式循环跑完一次性吐全文——直接全走 Agent 会**所有消息失去打字机效果**;②联网:普通=用户开关注入上下文,Agent=web_search 作为工具由模型自决;③成本:普通 1 次 LLM 调用,Agent 1~6 次+每轮 prompt 都背 5 个工具 schema
   - **彻底合并方案（~半天+全量回归+部署）**: ①FunctionCallingService 流式化——第一轮无 tool_calls 即边生成边吐 token,有工具调用则执行后继续循环;②去掉 Agent 开关,所有消息走 ReAct 循环,模型自主路由(普通 RAG 退化为"第 1 轮不调工具"的特例);③ChatController 分支/Chat.vue 开关/locales 清理;④199 全量回归+部署验证
-  - **轻量去重（10min,可先行单独做）**: streamAsk / streamAskWithAgent 开头 5 行(检索+历史+记忆+拼 Prompt)抽私有方法,行为零变化
+  - **轻量去重（10min,可先行单独做）**: streamAsk / streamAskWithAgent 开头 5 行(检索+历史+记忆+拼 Prompt)抽私有方法,行为零变化 · **已完成（T-2, 2026-10-02）**：抽 `buildChatContext` + 私有 record `ChatContext`，独立评审 PASS + 独立验证 `mvn -o test` 222/0/0，行为零变化、无夹带
   - **技术价值**: "一条管线、模型自主路由"叙事优于"两个开关两条管线";流式 ReAct(边调工具边吐字)是 Agent 场景题的加分实现点
   - 约束: 冲刺期聊天主链路 199 全绿是护城河,动它必须整块时间窗
 

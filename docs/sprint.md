@@ -87,7 +87,7 @@
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 列表服务端分页）
 
-> 结论：**B-104 完成**（Dev 实现 → 独立评审 PASS with nits（1 medium 已修）+ 独立验证 VERIFIED）；**待 PO 验收**（未 commit、未 push、未部署）。PO 2026-10-03 拍板口径：**新增独立分页端点**（旧接口一字不动）+ 知识列表 keyword/category **筛选下沉服务端** + 护栏 **page 默认 1 / size 默认 10 / 上限 50**（与 `admin/users` 一致）。
+> 结论：**B-104 已完成并部署上线**（Dev 实现 → 独立评审 PASS with nits（1 medium 已修）→ 独立验证 VERIFIED → **生产部署完成**，commit `bfd1533`（代码）+ `259b030`（文档））。PO 2026-10-03 拍板口径：**新增独立分页端点**（旧接口一字不动）+ 知识列表 keyword/category **筛选下沉服务端** + 护栏 **page 默认 1 / size 默认 10 / 上限 50**（与 `admin/users` 一致）。
 
 - **范围（2 个新增端点，旧 REST 契约零改动）**：`GET /api/knowledge/page?page&size&keyword&category`、`GET /api/file/page/{knowledgeId}?page&size`。**旧接口 `GET /api/knowledge`（全量 `List<KnowledgeVO>`）与 `GET /api/file/list/{knowledgeId}` 保持原样**——`/tree` 建树与「AI 回答存为笔记」下拉本质需要全量，把旧响应体改成分页对象会直接打挂它们（这正是选「独立端点」而非改响应体的原因）。
 - **改动面（10 改 + 4 新）**：`KnowledgeMapper` / `FileMapper`（+`countPageByUserId` / `selectPageByUserId`、+`countByKnowledgeId` / `selectPageByKnowledgeId`，全部 `@Param` 绑定）；两个 Mapper XML（`<sql id="knowledgePageFilter">` + `<where>` + `LIMIT #{limit} OFFSET #{offset}`，`ORDER BY id` 保证翻页不重不漏）；`KnowledgeService` / `FileService` 接口与实现；两个 Controller；新增 `vo/KnowledgePageVO`、`vo/FilePageVO`（字段 `{total,page,size,list}` 与 `AdminUserPageVO` 完全一致）；`KnowledgeServiceImpl.getKnowledgeList` 改为复用新抽出的私有 `toVO(...)`（评审判定为**必要的同口径复用**，非夹带）。
@@ -96,7 +96,10 @@
 - **同源债（本轮新登记 backlog B-129）**：`AdminServiceImpl.users`（L109）为**同一 int 溢出写法**，属沿用而非本轮引入；B-104 范围外**不改**（避免夹带），已记账条件触发。
 - **验证（独立）**：`VERIFIED`——4 项自报数据全部独立复现。默认全量回归 `mvn -o test` **249/0/0**（基线 243 + 新增 6）；`mvn -o test -Dtest=ListPaginationTest` 6/0/0；真实路径（本地 MySQL，只读）`mvn -o test -DexcludedGroups=e2e -Dtest=ListPaginationIntegrationTest` **5/0/0（`Skipped=0`，assumption 全未触发）**，验证「分页总数 = 既有全量查询条数」「首页条数 = min(size,total)」「越界页为空」「keyword / category 过滤口径」。**证伪力**：路由优先级用例是真负向对照（若移除 `/knowledge/page`，`page` 无法转 Long → 400 → 断言必挂）；护栏用例用 Mockito 桩校验 `selectPageByUserId(..., 50, 50)`，证 `safePage` / `safeSize` 真下传、非「声明未生效」。
 - **未验证（如实标注）**：无登录态的真实 HTTP 端到端（生产注册关闭 ⇒ 无可用测试账号）；`UserContext` 为空时的实际请求行为；**前端未接入**——本轮严格限定「后端分页」，`List.vue` 仍走旧的客户端分页 + 前端过滤，服务端分页能力已就绪但暂无调用方。
-- **下一步（待 PO 拍板）**：① 是否 commit / push；② 是否部署（需先建回滚点）；③ 是否单开一轮把 `List.vue` 切到 `/api/knowledge/page`（服务端筛选 + 服务端翻页）。
+- **部署上线（2026-10-03）**：本地构建 jar（`mvn -o package -DskipTests`）SHA256 `ec888ad8…c50d37`（117,069,836 B），**双端一致**；服务器回滚点 `/opt/aikb/app.jar.bak-20261003-pre-b104`（`cp -p` 保留原 B-122 jar `726e5de8…`）；`mv -f` 原子替换 + `systemctl restart aikb` → active、started **11.479s**、health `{"status":"UP"}`、启动日志 **0 ERROR/Exception**。
+- **线上验证**：`verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录失败文案统一）；外网首页 200；新端点匿名访问 `/api/knowledge/page`、`/api/file/page/1` 均 **401**（端点存在且受保护）。
+- **未验证（如实标注）**：无登录态的真实 HTTP 端到端（生产注册关闭 ⇒ 无可用测试账号，`/api/knowledge/page` 与 `/api/file/page/{id}` 的路由优先级/参数护栏**仅由单测 + 本地只读集成测试覆盖**）；`UserContext` 为空行为；**前端仍未接入**（`List.vue` 仍客户端分页 + 前端过滤）。
+- **剩余待 PO 拍板**：是否单开一轮把 `List.vue` 切到 `/api/knowledge/page`（服务端筛选 + 服务端翻页）。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-120② / B-121）
 

@@ -85,6 +85,24 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（部署 · 2026-10-03 · B-126 上线）
+
+> 结论：**B-126 已提交/推送并部署生产，线上校验通过**（PO 2026-10-03 授权「提交并部署」）。后端唯一改动 1 文件；前端零改动未重发。
+
+- **提交/推送**：`ab96ca6`(fix，1 改 1 新) + `4843ce5`(docs，sprint/backlog/HANDOFF)；`origin/main` 4b20f81→4843ce5。
+- **构建**：本地 `mvn -o package -DskipTests` → `target/Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar`，SHA256 `6edc4264cc5343a287d67bff9f0eafff41e4ba28fdb9c15dc6cec46c9b246337`（117,070,516 B）；`javap` 校验 `target/classes` 含新方法 `countFailed`（构建日志 "Nothing to compile" 系增量缓存，已核实非陈旧产物）；上传后线上 `sha256sum` **双端一致**。
+- **回滚点**：`/opt/aikb/app.jar.bak-20261003-pre-b126`（旧 jar `28aecd7b1068216ba41d5c5be5d91446e881ace4c10988f3647726ebfc85763d`，117,070,270 B，mtime 2026-10-03 23:16:25）。
+- **替换/重启**：`mv -f /opt/aikb/app.jar.new /opt/aikb/app.jar` 原子替换 → `systemctl restart aikb` → `active`；`/actuator/health` = **200 / `{"status":"UP"}`**；**Started in 11.42 seconds**；重启窗口 `error|exception` 计数 **0**。
+- **线上校验**：`DEPLOY_BASE=http://120.55.76.141/api python scripts/verify_deploy.py` → **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录失败文案统一；依赖注册的 5 项跳过）；外网首页 **200**；服务器侧 `向量库初始化失败` 计数 **0**（未降级为 BM25，DashVector 数据面在服务器侧连通）。
+- **真实厂商契约实证（关键 · 部分替代未验证项）**：生产注册已关闭、无可用测试账号，无法跑「登录→建库→删文件」全链路 HTTP E2E；改在服务器上用同一 key 直打 DashVector REST 数据面做**契约实证** —— 
+  `DELETE /v1/collections/knowledge_chunk_vector/docs`（body `{"ids":["999999999901","999999999902"]}`，均为不存在 id）返回：
+  `{"code":0,"message":"The first failed operation is [op:delete, id:999999999901, message:Key Not Exist]","output":[{"doc_op":"delete","id":"999999999901","code":-2024,"message":"Key Not Exist"},{"doc_op":"delete","id":"999999999902","code":-2024,"message":"Key Not Exist"}]}`
+  ⇒ **顶层 `code:0`（`isSuccess()` 为 true）而逐条 `code:-2024`**，正是 B-126 所修的「删除版假成功」真实形态，修复必要性由真实厂商响应坐实。
+- **真实路径逻辑复核（无死循环）**：失败条为 `-2024 Key Not Exist` 时，下轮 query 不会再返回它、空页在 L254 提前 `return`；若为瞬时错误且文档仍存在，则下轮 query 重新返回该主键 → 天然重试。护栏 `maxRounds=50` / `maxTotal=5000` 保持。
+- **未受影响**：集合统计 `total_doc_count = 1131`、`index_completeness = 1.0`（探针未改动真实数据）。
+- **清理**：本轮凭据仅以进程环境变量传入（`DEPLOY_PASSWORD`），**未落盘**、无 `%TEMP%\aikb-deploy\` 残留；服务器无 `/tmp` 暂存（`app.jar.new` 已被 `mv` 消费）；旧 jar 备份按惯例保留作回滚点。
+- **未验证（如实标注）**：①「登录 → 建知识/上传文件 → 删除 → 观察向量清理日志与集合数量变化」全链路真实 HTTP E2E 未跑（生产注册关闭、无测试账号，未临时造号/开注册）；② 真实「部分成功混合批」未在生产触发（探针仅证契约形态，未构造真实部分失败批）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-126 deleteByFileId 逐条删除校验 · 修「删除版假成功」）
 
 > 结论：**B-126 完成实现 + 独立评审 PASS with nits（无 high）+ 独立验证全绿（`mvn -o test` 255/0/0，含负向对照）**，**未 commit / 未 push / 未部署**（PO 保留拍板权）。范围严格限定 1 业务文件 + 1 新测试。**真实厂商路径实测被环境阻塞**（本地 IP 不在 DashVector 集群白名单），经 PO 拍板「接受现有证据收口」，该项以「未验证」显式留痕。

@@ -405,7 +405,7 @@
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-122 索引后校验护栏）
 
-> 结论：**B-122「索引后校验护栏」已实现 + 独立评审 PASS with nits（无 high）+ 独立验证全绿**；**未 commit / 未 push / 未部署**（PO 保留拍板权）
+> 结论：**B-122「索引后校验护栏」已实现 + 独立评审 PASS with nits（无 high）+ 独立验证全绿 + 已部署上线（2026-10-03）**
 
 - **背景**：B-118 排查发现索引层历史静默丢向量（113 条 chunk 无向量），B-117 已修写入路径（`upsert` + 逐条 `code` 校验并抛），但**写入后无回查**——日志仍是乐观计数。B-122 补这一环。
 - **实现（Dev，唯一可写者；3 源码 + 1 测试）**：`VectorStoreService.countExisting(List<Long> chunkIds)` 新只读接口；`VectorStoreServiceImpl` 用 DashVector `fetch(ids)` 分批（`fetchBatch=100`）回查，统计真实返回的文档数；`IndexingServiceImpl.indexChunks` 末尾调 `verifyIndexed(fileId, chunkList)`——期望数取全部非空 chunk id，不符仅 `log.warn`、护栏自身异常自吞。
@@ -414,6 +414,7 @@
 - **验证（独立 agent）· 全绿**：`mvn -o test` → **`Tests run: 243, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（基线 240 + 新增 3）；定向 `IndexingPostVerifyTest` 3/0/0、`IndexingReindexTest` 2/0/0；`git diff --stat` 复核范围纯净无夹带。**独立证伪**：既有 `IndexingReindexTest` 从未 stub `countExisting` → mock 默认返回 0 → 期望 2≠实际 0 → 仍通过，**独立证实「不符不阻断主流程」**。
 - **未验证项（如实标注）**：① 真实 DashVector `fetch` 运行时语义（本地 `local` profile 指向 `invalid.dashvector.local` 模拟端点，无法本地实测）；② 端到端索引路径（`ChunkIndexingIntegrationTest` 属 `@Tag("integration")`，被 pom 默认排除，本轮未跑）；③ 写入后读的最终一致性窗口。
 - **残留风险性质**：护栏为 warn-only，上述未验证项若成真只产生日志噪音（假告警），不影响索引正确性与主流程语义。
+- **部署上线（2026-10-03 · PO 授权）**：本地 `mvn -o package -DskipTests` 构建 jar，SHA256 `726e5de86598708a9b9f7ebe6cbeb4bae8c3b1048148472bb4db6f6253aa6a4b`（117,065,583 B）**双端一致**；回滚点 `/opt/aikb/app.jar.bak-20261003-pre-b122`（旧 `1cfdc6a0…f609f`，117,064,303 B）；`/opt/aikb` 内 `.new` → `mv -f` 原子替换后 `systemctl restart aikb` → `active`、`:8080/actuator/health` `{"status":"UP"}`、启动 2 分钟窗口 error 计数 0。**线上验证**：`verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录文案统一）；B-119 脱敏回归仍成立（MCP 坏请求 body 无 `stackTrace`/`at java`/`at com.yansheng`，泄露标记计数 0）；外部 `/` 200。**未验证（如实标注）**：B-122 护栏本身**无线上端到端实测**——生产注册关闭、无可登录账号 ⇒ 无法触发上传/索引路径（护栏仅在 `indexChunks` 时执行）；真实 DashVector `fetch` 语义仍为唯一未决项。提交 `0cf6b91` 已 push（origin/main 同步）。
 
 ---
 

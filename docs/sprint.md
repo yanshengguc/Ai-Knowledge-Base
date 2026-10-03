@@ -54,7 +54,7 @@
 
 ## B-120 / B-121 / B-118 安全债修复任务立项（2026-10-03 · 低危 + 排查项）
 
-> 立项依据：2026-10-03 攻防演习低危/观察项（见文末「本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后）」B/D/F 项）。PO 拍板：依序执行 **B-120 → B-121 → B-118**。**状态：B-120 / B-121 开工中；B-120③ 与 B-118 需 PO 授权 / 生产凭据**
+> 立项依据：2026-10-03 攻防演习低危/观察项（见文末「本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后）」B/D/F 项）。PO 拍板：依序执行 **B-120 → B-121 → B-118**。**状态：全部收口**（B-120①/②、B-121 已提交推送并部署上线；B-120③ Nginx 安全头已上线；B-118 只读排查完成，见下方两节留痕）
 
 ### B-120 低危安全项汇总
 - **① 上传白名单大小写绕过（演练记录 `evil.MD` 通过）**：**源码级复核 → 实为误报 / 已缓解**。`FileServiceImpl.uploadFile` 白名单**已经 `originalName.toLowerCase().endsWith(".pdf"/".docx"/".md")` 归一化**（L129-133）；`ParserFactory.getParser`（L32）、`DocumentServiceImpl.indexOutlineIfMarkdown`（L106）、`OutlineIndexServiceImpl`（L312）、`getFileContent`（L289）**均 `toLowerCase`** → `.MD` 通过属**预期的大小写不敏感匹配，非漏洞**，且下游解析/预览**无失配**（与演练观察一致）。**结论：无代码改动，留痕为「非漏洞 / 已缓解」。**
@@ -103,7 +103,68 @@
   - **负向对照（关键，已做且未改任何跟踪文件）**：在仓库外临时目录编译「去护栏 / 去归一化」影子类放入 `target/test-classes`（gitignored）→ `FileDeleteGuardTest` **1 例失败**（期望 `BusinessException` 未抛）、`JwtWhitelistNormalizationTest` **2 例失败**（双斜杠/尾斜杠）；删除影子类后复跑 **240/0/0** → 证明断言**承重、非恒真**。
   - 契约核验：`BusinessException` → `GlobalExceptionHandler` → `Result.error`，**HTTP 200 + body `code:500`**（返回对象、未包 `ResponseEntity`），与硬约束一致。
 - **未验证项（如实标注）**：HTTP 级真实容器端到端；`%2F` 真实容器路由（Tomcat 可能直接 400）；双斜杠「容器路由 ≡ 过滤器判定」仅单元级等价、未容器实测。**未 commit / 未 push / 未部署**（PO 保留拍板权）。
-- **待办（本立项剩余）**：**B-120③** 安全响应头 → Nginx 层配置变更，需 PO 授权 + 生产凭据；**B-118** 线上检索降级排查 → 需生产凭据。
+- **待办（本立项剩余）**：无。**B-120③ 与 B-118 均已完成**（见下节留痕）。
+
+## 本轮迭代留痕（部署 + 排查 · 2026-10-03 · B-120②/B-121 上线 · B-120③ Nginx · B-118 排查）
+
+> 结论：**B-120② / B-121 已上线生产**；**B-120③ 安全响应头已在 Nginx 层补齐并外部验证通过**；**B-118 排查完成**——检索层**未**长期静默降级 BM25，但发现**索引层历史静默丢向量**（113/1131 chunk 无向量，含 3 个文件全无向量），根因即 B-117 已修复的 `insert()` 静默吞错。
+
+- **提交/推送**：`ee63726`(fix，4 文件) + `d79bb0d`(docs，sprint/backlog/HANDOFF)；`origin/main` = `d79bb0d`（0/0 同步）
+- **部署（B-120② / B-121）**：本地 `mvn -o clean package -DskipTests` 构建 → SHA256 `1cfdc6a057b0d350fade71abefe2013c65c299d252bfb95246691264114f609f`；回滚点 `/opt/aikb/app.jar.bak-20261003-pre-b120`；原子替换 + `systemctl restart aikb` → `active`、`/actuator/health` = UP、重启后 error 0
+- **未验证（如实标注）**：生产注册关闭、无可用测试账号 → **B-120② 无登录态 HTTP 端到端实测**（PROCESSING 文件删除 → 期望 HTTP 200 + body `code:500`）；B-121 无容器级 HTTP 实测（仅单元级 + Nginx 层外部实测）
+
+### B-120③ 安全响应头（Nginx 层）
+
+- 变更文件：服务器 `/etc/nginx/sites-available/aikb`，新增 4 行 `add_header ... always;`（其余 28 行原样保留）
+  - `X-Frame-Options: SAMEORIGIN`
+  - `X-Content-Type-Options: nosniff`
+  - `Content-Security-Policy: frame-ancestors 'self'; object-src 'none'; base-uri 'self'`
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- 改前备份：`aikb.bak-20261003-pre-b120`（md5 `72bb891ba825ded14432393f32f502b1`）→ 安装新配置（md5 `b1c12e8765add80493a5d774e9869548`）→ `nginx -t` OK → `systemctl reload nginx` RELOADED_OK
+- 外部复核（`curl -sI http://120.55.76.141/`）：HTTP 200 且 4 头齐全；`/`、`assets/index-BLlfZny_.js`、`assets/vue-vendor-VohRMAhz.js`、`assets/index-BUtlzUnt.css` 全 200
+- 备注：首轮 `grep` 复核未命中系 grep/时序问题（`cat -An` + `nginx -T` + 完整 `curl -sI` 三项复核确认实际已下发），配置本身正确
+- 性质：**服务器配置变更，不进仓库**（应用层 filter 覆盖不到 Nginx 直出的静态 HTML）
+
+### B-118 线上检索是否长期静默降级 BM25（只读排查）
+
+- **方法**：生产服务器 journal（`journalctl -u aikb`，覆盖 **2026-08-24T17:01 → 2026-10-03**，16,210 行）+ MySQL `knowledge_chunk`/`knowledge_file` 计数 + DashVector REST（`/stats`、按 `file_id`/`id` 过滤 query，1024 维零向量），**全程只读、零写操作**
+
+- **结论一：检索层未降级（否）**
+  - `降级为BM25单路` 出现 **0 次**；观测到的混合检索日志恒为「向量 **15** 条 + BM25 15 条 → 合并 18~26 条, userId=33」（最近 9/29 22:04）→ 向量路**持续在线可用**，不存在"线上长期静默降级 BM25"
+  - DashVector 集合 `knowledge_chunk_vector`：`status=SERVING`、dim 1024、cosine、`index_completeness=1.0`、`total_doc_count=1024`
+
+- **结论二：索引层存在历史静默丢向量（数据不一致，此前未知）**
+  - MySQL `knowledge_chunk` **1131** 条 / 74 文件（全 SUCCESS）vs DashVector **1024** 条 → **113 条 chunk（10.0%）无向量**
+  - 逐文件比对（74 文件，仅 8 文件不齐）：
+
+| file_id | 文件名 | MySQL chunk | 向量 | 缺 | 备注 |
+|---|---|---|---|---|---|
+| 68 | 24-深入浅出外观模式 | 24 | 0 | 24 | 全缺 |
+| 69 | 25-设计模式之代理模式 | 29 | 0 | 29 | 全缺 |
+| 70 | 26-协调多个对象之间的交互——中介者模式 | 31 | 0 | 31 | 全缺 |
+| 51 | 14-对象的克隆——原型模式 | 40 | 21 | 19 | 部分 |
+| 71 | 27-处理对象的多种状态及其相互转换——状态模式 | 39 | 33 | 6 | 部分 |
+| 50 | 13-复杂对象的组装与创建——建造者模式 | 34 | 32 | 2 | 部分 |
+| 52 | 15-工厂三兄弟之工厂方法模式 | 27 | 25 | 2 | 部分 |
+| 2 | 部署手册 | 2 | 8 | 0 | **多 6 条孤儿向量** |
+
+  - **精确 ID 实证（关键）**：file 2 存量 6 条孤儿向量 id = `{382,383,420,421,423,424}`（MySQL 该文件仅 chunk 2,3，向量库仍留这 6 条且 `file_id=2`）；而 **file 50 缺失 id 恰为 `{382,383}`**、**file 51 缺失 id 含 `{420,421,423,424}`** → **孤儿向量 id 与缺失 chunk id 逐一对上**，直接坐实"主键复用冲突"机制
+
+- **根因（与 B-117 同源，链路闭合）**
+  1. 早期文件删除后向量未同步清干净（`deleteByFileId` 删除失败/上限，日志可见同期 `Query qps exceeds limit 7 for collection knowledge_chunk_vector`）→ 残留**孤儿向量**
+  2. MySQL chunk 自增主键**复用**这些 id（如 file 50 的 382/383）
+  3. 重建索引时调用 pre-B-117 的 `collection.insert()` → DashVector 逐条返回 `Duplicate Key`，但顶层 `isSuccess()` 仍为 true → **静默吞错**
+  4. `IndexingServiceImpl` 未抛异常即 `successCount++` → journal 打出**假成功**：`索引完成，fileId=68, 成功=24, 失败=0`（实测 DashVector 中 id 700–723 **一条不存在**，`filter id>=700 and id<=783` 返回 0）
+  5. 8 个异常文件**全部创建于 2026-09-21 12:23~12:40 同一批**（同批 67/72/73/74/78 正常）；该窗口 journal 密集出现 `批量索引失败，回退逐条索引 ... batch size is invalid, it should not be larger than 10`（**200 次**），逐条回退路径同样只校验顶层 → 冲突条静默丢失
+
+- **影响面**：全局检索**不受影响**（向量路在线）；实际受损的是 file **68/69/70 三篇文档（84 chunk）在语义检索中不可达**，仅能靠 BM25 召回；另 5 文件部分 chunk 同理
+- **已闭环部分**：写入路径已由 **B-117** 修复（`insert`→`upsert` + 逐条 `checkDocOpResults`），**新写入不再可能静默丢**；10/03 孤儿向量清理已删 31 条
+- **残留 / 建议（待 PO 拍板，均为数据操作，不动代码）**
+  - ① **回填** file 68/69/70 全量 + 50/51/52/71 缺失 chunk 的向量（可用现成 `reindexFile`，修复后走 `upsert` 幂等）
+  - ② 清理 file 2 残留 6 条孤儿向量 `{382,383,420,421,423,424}`（删除后其 id 方可被复用）
+  - ③ 建议补一条"索引后校验"护栏（写入后回查条数 != chunk 数则告警），杜绝再次假成功
+- **未验证（如实标注）**：file 68/69/70 全量 84 条缺失的"每条对应哪个历史孤儿"未能逐一溯源（阻断它们的孤儿已在 10/03 清理，无从取证）；仅 file 50/51 的 6 例有精确 id 对上。**本次排查全程只读，未改任何线上数据/配置**
+
 
 ## B-119 修复任务立项（2026-10-03 · 安全 · 中危）
 

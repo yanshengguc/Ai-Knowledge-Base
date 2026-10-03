@@ -153,6 +153,24 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         }
     }
 
+    /**
+     * 统计删除响应中逐条失败的条数:顶层 isSuccess() 为 true 时逐条仍可能失败
+     * (与写入侧 B-117 同源)。删除侧保持降级语义,只统计、不抛异常。
+     */
+    private int countFailed(Response<List<DocOpResult>> response) {
+        List<DocOpResult> results = response.getOutput();
+        if (results == null) {
+            return 0;
+        }
+        int failed = 0;
+        for (DocOpResult r : results) {
+            if (r.getCode() != 0) {
+                failed++;
+            }
+        }
+        return failed;
+    }
+
     @Override
     public int countExisting(List<Long> chunkIds) {
         if (chunkIds == null || chunkIds.isEmpty()) {
@@ -255,11 +273,17 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                             fileId, ids.size(), totalDeleted, delResp.getMessage());
                     return;
                 }
-                totalDeleted += ids.size();
-                log.info("向量清理已删除一批, fileId={}, 本批={}, 累计删除={}", fileId, ids.size(), totalDeleted);
+                // 逐条校验:顶层 isSuccess() 为 true 时仍可能有单条 code != 0(与写入侧 B-117 同源),
+                // 累计数只加真正删除成功的条数,避免乐观计数把失败条也算进去
+                int failedCount = countFailed(delResp);
+                int succeeded = ids.size() - failedCount;
+                totalDeleted += succeeded;
+                log.info("向量清理已删除一批, fileId={}, 本批={}, 成功={}, 失败={}, 累计删除={}",
+                        fileId, ids.size(), succeeded, failedCount, totalDeleted);
 
-                if (ids.size() < pageSize) {
-                    // 本页未取满说明已到末页,清理完成
+                if (ids.size() < pageSize && failedCount == 0) {
+                    // 本页未取满且本批无失败条,才算清理完成;
+                    // 有失败条则继续循环(失败条下轮 query 会重新返回,天然重试)
                     log.info("已清理向量, fileId={}, count={}", fileId, totalDeleted);
                     return;
                 }

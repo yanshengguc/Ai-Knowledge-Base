@@ -41,7 +41,7 @@
     </div>
 
     <!-- 空态/筛选无结果态 -->
-    <div v-else-if="filteredList.length === 0" class="empty">
+    <div v-else-if="list.length === 0" class="empty">
       <el-empty :description="hasFilters ? t('knowledge.noResults') : t('knowledge.empty')">
         <el-button v-if="hasFilters" @click="clearFilters">{{ t('knowledge.clearFilters') }}</el-button>
         <el-button v-else type="primary" @click="dialogVisible = true">{{ t('knowledge.createTitle') }}</el-button>
@@ -52,7 +52,7 @@
     <div v-else>
     <div class="grid">
       <article
-        v-for="item in pagedList"
+        v-for="item in list"
         :key="item.id"
         class="card"
       >
@@ -82,13 +82,13 @@
       </article>
     </div>
     <el-pagination
-      v-if="filteredList.length > pageSize"
+      v-if="total > pageSize"
       class="pager"
       layout="prev, pager, next"
-      :total="filteredList.length"
+      :total="total"
       :page-size="pageSize"
       :current-page="page"
-      @current-change="page = $event"
+      @current-change="onPageChange"
     />
     </div>
 
@@ -114,14 +114,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Plus, Delete, Search, Download } from '@element-plus/icons-vue'
 import {
   addKnowledge,
   deleteKnowledge,
-  getKnowledgeList2 as fetchList,
+  getKnowledgeList2 as fetchAllList,
+  getKnowledgePage,
 } from '@/api/modules/knowledge'
 import request from '@/api/request'
 import type { KnowledgeVO } from '@/types/api'
@@ -146,28 +147,30 @@ async function onExport() {
 }
 const { t } = useI18n()
 const list = ref<KnowledgeVO[]>([])
+/** 服务端返回的过滤后总数(用于分页组件) */
+const total = ref(0)
 const page = ref(1)
 const pageSize = 12
 const keyword = ref('')
 const categoryFilter = ref('')
 const loadError = ref(false)
 const hasFilters = computed(() => !!keyword.value.trim() || !!categoryFilter.value)
-const categories = computed(() => Array.from(new Set(list.value.map((k) => k.category).filter(Boolean))))
-const filteredList = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  return list.value.filter((k) => {
-    const matchKw =
-      !kw ||
-      k.title.toLowerCase().includes(kw) ||
-      (k.content || '').toLowerCase().includes(kw)
-    const matchCat = !categoryFilter.value || k.category === categoryFilter.value
-    return matchKw && matchCat
-  })
-})
-const pagedList = computed(() => filteredList.value.slice((page.value - 1) * pageSize, page.value * pageSize))
-watch([keyword, categoryFilter], () => {
-  page.value = 1
-})
+// 分类为自由文本,下拉选项需全量聚合;沿用旧全量接口(失败仅降级为无选项,不影响列表主体)
+const categories = ref<string[]>([])
+
+// 竞态保护:仅最后一次请求可写回(连续输入/快速翻页时,旧响应不得覆盖新结果)
+let requestSeq = 0
+// 关键词/分类变更统一防抖:同一 tick 内多次变更(如清空筛选同时改两项)只发 1 次请求
+let reloadTimer: ReturnType<typeof setTimeout> | undefined
+function scheduleReload() {
+  if (reloadTimer) clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(() => {
+    page.value = 1
+    load()
+  }, 300)
+}
+watch(keyword, scheduleReload)
+watch(categoryFilter, scheduleReload)
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -189,18 +192,43 @@ function clearFilters() {
 }
 
 async function load() {
+  const seq = ++requestSeq
   loading.value = true
   loadError.value = false
   try {
-    const res = await fetchList()
-    list.value = res.data || []
-    page.value = 1
+    const res = await getKnowledgePage({
+      page: page.value,
+      size: pageSize,
+      keyword: keyword.value.trim() || undefined,
+      category: categoryFilter.value || undefined,
+    })
+    if (seq !== requestSeq) return // 已被更新的请求取代,丢弃本次响应
+    list.value = res.data?.list || []
+    total.value = res.data?.total || 0
   } catch {
+    if (seq !== requestSeq) return
     loadError.value = true
     // 拦截器已提示
   } finally {
-    loading.value = false
+    if (seq === requestSeq) loading.value = false
   }
+}
+
+/** 分类下拉选项(全量聚合);失败不影响列表主体,仅降级为无选项 */
+async function loadCategories() {
+  try {
+    const res = await fetchAllList()
+    categories.value = Array.from(
+      new Set((res.data || []).map((k) => k.category).filter(Boolean)),
+    ) as string[]
+  } catch {
+    // 保留已有选项,避免网络抖动清空下拉
+  }
+}
+
+function onPageChange(p: number) {
+  page.value = p
+  load()
 }
 
 async function onCreate() {
@@ -214,7 +242,9 @@ async function onCreate() {
     form.title = ''
     form.category = ''
     form.content = ''
+    page.value = 1
     load()
+    loadCategories()
   } catch {
   } finally {
     saving.value = false
@@ -226,13 +256,25 @@ async function onDelete(item: KnowledgeVO) {
   try {
     await deleteKnowledge(item.id)
     ElMessage.success(t('knowledge.deleteSuccess'))
+    // 删掉本页最后一条时回退上一页:服务端对越界页返回空列表,不修正会停在空页
+    // 注意:total 是删除前的旧值,先减 1 再换算,得到删除后的总页数
+    const maxPage = Math.max(1, Math.ceil((total.value - 1) / pageSize))
+    if (page.value > maxPage) page.value = maxPage
     load()
+    loadCategories()
   } catch {
     // 取消或失败
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadCategories()
+})
+
+onBeforeUnmount(() => {
+  if (reloadTimer) clearTimeout(reloadTimer)
+})
 </script>
 
 <style scoped lang="scss">

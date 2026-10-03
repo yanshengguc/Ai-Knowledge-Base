@@ -5,6 +5,7 @@ import type {
   FileVO,
   KnowledgeDTO,
   KnowledgeDetailVO,
+  KnowledgePageVO,
   KnowledgeVO,
   Result,
 } from '@/types/api'
@@ -14,6 +15,16 @@ import type {
 // 会把 list 请求当成新增知识(已删除,防止误用写脏数据)
 export function getKnowledgeList2() {
   return request.get<unknown, Result<KnowledgeVO[]>>('/knowledge')
+}
+
+/** B-104 服务端分页:关键词/分类过滤下沉服务端;size 上限 50(默认 10) */
+export function getKnowledgePage(params: {
+  page: number
+  size: number
+  keyword?: string
+  category?: string
+}) {
+  return request.get<unknown, Result<KnowledgePageVO>>('/knowledge/page', { params })
 }
 
 export function getKnowledgeDetail(id: number) {

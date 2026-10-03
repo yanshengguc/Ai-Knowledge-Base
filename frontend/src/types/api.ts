@@ -30,6 +30,14 @@ export interface KnowledgeDetailVO extends KnowledgeVO {
   content?: string
 }
 
+/** B-104 服务端分页外壳:与后端 KnowledgePageVO / AdminUserPageVO 同形 */
+export interface KnowledgePageVO {
+  total: number
+  page: number
+  size: number
+  list: KnowledgeVO[]
+}
+
 export interface KnowledgeDTO {
   title: string
   content: string

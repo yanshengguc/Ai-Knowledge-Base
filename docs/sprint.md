@@ -32,8 +32,8 @@
 - [x] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化** · **完成（2026-10-02）**：实现 + 独立评审 PASS（无 high/medium/low） + 独立验证全绿（`mvn -o test` 222/0/0），证据见下方「本轮迭代留痕（Sprint 8 · T-2 / B-113）」
 - [x] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后 · **完成（2026-10-02）**：实现（3 轮根因定位）+ 独立评审 PASS（无 high/medium，low 3 项）+ 独立验证全绿（`npm run build` exit 0 · `mvn -o test` 222/0/0），element-plus chunk **1,109.29 → 30.59 kB**（≈ −97%），证据见下方「本轮迭代留痕（Sprint 8 · T-3 / B-103）」
 - [x] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70） · **完成（2026-10-03）**：先定位并修复 B-117（向量写入静默失败）→ 取到**真实无树基线**——文档级 recall@5=0.833 / MRR=0.861、chunk 级 chunkRecall@5=0.833 / chunkMRR=0.861（两次复跑逐位一致）；实现 + 独立评审 PASS（无 high，medium 1 项已修）+ 独立验证全绿（`mvn -o test` 222/0/0 · `npm run build` exit 0）。证据见下方「本轮迭代留痕（Sprint 8 · T-4 / B-117 修复与基线）」
-- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2 轮**已 PASS（2026-10-02，无 high/medium/low）**；T-3 轮**已 PASS（2026-10-02，无 high/medium，low 3 项）**；**T-4 轮已 PASS（2026-10-03，无 high，medium 1 项已修 + low 3 项留痕）**；**B-117 后续债（topk 分页）轮已 PASS（2026-10-03，无 high，medium 1 项范围外留痕 + low 2 项）**
-- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-2 轮**已全绿（2026-10-02：222/0/0）**；T-3 轮**已全绿（2026-10-02：build exit 0 + 222/0/0）**；**T-4 轮已全绿（2026-10-03：222/0/0 + build exit 0 + eval 两次逐位一致 0.833/0.861）**；**B-117 后续债（topk 分页）轮已全绿（2026-10-03：222/0/0 + build exit 0）**
+- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2 轮**已 PASS（2026-10-02，无 high/medium/low）**；T-3 轮**已 PASS（2026-10-02，无 high/medium，low 3 项）**；**T-4 轮已 PASS（2026-10-03，无 high，medium 1 项已修 + low 3 项留痕）**；**B-117 后续债（topk 分页）轮已 PASS（2026-10-03，无 high，medium 1 项范围外留痕 + low 2 项）**；**B-129/B-130 轮已 PASS with nits（2026-10-03，无 high/medium，low 3 项留痕）**
+- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-2 轮**已全绿（2026-10-02：222/0/0）**；T-3 轮**已全绿（2026-10-02：build exit 0 + 222/0/0）**；**T-4 轮已全绿（2026-10-03：222/0/0 + build exit 0 + eval 两次逐位一致 0.833/0.861）**；**B-117 后续债（topk 分页）轮已全绿（2026-10-03：222/0/0 + build exit 0）**；**B-129/B-130 轮已全绿（2026-10-03：253/0/0 + build exit 0 + 真实 HTTP 端到端 VERIFIED）**
 
 ## DoD
 - 全量回归保持全绿（当前基线 222/0/0），前端 `npm run build` exit 0
@@ -84,6 +84,20 @@
 ### 角色分工 / 节奏
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
+
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-129 + B-130 条件触发债收口）
+
+> 结论：**B-129 与 B-130 均完成实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED（含真实 HTTP 端到端）**，**未 commit / 未 push / 未部署**（PO 保留拍板权）。范围严格限定：B-129 = 管理端分页 offset long 化（1 行 + 形参 + 1 单测）；B-130 = 新增分类候选端点并切换 `List.vue` 数据源。后端零契约破坏、前端未改 `getKnowledgeList2`。
+
+- **B-129（同源债）**：`AdminServiceImpl.users` 的 `(safePage - 1) * safeSize` → `(long) (safePage - 1) * safeSize`（与 B-104 `KnowledgeServiceImpl.getKnowledgePage` 口径一致）；`AdminMapper.selectUsers` 的 `offset` 形参 `int → long`（`AdminMapper.xml` 的 `LIMIT/OFFSET` 按 BIGINT 绑定，无需改动）。新增 `AdminUserPaginationTest`（1 用例）：`expectedOffset = (long)(Integer.MAX_VALUE-1)*10 = 21474836460`，`verify(adminMapper).selectUsers(null, 10, expectedOffset)` 为**承重断言**——若退回 int 运算，实参溢出为 `-20`，stub/verify 均不命中（`getList()` 为 null 直接 NPE），测试必失败。
+- **B-130（消除全量依赖）**：新增 `GET /api/knowledge/categories`（`KnowledgeController` → `KnowledgeService.getCategories()` → `KnowledgeServiceImpl` 按 `UserContext.getUserId()` → `KnowledgeMapper.selectDistinctCategoriesByUserId`）。SQL = `SELECT DISTINCT category FROM knowledge WHERE user_id = #{userId} AND category IS NOT NULL AND category <> '' ORDER BY category`。前端 `api/modules/knowledge.ts` 新增 `getKnowledgeCategories()`；`List.vue.loadCategories()` 改用它（失败仍保留旧选项）。`getKnowledgeList2` **保留未动**（`Tree.vue` 建树 / `SaveAsNoteDialog.vue` 存笔记下拉仍需全量），`List.vue` 已无 `fetchAllList` 引用。新增 `KnowledgeCategoriesTest`（3 用例：映射、null 降级空列表、路由不被 `/knowledge/{id}` 吃掉 + 详情路由负向对照）。
+- **门禁（Dev 自跑 + 验证-agent 独立复跑一致）**：`mvn -o test` **253/0/0**（基线 249 + 4）BUILD SUCCESS · `npm run build`（`vue-tsc -b && vite build`）exit 0（2390 modules）。
+- **真实路径实测（VERIFIED，独立验证-agent 亲跑）**：本地 `local` profile 起服务（WSL Redis 保活）→ 真实注册登录取 token。① **B-130 正向**：`GET /api/knowledge/categories` 基线 `200 {"code":200,"data":[]}`；`POST /api/knowledge{category:"B130VERIFY"}` 后复调 → `200 data:["B130VERIFY"]`（**证明 Mapper XML statement 与接口真实绑定**，静态核对无法证明）；删知识后回到 `[]`。② **B-130 负向/回归**：无 token → **401**；`/api/knowledge/page?page=1&size=5` → 200；`/api/knowledge/{id}` → 200（literal 路由与 `{id}` 互不吃掉）。③ **B-129 正向（关键）**：以管理员身份 `GET /api/admin/users?page=2147483647&size=10` → **HTTP 200 `{"code":200,"data":{"total":809,"page":2147483647,"size":10,"list":[]}}`**（int 版会溢出为负 OFFSET → MySQL 报错 → `code:500 系统异常`）→ 溢出确已修掉。
+- **评审（独立只读）**：`PASS with nits`，无 high/medium。low 项：① 纯空白分类 `'   '` 的拦截取决于列排序规则——`docs/schema.sql` 声明 `utf8mb4_unicode_ci`（PAD SPACE）下 `'   ' <> ''` 为假、`DISTINCT` 亦去尾空格，空白已被挡住；若生产实为 MySQL 8 默认 `utf8mb4_0900_ai_ci`（NO PAD）则需补 `TRIM`（本轮按立项 SQL 口径未改，留痕）；② 单测为 mock 层，SQL 真值依赖真实路径实测覆盖；③ `KnowledgeController` 既有缩进不规范（范围外，非本次引入）。
+- **夹带核查**：无。改动面 = 后端 7 文件（`AdminServiceImpl` / `AdminMapper` / `KnowledgeMapper` / `KnowledgeMapper.xml` / `KnowledgeService` / `KnowledgeServiceImpl` / `KnowledgeController`）+ 前端 2 文件（`api/modules/knowledge.ts` / `List.vue`）+ 2 新测试文件；未动表结构、检索底座、JWT、既有 REST 契约。
+- **环境备注**：验证期间 WSL Redis 曾被探测命令误停后立即 `redis-server --daemonize yes` 恢复；测试账号 `b130verifier1003`（本地库 id=857）已由 SM 直连本地 MySQL 删除（`remaining=0`），本地库无残留；后端进程与 WSL 保活均已停。
+- **未验证（如实标注）**：未部署；生产未验证（生产注册关闭）；`List.vue` 页面的真实浏览器走查未做（端点与数据源已 HTTP 级验证，前端仅 `vue-tsc + vite build` 门禁）。
+- **下一步**：待 PO 拍板 commit / push / 部署（后端 jar 需重建；前端 dist 需重建并原子替换）。B-129 / B-130 已在 `docs/backlog.md` 标 `[x]` 闭环。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 前端接入 · 服务端分页落地 List.vue）
 

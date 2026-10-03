@@ -85,6 +85,20 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-126 deleteByFileId 逐条删除校验 · 修「删除版假成功」）
+
+> 结论：**B-126 完成实现 + 独立评审 PASS with nits（无 high）+ 独立验证全绿（`mvn -o test` 255/0/0，含负向对照）**，**未 commit / 未 push / 未部署**（PO 保留拍板权）。范围严格限定 1 业务文件 + 1 新测试。**真实厂商路径实测被环境阻塞**（本地 IP 不在 DashVector 集群白名单），经 PO 拍板「接受现有证据收口」，该项以「未验证」显式留痕。
+
+- **问题（B-117 跟进④ · 评审第 2 项）**：`VectorStoreServiceImpl.deleteByFileId` 删除响应只判顶层 `isSuccess()`，逐条 `DocOpResult.code != 0` 被吞；`totalDeleted += ids.size()` 乐观计数把失败条计入；末页早退条件 `ids.size() < pageSize` ⇒「顶层 success + 部分逐条失败」时循环提前退出、`log.info` 假报「已清理向量, count=N」、失败条永久残留为孤儿向量（= `IndexingServiceImpl` 假成功的删除版）。
+- **实现（Dev，唯一可写者；1 业务文件 1 新私有方法）**：新增 `countFailed(Response<List<DocOpResult>>)` —— 遍历 `getOutput()` 统计 `code != 0` 条数，`output == null` 返回 0，只统计不抛（删除侧保持降级语义）；`deleteByFileId` 删除分支改为 `failedCount = countFailed(delResp)`、`totalDeleted += (ids.size() - failedCount)`；日志补「成功/失败」；**末页早退条件改为 `ids.size() < pageSize && failedCount == 0`**（有失败条继续循环，失败条下轮 query 会重新返回 → 天然重试，无需额外回查护栏）。**兜底零变化**：`maxRounds=50` / `maxTotal=5000` 触顶 `log.warn` 并 return；顶层 `!isSuccess()` 仍 return；集合不可用 / 查询失败 / `fileId==null` 语义不变；外层 catch 仍只 warn 不抛（级联顺序 MySQL 先删、向量最后删，抛异常有害）。
+- **测试（新增 `VectorStoreDeleteRetryTest`，纯 mock `DashVectorCollection`，无 integration tag）**：① `partialFailureOnLastPageShouldRetryInsteadOfEarlyExit` —— 末页 2 条其中 1 条 `code=-2027`，断言 `query` / `delete` 各调用 **2** 次（修复前各 1 次，id=12 残留）；② `persistentFailureShouldNotReportSuccessAndShouldStopAtSafetyLimit` —— 删除持续失败，断言 `delete` 50 次（maxRounds 触顶）、日志含「向量清理达到安全上限」且**不含**「已清理向量」、含「累计删除=0」（失败条不计入）。
+- **门禁（Dev 自跑 + 独立验证复跑一致）**：`mvn -o test` **255/0/0**（基线 253 + 本轮 2）BUILD SUCCESS。
+- **负向对照（证伪力，关键）**：`git stash` 临时还原修复前 `VectorStoreServiceImpl` → `VectorStoreDeleteRetryTest` **2/2 FAIL**（分别卡在 `times(2)` 与 `assertFalse(logged 「已清理向量」)`）→ `git stash pop` 复原 → 复跑 **2/2 PASS**。证明断言承重、非恒真。
+- **评审（独立只读 agent）· PASS with nits**：无 high。**medium 1 项**：`countFailed` 对 `output == null` 返回 0（等同全成功）—— 与写入侧 `checkDocOpResults` 同语义，属「厂商顶层 success 必带逐条结果」的既有契约假设，判已知局限、本次不改。**low**：① 逐条结果条数 < `ids.size()` 时 `succeeded` 被高估（`failedCount > ids.size()` 时甚至可为负，建议 `Math.max(0, …)`）；② 失败持续时 `totalDeleted` 恒 0 使 `maxTotal` 护栏不触发（`maxRounds` 仍有效，50×100=5000 本等价）；③ `times(50)` 与 `maxRounds`、`累计删除=0` 与日志文案强耦合（未来改常量/文案会误伤）；④ 日志文案变更 —— Grep 确认**无任何代码/脚本**消费旧格式（仅本文件与 docs 引用），无破坏。以上均判**本次不改**，留痕备查。
+- **夹带核查**：改动面 = 1 业务文件（`VectorStoreServiceImpl.java`）+ 1 新测试（`VectorStoreDeleteRetryTest.java`）+ 本轮 SM 的 docs 留痕；无无关改名/重写/换栈；未动检索底座、JWT、REST 契约、表结构。
+- **未验证（如实标注，关键）**：**真实厂商 DashVector 路径未跑** —— 本机公网 IPv6 `2408:8352:1a20:3ef6:6cef:c533:2ef:5cf3` 不在集群白名单，Java SDK gRPC 数据面报 `ABORTED: Cluster whiteList validate fail`（同一 key/endpoint 的 **REST 控制面正常**：`GET /v1/collections` HTTP 200，故非 key/endpoint 问题）；`VectorStoreDeleteTest`（真实插入→删除）因此报 `IllegalState 向量库不可用,当前已降级为 BM25 检索`。经 **PO 2026-10-03 拍板「接受现有证据，本轮收口」**，真实厂商路径与真实 HTTP 端到端均列未验证项，留待线上（IP 已白名单）部署后补测。
+- **下一步**：本轮闭环，无待办。候选项：B-125（LongTermMemory 同源债，P1）；真实路径线上补测（随下次后端部署一并做）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-129 + B-130 条件触发债收口）
 
 > 结论：**B-129 与 B-130 均完成实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED（含真实 HTTP 端到端）**，**未 commit / 未 push / 未部署**（PO 保留拍板权）。范围严格限定：B-129 = 管理端分页 offset long 化（1 行 + 形参 + 1 单测）；B-130 = 新增分类候选端点并切换 `List.vue` 数据源。后端零契约破坏、前端未改 `getKnowledgeList2`。

@@ -1,7 +1,7 @@
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 
 > 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）
-> 状态：**进行中——T-3（B-103）与 T-4（检索质量 eval 底座）均已完成实现 + 独立评审 PASS + 独立验证全绿，待 PO 验收**（PO 2026-10-03 拍板：先定位再修 → B-117 已根因定位并修复，T-4 取到真实无树基线；白名单问题已排除）**追加（2026-10-03）：B-117 后续债 `deleteByFileId` 的 `topk(100)` 已修复（分页循环）并经独立评审 PASS + 独立验证全绿；DashVector 孤儿向量只读清单已产出，按 PO 口径暂不删除**
+> 状态：**进行中——T-3（B-103）与 T-4（检索质量 eval 底座）均已完成实现 + 独立评审 PASS + 独立验证全绿 → **已于 2026-10-03 部署上线并验收通过**（PO 2026-10-03 拍板：先定位再修 → B-117 已根因定位并修复，T-4 取到真实无树基线；白名单问题已排除）**追加（2026-10-03）：B-117 后续债 `deleteByFileId` 的 `topk(100)` 已修复（分页循环）并经独立评审 PASS + 独立验证全绿；DashVector 孤儿向量只读清单已产出，按 PO 口径暂不删除**
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 背景与决策（PO 2026-10-02 讨论结论）
@@ -467,3 +467,15 @@
 - **`deleteByFileId` topk 分页修复（已完成）**：`while` 分页循环（`pageSize=100` / `maxRounds=50` / `maxTotal=5000`，触顶 `log.warn`），每轮重查下一页主键并删，直到空集或页未满；原降级语义（集合不可用 / 查询失败 / 删除失败只告警不阻断）保留。`mvn -o test` **222/0/0** BUILD SUCCESS · `npm run build` exit 0。评审 medium 1 项（删除响应未逐条校验 `DocOpResult.code`）判范围外，已记 backlog B-117 备注
 - **顺带发现（供 B-118 排查线）**：生产文件 **68 / 69 / 70 在集合中没有任何向量**（本地 10/11/55/56/57/142/145–150/179/180/258/259 亦无）→ 这些文件只能靠 BM25 召回，是"线上检索是否长期静默降级"的直接排查入口
 - **未验证 / 未做**：删除后**未**做线上端到端检索复跑（生产未部署、未重启）；`LongTermMemoryServiceImpl:124` 同类静默吞错风险**未处理**；本轮数据操作不涉业务代码（无回归门禁要求），`deleteByFileId` 代码改动已随既有 `mvn -o test` 222/0/0 通过
+
+## 本轮迭代留痕（部署 · 2026-10-03 · Sprint 8 上线）
+
+> 结论：**Sprint 8（T-1~T-4 + B-117）已部署生产并通过线上验收**（PO 拍板）
+
+- **上线内容**：T-1 B-111 渲染美化、T-3 B-103 element-plus 按需导入、B-117 `upsert` + 逐条 code 校验、`deleteByFileId` topk 分页；T-2（纯等价重构）与 T-4（仅测试资产）无线上行为差异。提交 `911f5fd`(feat) + `71d895d`(docs) + `cc18b3a`(chore)，本地与 `origin/main` **0/0 同步**
+- **后端**：本地 `mvn -o clean package -DskipTests`（服务器 2C2G 严禁构建）→ jar SHA256 `4e88c5c8ea9798050f90873040bb5888773903ee55b00ea3188682367d91e66a`（117,061,796 B），**本地与线上一致**；原子替换 `/opt/aikb/app.jar` → `systemctl restart aikb` → `active`，直连 `:8080/actuator/health` = `UP`（`Started ... in 11.514 seconds`）；启动后 3 分钟内 `error|exception` 计数 **0**
+- **前端**：`npm run build` exit 0（2390 modules，15.68s）→ tar SHA256 `013237006b959b17de25210c492ae02683e5da425abce780d4f260ce81285169`（519,781 B），**双端一致**；解包后原子替换（先移旧目录 `/var/www/aikb.old-live-20261003` 再移入新目录），**73 个 assets**，`index.html` 引用 `index-BLlfZny_.js`（与本地构建一致）
+- **验收**：`scripts/verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭 / 登录文案统一；注册关闭模式下其余 5 项跳过，本地回归覆盖）；外网 `GET /`、`/admin`、`assets/index-BLlfZny_.js`、`assets/element-plus-BEJiLSvu.js` 均 **200**（`element-plus` chunk 200 是 T-3 生效的直接证据）
+- **回滚点**：后端 `/opt/aikb/app.jar.bak-20261003-pre-sprint8`（旧 jar `64a4b1b2d1ac3f19d513a294c4062d8ed73fe972f24d84887a83a40f7236e781`）、前端 `/var/www/aikb.bak-20261003-pre-sprint8` + `/var/www/aikb.old-live-20261003`
+- **清理**：服务器 `/tmp/akb-dist-20261003.tar.gz` 已删；本地临时凭据 `%TEMP%\aikb-deploy\env.ps1` 已删；旧备份目录按惯例保留
+- **未验证（如实标注）**：生产注册关闭 → **无法做登录态端到端实测**（上传 / 检索 / SSE 对话）；**B-117 的 `upsert` 写入路径未在线上实测**（仅本地测试与探针覆盖）；本地 `target/orphan-*` 证据与 `%TEMP%\aikb-rollback\` 补丁存档保留

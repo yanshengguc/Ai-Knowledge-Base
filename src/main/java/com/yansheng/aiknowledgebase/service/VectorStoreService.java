@@ -14,6 +14,13 @@ public interface VectorStoreService {
      */
     void insertBatch(Long fileId, List<ChunkEntity> chunks, List<float[]> vectors);
 
+    /**
+     * 回查给定 chunk id 在向量库中实际存在的数量(B-122 索引后校验护栏,只读不回写)。
+     * 索引完成后用它与实际写入的切片数比对,发现"日志报成功但向量缺失"。
+     * 向量库不可用时抛 IllegalStateException,由调用方降级为告警。
+     */
+    int countExisting(List<Long> chunkIds);
+
     List<SearchResult> search(float[] vector,int topK);
 
     /**

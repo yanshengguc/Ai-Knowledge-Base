@@ -7,6 +7,7 @@ import com.aliyun.dashvector.models.Doc;
 import com.aliyun.dashvector.models.DocOpResult;
 import com.aliyun.dashvector.models.Vector;
 import com.aliyun.dashvector.models.requests.DeleteDocRequest;
+import com.aliyun.dashvector.models.requests.FetchDocRequest;
 import com.aliyun.dashvector.models.requests.UpsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
@@ -150,6 +151,39 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                     "%s 部分失败: 失败条数=%d, 首个失败 id=%s, code=%d, message=%s, requestId=%s",
                     opName, failed, first.getId(), first.getCode(), first.getMessage(), response.getRequestId()));
         }
+    }
+
+    @Override
+    public int countExisting(List<Long> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return 0;
+        }
+        DashVectorCollection col = requireCollection();
+        // fetch 单次 ids 有上限(1024),分批回查;只统计真正返回的文档
+        final int fetchBatch = 100;
+        int found = 0;
+        for (int from = 0; from < chunkIds.size(); from += fetchBatch) {
+            int to = Math.min(from + fetchBatch, chunkIds.size());
+            List<String> ids = new ArrayList<>(to - from);
+            for (int i = from; i < to; i++) {
+                ids.add(String.valueOf(chunkIds.get(i)));
+            }
+            Response<Map<String, Doc>> resp = col.fetch(
+                    FetchDocRequest.builder().ids(ids).build());
+            if (!resp.isSuccess()) {
+                throw new RuntimeException("向量回查失败: code=" + resp.getCode()
+                        + ", message=" + resp.getMessage());
+            }
+            Map<String, Doc> output = resp.getOutput();
+            if (output != null) {
+                for (Map.Entry<String, Doc> entry : output.entrySet()) {
+                    if (entry.getValue() != null) {
+                        found++;
+                    }
+                }
+            }
+        }
+        return found;
     }
 
     @Override

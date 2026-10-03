@@ -403,6 +403,20 @@
 
 ---
 
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-122 索引后校验护栏）
+
+> 结论：**B-122「索引后校验护栏」已实现 + 独立评审 PASS with nits（无 high）+ 独立验证全绿**；**未 commit / 未 push / 未部署**（PO 保留拍板权）
+
+- **背景**：B-118 排查发现索引层历史静默丢向量（113 条 chunk 无向量），B-117 已修写入路径（`upsert` + 逐条 `code` 校验并抛），但**写入后无回查**——日志仍是乐观计数。B-122 补这一环。
+- **实现（Dev，唯一可写者；3 源码 + 1 测试）**：`VectorStoreService.countExisting(List<Long> chunkIds)` 新只读接口；`VectorStoreServiceImpl` 用 DashVector `fetch(ids)` 分批（`fetchBatch=100`）回查，统计真实返回的文档数；`IndexingServiceImpl.indexChunks` 末尾调 `verifyIndexed(fileId, chunkList)`——期望数取全部非空 chunk id，不符仅 `log.warn`、护栏自身异常自吞。
+- **关键实现偏差（与立项口径）**：立项写「按 fileId 回查条数」，但 SDK `query` **无 `offset`、`topk` 上限 100** ⇒ 单文件 >100 chunk 时按 filter 计数永久失真。改按**已知 chunk id `fetch` 精确回查**（不受 topk 限制，单次上限 1024，已分批）。期望值用 `chunkList` 全部非空 id（非 `successCount`）——**有意为之**：用 `successCount` 恰会被 B-118 式乐观计数蒙蔽。
+- **评审（独立只读 agent）· PASS with nits，无 high**：① 护栏确实只观测——`verifyIndexed` 的 `try/catch(Exception)` 完整包住 `countExisting`，位于主循环与「索引完成」日志之后；② 分批循环无 off-by-one，空/null 直接返回 0；③ medium=`fetch` 返回语义（Map 是否只含真实存在文档）**未运行时确证**（实现已用 `entry.getValue() != null` 防御，缺席项返回 null 亦不误计）；④ low-中=写入后可读若存在最终一致延迟会误报（warn-only，仅日志噪音；B-118 回填「写后即复核条数相等」为反证）；⑤ low=`countExisting` 使通用接口变宽（接受：只读成员、同域；为单方法另起接口属过度设计）。
+- **验证（独立 agent）· 全绿**：`mvn -o test` → **`Tests run: 243, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（基线 240 + 新增 3）；定向 `IndexingPostVerifyTest` 3/0/0、`IndexingReindexTest` 2/0/0；`git diff --stat` 复核范围纯净无夹带。**独立证伪**：既有 `IndexingReindexTest` 从未 stub `countExisting` → mock 默认返回 0 → 期望 2≠实际 0 → 仍通过，**独立证实「不符不阻断主流程」**。
+- **未验证项（如实标注）**：① 真实 DashVector `fetch` 运行时语义（本地 `local` profile 指向 `invalid.dashvector.local` 模拟端点，无法本地实测）；② 端到端索引路径（`ChunkIndexingIntegrationTest` 属 `@Tag("integration")`，被 pom 默认排除，本轮未跑）；③ 写入后读的最终一致性窗口。
+- **残留风险性质**：护栏为 warn-only，上述未验证项若成真只产生日志噪音（假告警），不影响索引正确性与主流程语义。
+
+---
+
 # Sprint 7（已归档）· 目标：B-116 管理端写操作 + `user.role` 二值模型
 
 > 开于 2026-10-02 | 承接 Sprint 6（B-114 Phase1 大纲导航层已上线生产）

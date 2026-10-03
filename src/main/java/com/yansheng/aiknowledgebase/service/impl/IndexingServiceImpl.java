@@ -100,6 +100,39 @@ public class IndexingServiceImpl implements IndexingService {
 
         log.info("索引完成，fileId={}, 成功={}, 失败={}",
                 fileId, successCount, failCount);
+
+        // B-122 索引后校验护栏:回查向量实际落库情况,与预期切片数比对,不等仅告警(不改主流程语义)
+        verifyIndexed(fileId, chunkList);
+    }
+
+    /**
+     * B-122 索引后校验护栏:回查本文件切片在向量库中实际存在的条数。
+     * 只做观测:与预期不符仅告警,不抛异常、不影响索引结果与主流程。
+     * 说明:按 chunk id 精确回查(而非按 file_id filter 计数)——
+     * DashVector query 无 offset 且 topk 上限 100,大数据量按 filter 计数会失真。
+     */
+    private void verifyIndexed(Long fileId, List<ChunkEntity> chunkList) {
+        List<Long> ids = new ArrayList<>(chunkList.size());
+        for (ChunkEntity chunk : chunkList) {
+            if (chunk.getId() != null) {
+                ids.add(chunk.getId());
+            }
+        }
+        if (ids.isEmpty()) {
+            return;
+        }
+        try {
+            int actual = vectorStoreService.countExisting(ids);
+            if (actual != ids.size()) {
+                log.warn("索引后校验未通过:向量实际落库数 != 切片数, fileId={}, 期望={}, 实际={}, 可能有向量缺失需关注",
+                        fileId, ids.size(), actual);
+            } else {
+                log.info("索引后校验通过, fileId={}, 向量数={}", fileId, actual);
+            }
+        } catch (Exception e) {
+            // 护栏自身失败不影响索引结果(如向量库不可用/网络抖动)
+            log.warn("索引后校验执行失败(不影响索引结果), fileId={}, error={}", fileId, e.getMessage());
+        }
     }
 
     @Override

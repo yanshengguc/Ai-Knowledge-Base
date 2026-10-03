@@ -85,6 +85,23 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 前端接入 · 服务端分页落地 List.vue）
+
+> 结论：**B-104 前端接入完成**（Dev 实现 → 独立评审 PASS with nits（2 medium 已修）→ 独立验证 VERIFIED（6/6）→ **真实 HTTP 端到端 17/17 PASS** + **真实浏览器实测 8/8 PASS**）；**待 PO 验收**（未 commit、未 push、未部署）。范围严格限定「把 `List.vue` 切到 `/api/knowledge/page`」，未改后端、未动 `getKnowledgeList2` 契约。
+
+- **改动面（3 文件，纯前端）**：`frontend/src/types/api.ts`（+`KnowledgePageVO {total,page,size,list}`）；`frontend/src/api/modules/knowledge.ts`（+`getKnowledgePage(params)`，`getKnowledgeList2()` 一字未动）；`frontend/src/views/knowledge/List.vue`（全量拉取 + 前端过滤 + 前端切片 → 服务端筛选 + 服务端翻页）。
+- **为何不动 `getKnowledgeList2`**：`Tree.vue`（建树）与 `SaveAsNoteDialog.vue`（存笔记下拉）本质需要全量数组，改其契约会直接打挂它们 ⇒ 本轮只新增函数、只改 `List.vue` 一个消费点。
+- **实现要点**：`page` + `pageSize=12`（≤ 后端上限 50）下传服务端；分页组件用服务端 `total`（`:total="total"`、`v-if="total > pageSize"`）；keyword 与 category 变更**共用 300ms 防抖** `scheduleReload`（同一 tick 内两项都变只发 1 次请求）；**竞态保护** `requestSeq`（仅最后一次请求可写回 list / 关 loading）；删除后按 `maxPage = Math.max(1, Math.ceil((total-1)/pageSize))` 回退页码（`total` 为删除前旧值）；`onBeforeUnmount` 清理防抖定时器；空态判定由 `filteredList.length === 0` 改为 `list.length === 0`。
+- **分类下拉的取舍（新登记 backlog B-130）**：分类是自由文本，下拉候选值仍需全量聚合，故 `getKnowledgeList2()` **仅用于生成选项**（失败时保留旧选项、不清空）；列表数据本身已全部走服务端分页。触发条件见 B-130。
+- **评审（独立只读）**：`PASS with nits`。2 项 **medium 已在本轮修掉**：① `clearFilters()` 同时清空 keyword + category 会触发两个 watch → 2 次请求，改为共享防抖后 1 次；② `loadCategories()` 失败即 `categories.value = []` 会误清空已有选项，改为失败保留旧值。1 项 low 已补注释（末页回退依赖 `total` 为删除前旧值，先减 1 再换算）。
+- **验证（独立）**：`VERIFIED` 6/6——① 构建门禁 `npm run build`（`vue-tsc -b && vite build`）exit 0；② 改动面严格 3 文件、无后端/docs 改动；③ `getKnowledgeList2` 契约未变、`Tree.vue`/`SaveAsNoteDialog.vue` 未动；④ `filteredList`/`pagedList`/`fetchList` 全文 0 命中；⑤ 分类失败分支无清空；⑥ 双 watch 共用同一防抖、卸载清理无 `keywordTimer` 残留。
+- **真实路径实测（本轮补齐此前「无登录态 HTTP 端到端」缺口）**：
+  - **HTTP 端到端 17/17 PASS**（本地 `local` profile，真实注册/登录/新建/删除）：`total=5`、首页 `size=2` 仅 2 条、第 3 页 1 条、越界页空且 total 不变、keyword 命中 1 条、category 命中 2 条、`size=999` 被上限 50 收敛且不报错、`page=0/size=0` 归一化为 `page=1/size=10`、匿名 401；测试数据已清理（deleted=5）。
+  - **真实浏览器实测 8/8 PASS**（vite dev + 浏览器）：登录 → 第 1 页 **12 张**（条目01–12）+ 分页显示 2 页 → 第 2 页 **3 张**（13–15）→ 搜索 `条目13` 命中 **1 张**（证明搜索作用于全量而非当前页）→ 分类 `catUI-B` 命中 **3 张** → 清除筛选恢复 12 张；无骨架屏卡死、无数字错乱；播种 15 条已清理（deleted=15）。
+  - 环境提示：本地 Redis 未在本机运行，需经 WSL2 localhost 转发（须保持 WSL 进程驻留，否则转发失效导致登录报「系统异常」）。
+- **未验证（如实标注）**：生产未部署（本轮仅本地实测）；超大页码在前端的表现未走查（后端 offset 溢出边界已有单测覆盖）。
+- **下一步（待 PO 拍板）**：① 是否 commit / push；② 是否部署（需先建回滚点，前端走原子替换 dist）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 列表服务端分页）
 
 > 结论：**B-104 已完成并部署上线**（Dev 实现 → 独立评审 PASS with nits（1 medium 已修）→ 独立验证 VERIFIED → **生产部署完成**，commit `bfd1533`（代码）+ `259b030`（文档））。PO 2026-10-03 拍板口径：**新增独立分页端点**（旧接口一字不动）+ 知识列表 keyword/category **筛选下沉服务端** + 护栏 **page 默认 1 / size 默认 10 / 上限 50**（与 `admin/users` 一致）。

@@ -39,7 +39,6 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { createNote, getKnowledgeList2 } from '@/api/modules/knowledge'
 import type { KnowledgeVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'

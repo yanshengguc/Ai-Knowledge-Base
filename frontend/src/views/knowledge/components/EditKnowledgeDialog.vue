@@ -25,7 +25,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 import { updateKnowledge } from '@/api/modules/knowledge'
 import type { KnowledgeDetailVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'

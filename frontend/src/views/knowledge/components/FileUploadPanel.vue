@@ -56,7 +56,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Close, UploadFilled } from '@element-plus/icons-vue'
 import { getFileById, uploadFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'

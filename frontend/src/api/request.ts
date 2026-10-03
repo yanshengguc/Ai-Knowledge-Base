@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
 import { getToken, clearToken } from '@/utils/auth'
 import type { Result } from '@/types/api'
 import router from '@/router'

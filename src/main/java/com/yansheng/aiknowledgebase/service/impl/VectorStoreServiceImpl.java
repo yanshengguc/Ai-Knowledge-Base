@@ -7,7 +7,7 @@ import com.aliyun.dashvector.models.Doc;
 import com.aliyun.dashvector.models.DocOpResult;
 import com.aliyun.dashvector.models.Vector;
 import com.aliyun.dashvector.models.requests.DeleteDocRequest;
-import com.aliyun.dashvector.models.requests.InsertDocRequest;
+import com.aliyun.dashvector.models.requests.UpsertDocRequest;
 import com.aliyun.dashvector.models.requests.QueryDocRequest;
 import com.aliyun.dashvector.models.responses.Response;
 import com.yansheng.aiknowledgebase.entity.ChunkEntity;
@@ -80,11 +80,12 @@ public class VectorStoreServiceImpl implements VectorStoreService {
                 .build();
 
         Response<List<DocOpResult>> response = requireCollection()
-                .insert(InsertDocRequest.builder().doc(doc).build());
+                .upsert(UpsertDocRequest.builder().doc(doc).build());
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量插入失败: " + response.getMessage());
         }
+        checkDocOpResults(response, "向量插入");
     }
 
     @Override
@@ -116,10 +117,38 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         }
 
         Response<List<DocOpResult>> response = requireCollection()
-                .insert(InsertDocRequest.builder().docs(docs).build());
+                .upsert(UpsertDocRequest.builder().docs(docs).build());
 
         if (!response.isSuccess()) {
             throw new RuntimeException("向量批量插入失败: " + response.getMessage());
+        }
+        checkDocOpResults(response, "向量批量插入");
+    }
+
+    /**
+     * 逐条校验 DashVector 写入结果:
+     * 顶层 isSuccess() 为 true 时逐条仍可能失败(如 -2027 Duplicate Key),
+     * 只看顶层会导致失败被静默吞掉。任一 code != 0 即抛异常。
+     */
+    private void checkDocOpResults(Response<List<DocOpResult>> response, String opName) {
+        List<DocOpResult> results = response.getOutput();
+        if (results == null) {
+            return;
+        }
+        int failed = 0;
+        DocOpResult first = null;
+        for (DocOpResult r : results) {
+            if (r.getCode() != 0) {
+                failed++;
+                if (first == null) {
+                    first = r;
+                }
+            }
+        }
+        if (failed > 0) {
+            throw new RuntimeException(String.format(
+                    "%s 部分失败: 失败条数=%d, 首个失败 id=%s, code=%d, message=%s, requestId=%s",
+                    opName, failed, first.getId(), first.getCode(), first.getMessage(), response.getRequestId()));
         }
     }
 
@@ -135,38 +164,71 @@ public class VectorStoreServiceImpl implements VectorStoreService {
         try {
             // 1. 查出该文件的所有向量主键(chunkId):
             //    DashVector query 必须带向量,用零向量 + filter 只取该文件范围(主键已足够)
+            //    单次 topk 有上限,改为分页循环,避免单文件 chunk 数 > 页大小时残留孤儿向量
             int dim = requireCollection().getCollectionMeta().getDimension();
             List<Float> zeroVector = new ArrayList<>(dim);
             for (int i = 0; i < dim; i++) {
                 zeroVector.add(0f);
             }
-            Response<List<Doc>> queryResp = collection.query(QueryDocRequest.builder()
-                    .vector(Vector.builder().value(zeroVector).build())
-                    .topk(100)
-                    .filter("file_id = " + fileId)
-                    .build());
-            if (!queryResp.isSuccess()) {
-                // 查询失败:可观测性问题,与"确实无向量"区分开(8/23 评估时发现 fileId=50 删除查不到)
-                log.warn("向量清理查询失败(可能残留), fileId={}, message={}", fileId, queryResp.getMessage());
-                return;
-            }
-            if (queryResp.getOutput() == null || queryResp.getOutput().isEmpty()) {
-                log.info("向量清理:该文件无向量(正常), fileId={}", fileId);
-                return;
-            }
-            List<String> ids = new ArrayList<>();
-            for (Doc doc : queryResp.getOutput()) {
-                ids.add(doc.getId());
-            }
 
-            // 2. 按主键删除(DashVector delete 只支持按主键 ids,不支持 filter)
-            Response<List<DocOpResult>> delResp = collection.delete(
-                    DeleteDocRequest.builder().ids(ids).build());
-            if (!delResp.isSuccess()) {
-                log.warn("向量删除失败(不影响主流程), fileId={}, ids={}, message={}",
-                        fileId, ids.size(), delResp.getMessage());
-            } else {
-                log.info("已清理向量, fileId={}, count={}", fileId, ids.size());
+            // 分页参数:每轮查 pageSize 条主键并删除,累计删除不超过 maxTotal
+            final int pageSize = 100;
+            final int maxRounds = 50;
+            final int maxTotal = 5000;
+            int totalDeleted = 0;
+            int round = 0;
+            while (true) {
+                if (round >= maxRounds || totalDeleted >= maxTotal) {
+                    // 安全上限:防止删除未生效/异常情况下无限循环,触顶时可能仍有残留
+                    log.warn("向量清理达到安全上限,可能仍有残留, fileId={}, round={}, 累计删除={}",
+                            fileId, round, totalDeleted);
+                    return;
+                }
+                round++;
+
+                // 每轮重新查询下一页主键(已删除的不会再返回)
+                Response<List<Doc>> queryResp = collection.query(QueryDocRequest.builder()
+                        .vector(Vector.builder().value(zeroVector).build())
+                        .topk(pageSize)
+                        .filter("file_id = " + fileId)
+                        .build());
+                if (!queryResp.isSuccess()) {
+                    // 查询失败:可观测性问题,与"确实无向量"区分开(8/23 评估时发现 fileId=50 删除查不到)
+                    log.warn("向量清理查询失败(可能残留), fileId={}, 累计删除={}, message={}",
+                            fileId, totalDeleted, queryResp.getMessage());
+                    return;
+                }
+                List<Doc> docs = queryResp.getOutput();
+                if (docs == null || docs.isEmpty()) {
+                    // 查不到即清理完成(区分"本就无向量"与"清理已完成")
+                    if (totalDeleted == 0) {
+                        log.info("向量清理:该文件无向量(正常), fileId={}", fileId);
+                    } else {
+                        log.info("已清理向量, fileId={}, count={}", fileId, totalDeleted);
+                    }
+                    return;
+                }
+                List<String> ids = new ArrayList<>(docs.size());
+                for (Doc doc : docs) {
+                    ids.add(doc.getId());
+                }
+
+                // 2. 按主键删除(DashVector delete 只支持按主键 ids,不支持 filter)
+                Response<List<DocOpResult>> delResp = collection.delete(
+                        DeleteDocRequest.builder().ids(ids).build());
+                if (!delResp.isSuccess()) {
+                    log.warn("向量删除失败(不影响主流程), fileId={}, ids={}, 累计删除={}, message={}",
+                            fileId, ids.size(), totalDeleted, delResp.getMessage());
+                    return;
+                }
+                totalDeleted += ids.size();
+                log.info("向量清理已删除一批, fileId={}, 本批={}, 累计删除={}", fileId, ids.size(), totalDeleted);
+
+                if (ids.size() < pageSize) {
+                    // 本页未取满说明已到末页,清理完成
+                    log.info("已清理向量, fileId={}, count={}", fileId, totalDeleted);
+                    return;
+                }
             }
         } catch (Exception e) {
             // 向量删除失败不阻断业务删除(可后续重跑清理)

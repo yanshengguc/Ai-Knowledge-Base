@@ -115,8 +115,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { Collection, DataAnalysis, Operation, Setting, Share } from '@element-plus/icons-vue'
+import { ArrowDown, ChatDotRound, Collection, DataAnalysis, Expand, Operation, Setting, Share } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useI18n } from 'vue-i18n'
 import { setLocale } from '@/i18n'

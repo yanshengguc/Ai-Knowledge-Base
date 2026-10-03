@@ -25,7 +25,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { getFileContent } from '@/api/modules/knowledge'
 import { renderMarkdown } from '@/utils/markdown'

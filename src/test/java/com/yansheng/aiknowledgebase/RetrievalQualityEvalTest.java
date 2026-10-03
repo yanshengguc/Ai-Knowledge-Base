@@ -3,6 +3,7 @@ package com.yansheng.aiknowledgebase;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
+import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 /**
@@ -34,8 +36,9 @@ import java.util.TreeMap;
  *  - 独立测试用户 + 用例后 deleteKnowledge 级联清理(chunks/files/vectors/cache)。
  *
  * 指标:
- *  - recall@5:期望文档出现在 Top-5 的比例(文档级,按首个命中 rank 去重)
- *  - MRR:首个相关文档排名的倒数均值(排序质量)
+ *  - recall@5 / MRR:文档级(按 fileId 去重,口径与 v3 完全一致,阈值不动)
+ *  - chunkRecall@5 / chunkMRR:chunk 级(树敏感,命中 chunk 需落在 Top-5 chunk 内),
+ *    v4 新增 expectChunks 标注后启用,为 Sprint 9 知识树对命中 chunk 提权提供无树基线对比
  *
  * 面试讲法:工具选择准确率(15/15)只证明"该不该检索"对了,
  * 检索质量 eval 证明"检索回来的是什么"也对——评估体系两端闭环。
@@ -50,6 +53,15 @@ class RetrievalQualityEvalTest {
     /** 阈值:recall@5 与 MRR 的回归下限(v2 数据集 10 篇文档实测基线 1.0/1.0,留方差余量防静默退化) */
     private static final double RECALL_THRESHOLD = 0.80;
     private static final double MRR_THRESHOLD = 0.70;
+
+    /**
+     * chunk 级(树敏感)阈值:与文档级并存,度量命中 chunk 是否落在 Top-5。
+     * 实测无树基线(2026-10-03,两次复跑逐位一致):文档级 0.833/0.861、chunk 级 chunkRecall@5=0.833 / chunkMRR=0.861。
+     * B-117 修复后向量路已生效(实测检索日志「向量 15 条 + BM25 N 条」);但本数据集上该指标与 BM25 单路基线完全相同,
+     * 即当前无树基线,作为 Sprint 9 有树对比的基准;阈值 0.75/0.75 相对 0.833/0.861 留方差余量 0.08/0.11,防静默退化。
+     */
+    private static final double CHUNK_RECALL_THRESHOLD = 0.75;
+    private static final double CHUNK_MRR_THRESHOLD = 0.75;
 
     /** 向量写入后的可见性探测:最多等这么久(秒) */
     private static final int INDEX_WAIT_SECONDS = 30;
@@ -112,15 +124,23 @@ class RetrievalQualityEvalTest {
             // 4. 等待向量可见(DashVector 写入通常立即可读,探测兜底传播延迟)
             waitUntilIndexed(user.getId());
 
-            // 5. 逐用例评估:文档级排名 → recall@5 / MRR,按任务类型分层
+            // 5. 逐用例评估:文档级排名 → recall@5 / MRR;chunk 级(树敏感)→ chunkRecall@5 / chunkMRR
             int total = dataset.cases.size();
             double recallSum = 0;
             double mrrSum = 0;
             Map<String, double[]> byTask = new TreeMap<>();
             List<String> failures = new ArrayList<>();
+            // chunk 级累加器(仅统计带 expectChunks 的用例;文档级累加器与口径完全不动)
+            int chunkCaseCount = 0;
+            double chunkRecallSum = 0;
+            double chunkMrrSum = 0;
+            Map<String, double[]> chunkByTask = new TreeMap<>();
+            List<String> chunkFailures = new ArrayList<>();
 
             for (EvalCase c : dataset.cases) {
-                List<Long> ranked = rankedDocIds(c.query);
+                // 保留原始检索结果(chunkId/content/fileId/fileName/chunkIndex 及返回顺序),文档级与 chunk 级共用同一次检索
+                List<SearchResult> results = retrievalService.retrieveTopK(c.query);
+                List<Long> ranked = rankedDocIds(results);
 
                 List<Long> expected = c.expectDocs.stream().map(docFileIds::get).toList();
                 List<Long> top5 = ranked.subList(0, Math.min(5, ranked.size()));
@@ -149,11 +169,79 @@ class RetrievalQualityEvalTest {
                             c.expectDocs,
                             top5.stream().map(id -> docIdOf(docFileIds, id)).toList()));
                 }
+
+                // chunk 级:对同一批原始 Top-5 chunk 判定期望命中(文档 fileId + content 关键词双条件)
+                if (!c.expectChunks.isEmpty()) {
+                    List<SearchResult> top5Chunks = results.subList(0, Math.min(5, results.size()));
+
+                    // chunkRecall@5 = Top-5 chunk 中被满足的期望数 / 期望总数
+                    int hitExpect = 0;
+                    for (ExpectChunk ec : c.expectChunks) {
+                        Long fid = docFileIds.get(ec.doc);
+                        boolean ok = top5Chunks.stream().anyMatch(r ->
+                                Objects.equals(r.getFileId(), fid) && containsAny(r.getContent(), ec.any));
+                        if (ok) {
+                            hitExpect++;
+                        }
+                    }
+                    double cRecall = (double) hitExpect / c.expectChunks.size();
+
+                    // chunkMRR = 首条满足任一期望的 chunk 排名的倒数(未命中记 0)
+                    int firstChunkRank = 0;
+                    for (int i = 0; i < results.size(); i++) {
+                        SearchResult r = results.get(i);
+                        boolean ok = false;
+                        for (ExpectChunk ec : c.expectChunks) {
+                            if (Objects.equals(r.getFileId(), docFileIds.get(ec.doc))
+                                    && containsAny(r.getContent(), ec.any)) {
+                                ok = true;
+                                break;
+                            }
+                        }
+                        if (ok) {
+                            firstChunkRank = i + 1;
+                            break;
+                        }
+                    }
+                    double cMrr = firstChunkRank == 0 ? 0 : 1.0 / firstChunkRank;
+
+                    chunkCaseCount++;
+                    chunkRecallSum += cRecall;
+                    chunkMrrSum += cMrr;
+                    double[] cAgg = chunkByTask.computeIfAbsent(c.task, t -> new double[3]);
+                    cAgg[0] += cRecall;
+                    cAgg[1] += cMrr;
+                    cAgg[2] += 1;
+
+                    if (cRecall < 1.0 || firstChunkRank == 0) {
+                        String expectDesc = c.expectChunks.stream()
+                                .map(ec -> ec.doc + ec.any).toList().toString();
+                        List<String> actualDesc = new ArrayList<>();
+                        for (SearchResult r : top5Chunks) {
+                            List<String> hitWords = new ArrayList<>();
+                            for (ExpectChunk ec : c.expectChunks) {
+                                if (Objects.equals(r.getFileId(), docFileIds.get(ec.doc)) && r.getContent() != null) {
+                                    for (String w : ec.any) {
+                                        if (r.getContent().contains(w)) {
+                                            hitWords.add(w);
+                                        }
+                                    }
+                                }
+                            }
+                            actualDesc.add(r.getFileName() + ":" + r.getChunkIndex()
+                                    + (hitWords.isEmpty() ? "" : "[" + String.join(",", hitWords) + "]"));
+                        }
+                        chunkFailures.add(String.format("❌ [%s/%s] %s → 期望=%s 实际Top5=%s",
+                                c.id, c.task, c.query, expectDesc, actualDesc));
+                    }
+                }
             }
 
             // 6. 分层报告
             double recall = recallSum / total;
             double mrr = mrrSum / total;
+            double chunkRecall = chunkCaseCount == 0 ? 0 : chunkRecallSum / chunkCaseCount;
+            double chunkMrr = chunkCaseCount == 0 ? 0 : chunkMrrSum / chunkCaseCount;
             System.out.println("\n===== RETRIEVAL EVAL 结果 =====");
             System.out.printf("数据集: %s v%s | 管线: %s | 用例数: %d%n",
                     meta.getOrDefault("name", "-"), meta.getOrDefault("version", "-"),
@@ -169,6 +257,19 @@ class RetrievalQualityEvalTest {
             for (String f : failures) {
                 System.out.println("  " + f);
             }
+            System.out.println("--- chunk 级(树敏感,Top-5 chunk)---");
+            System.out.printf("总体 chunkRecall@5 = %.3f | chunkMRR = %.3f (含期望用例 %d 条)%n",
+                    chunkRecall, chunkMrr, chunkCaseCount);
+            System.out.println("--- chunk 级按任务类型 ---");
+            for (Map.Entry<String, double[]> e : chunkByTask.entrySet()) {
+                double[] v = e.getValue();
+                System.out.printf("  %-14s chunkRecall@5=%.3f chunkMRR=%.3f (%.0f例)%n",
+                        e.getKey(), v[0] / v[2], v[1] / v[2], v[2]);
+            }
+            System.out.println("--- chunk 级未命中案例(query / 期望 doc+关键词 / 实际 Top-5 fileName:chunkIndex[命中词]) ---");
+            for (String f : chunkFailures) {
+                System.out.println("  " + f);
+            }
             System.out.println("==============================");
 
             // 7. 断言:低于阈值 = 检索链路退化,需排查(而非必须满分)
@@ -176,6 +277,10 @@ class RetrievalQualityEvalTest {
                     String.format("recall@5 = %.3f 低于阈值 %.2f,检索召回退化,需排查混合检索/切片策略", recall, RECALL_THRESHOLD));
             org.junit.jupiter.api.Assertions.assertTrue(mrr >= MRR_THRESHOLD,
                     String.format("MRR = %.3f 低于阈值 %.2f,检索排序退化,需排查 Rerank 链路", mrr, MRR_THRESHOLD));
+            org.junit.jupiter.api.Assertions.assertTrue(chunkRecall >= CHUNK_RECALL_THRESHOLD,
+                    String.format("chunkRecall@5 = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,Sprint 9 有树对比基准需复核", chunkRecall, CHUNK_RECALL_THRESHOLD));
+            org.junit.jupiter.api.Assertions.assertTrue(chunkMrr >= CHUNK_MRR_THRESHOLD,
+                    String.format("chunkMRR = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,Sprint 9 有树对比基准需复核", chunkMrr, CHUNK_MRR_THRESHOLD));
 
         } finally {
             // 8. 自清理:级联删 chunks/files/vectors + 失效检索缓存(失败也要清)
@@ -195,15 +300,28 @@ class RetrievalQualityEvalTest {
         }
     }
 
-    /** 检索一次,返回文档级排名(按首个出现顺序去重) */
-    private List<Long> rankedDocIds(String query) {
+    /** 文档级排名(按首个出现顺序去重);检索结果由调用方保留复用,去重算法与 v3 完全一致 */
+    private List<Long> rankedDocIds(List<SearchResult> results) {
         List<Long> ranked = new ArrayList<>();
-        for (var r : retrievalService.retrieveTopK(query)) {
+        for (SearchResult r : results) {
             if (r.getFileId() != null && !ranked.contains(r.getFileId())) {
                 ranked.add(r.getFileId());
             }
         }
         return ranked;
+    }
+
+    /** chunk 命中判定:content 含期望关键词之一即算命中 */
+    private boolean containsAny(String content, List<String> words) {
+        if (content == null) {
+            return false;
+        }
+        for (String w : words) {
+            if (content.contains(w)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 向量可见性探测:命中任一结果即认为索引就绪;失败重试前失效缓存防空结果被缓存 */
@@ -255,5 +373,13 @@ class RetrievalQualityEvalTest {
         public String difficulty;
         public String query;
         public List<String> expectDocs = new ArrayList<>();
+        /** v4 新增:chunk 级期望(缺省空列表 → 该用例跳过 chunk 级统计) */
+        public List<ExpectChunk> expectChunks = new ArrayList<>();
+    }
+
+    /** chunk 级期望:命中 ⟺ chunk 属于 doc 对应文件且 content 含 any 中至少一个词 */
+    static class ExpectChunk {
+        public String doc;
+        public List<String> any = new ArrayList<>();
     }
 }

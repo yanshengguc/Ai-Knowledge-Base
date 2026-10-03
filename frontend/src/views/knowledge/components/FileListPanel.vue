@@ -71,7 +71,6 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, List, View } from '@element-plus/icons-vue'
 import { deleteFile } from '@/api/modules/knowledge'
 import type { FileVO } from '@/types/api'

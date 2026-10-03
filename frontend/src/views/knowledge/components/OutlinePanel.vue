@@ -138,7 +138,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { Loading, Refresh } from '@element-plus/icons-vue'
 import { getOutlineNodeDetail, getOutlineTree, rebuildOutline } from '@/api/outline'
 import type { OutlineNodeDetailVO, OutlineNodeVO } from '@/api/outline'

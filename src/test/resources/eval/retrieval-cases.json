@@ -1,11 +1,11 @@
 {
   "meta": {
     "name": "retrieval-quality-eval",
-    "version": "3",
-    "updated": "2026-08-24",
-    "pipeline": "hybrid(vector+BM25) + rerank",
+    "version": "5",
+    "updated": "2026-10-03",
+    "pipeline": "hybrid(vector+BM25) + rerank(向量路已生效)",
     "metrics": "recall@5, MRR",
-    "note": "v3:新增两篇 1800+ 字多章节长文档(K8s 运维手册/JVM 调优笔记)与 section-locate 用例——专测结构感知切片(答案位于长文档中段章节);旧 10 篇短文档保留作干扰项"
+    "note": "v5:修正 meta 描述口径。B-117 修复后向量路已生效(检索日志「向量 15 条 + BM25 N 条」),但本数据集文档级 0.833/0.861、chunk 级 chunkRecall@5=0.833/chunkMRR=0.861 与 BM25 单路基线完全相同(两次复跑逐位一致),作为当前无树基线;v4 新增的 expectChunks 标注及全部用例数据字段(docs.content/query/expectDocs/expectChunks)保持不变,本次仅更新 meta 描述(version/updated/note/pipeline)。"
   },
   "docs": [
     {
@@ -77,6 +77,9 @@
       "query": "垃圾回收器应该怎么选,停顿时间怎么控制",
       "expectDocs": [
         "doc_jvm"
+      ],
+      "expectChunks": [
+        { "doc": "doc_jvm", "any": ["垃圾回收器对比", "停顿时间亚毫秒级", "ZGC 与 Shenandoah"] }
       ]
     },
     {
@@ -86,6 +89,9 @@
       "query": "缓存过期瞬间大量请求打到数据库上怎么办",
       "expectDocs": [
         "doc_redis"
+      ],
+      "expectChunks": [
+        { "doc": "doc_redis", "any": ["缓存击穿", "互斥锁重建", "过期的瞬间"] }
       ]
     },
     {
@@ -95,6 +101,9 @@
       "query": "大模型怎么接上我自己的私有文档来回答问题",
       "expectDocs": [
         "doc_rag"
+      ],
+      "expectChunks": [
+        { "doc": "doc_rag", "any": ["RAG 检索增强生成", "私有知识库", "离线链路"] }
       ]
     },
     {
@@ -104,6 +113,9 @@
       "query": "怎么让 AI 自己决定调用哪个功能",
       "expectDocs": [
         "doc_agent"
+      ],
+      "expectChunks": [
+        { "doc": "doc_agent", "any": ["模型加工具加循环", "Function Calling", "工具选择准确率"] }
       ]
     },
     {
@@ -113,6 +125,9 @@
       "query": "怎么把后端服务和数据库打包一键部署起来",
       "expectDocs": [
         "doc_docker"
+      ],
+      "expectChunks": [
+        { "doc": "doc_docker", "any": ["docker-compose", "一键拉起", "多阶段构建"] }
       ]
     },
     {
@@ -122,6 +137,9 @@
       "query": "EXPLAIN 执行计划怎么看",
       "expectDocs": [
         "doc_mysql"
+      ],
+      "expectChunks": [
+        { "doc": "doc_mysql", "any": ["EXPLAIN", "type 字段", "Using filesort"] }
       ]
     },
     {
@@ -131,6 +149,9 @@
       "query": "G1 和 ZGC 有什么区别",
       "expectDocs": [
         "doc_jvm"
+      ],
+      "expectChunks": [
+        { "doc": "doc_jvm", "any": ["G1 把堆切成 Region", "ZGC 与 Shenandoah", "着色指针"] }
       ]
     },
     {
@@ -140,6 +161,9 @@
       "query": "布隆过滤器解决什么问题",
       "expectDocs": [
         "doc_redis"
+      ],
+      "expectChunks": [
+        { "doc": "doc_redis", "any": ["布隆过滤器", "空值缓存", "缓存穿透"] }
       ]
     },
     {
@@ -149,6 +173,9 @@
       "query": "Rerank 重排的作用是什么",
       "expectDocs": [
         "doc_rag"
+      ],
+      "expectChunks": [
+        { "doc": "doc_rag", "any": ["Rerank 重排", "交叉编码器", "混合检索"] }
       ]
     },
     {
@@ -158,6 +185,9 @@
       "query": "三次握手为什么不能是两次",
       "expectDocs": [
         "doc_network"
+      ],
+      "expectChunks": [
+        { "doc": "doc_network", "any": ["三次握手", "为什么不能两次握手", "TIME_WAIT"] }
       ]
     },
     {
@@ -167,6 +197,9 @@
       "query": "提交历史怎么安全地回退",
       "expectDocs": [
         "doc_git"
+      ],
+      "expectChunks": [
+        { "doc": "doc_git", "any": ["整理提交历史", "git revert", "安全撤销"] }
       ]
     },
     {
@@ -177,6 +210,10 @@
       "expectDocs": [
         "doc_mysql",
         "doc_redis"
+      ],
+      "expectChunks": [
+        { "doc": "doc_mysql", "any": ["慢查询定位", "slow_query_log", "pt-query-digest"] },
+        { "doc": "doc_redis", "any": ["缓存穿透", "布隆过滤器", "空值缓存"] }
       ]
     },
     {
@@ -187,6 +224,10 @@
       "expectDocs": [
         "doc_rag",
         "doc_agent"
+      ],
+      "expectChunks": [
+        { "doc": "doc_rag", "any": ["RAG 检索增强生成", "私有知识库"] },
+        { "doc": "doc_agent", "any": ["模型加工具加循环", "Function Calling"] }
       ]
     },
     {
@@ -197,6 +238,10 @@
       "expectDocs": [
         "doc_jvm",
         "doc_mysql"
+      ],
+      "expectChunks": [
+        { "doc": "doc_jvm", "any": ["排查线上 CPU 飙高", "jstack", "top -Hp"] },
+        { "doc": "doc_mysql", "any": ["慢查询定位", "EXPLAIN", "pt-query-digest"] }
       ]
     },
     {
@@ -206,6 +251,9 @@
       "query": "NetworkPolicy 不写任何规则时流量是什么行为",
       "expectDocs": [
         "doc_k8s_manual"
+      ],
+      "expectChunks": [
+        { "doc": "doc_k8s_manual", "any": ["全部拒绝", "未显式放行"] }
       ]
     },
     {
@@ -215,6 +263,9 @@
       "query": "高优先级 Pod 抢占低优先级的触发条件",
       "expectDocs": [
         "doc_k8s_manual"
+      ],
+      "expectChunks": [
+        { "doc": "doc_k8s_manual", "any": ["抢占", "没有合适节点"] }
       ]
     },
     {
@@ -224,6 +275,9 @@
       "query": "G1 的 Region 大小范围是多少",
       "expectDocs": [
         "doc_jvm_tuning"
+      ],
+      "expectChunks": [
+        { "doc": "doc_jvm_tuning", "any": ["1-32MB", "Region"] }
       ]
     },
     {
@@ -233,6 +287,9 @@
       "query": "元空间持续上涨溢出怎么排查",
       "expectDocs": [
         "doc_jvm_tuning"
+      ],
+      "expectChunks": [
+        { "doc": "doc_jvm_tuning", "any": ["元空间持续上涨直至溢出", "类加载数同步增长"] }
       ]
     }
   ]

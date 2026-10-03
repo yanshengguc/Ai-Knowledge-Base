@@ -102,7 +102,8 @@
 - **hotfix（2026-10-03）— 纯空白分类泄漏进下拉**：根因＝实际列排序规则为 `utf8mb4_0900_ai_ci`（**NO PAD**，非项目此前假设的 PAD SPACE），`'   ' <> ''` 为 TRUE，且前端 `addKnowledge({category: form.category || undefined})` 未 trim（用户仅输入空格即落库）。确定性复现：`GET /api/knowledge/categories` → `['   ','走查-A','走查-B']`（全库受影响行数 0，尚未有真实用户踩到）。影响＝下拉出现无意义空选项（可作筛选值），**不影响鉴权与用户隔离**。修复＝`KnowledgeMapper.xml` 的 `AND category <> ''` → `AND TRIM(category) <> ''`（一行）。**回滚方式**：`git revert` 该 fix 提交并重建 jar，或按部署回滚点还原上一版 jar。
 - **既有低危债（本轮未改，登记留痕）**：`knowledge.category` 为 `varchar(100)`，>100 字符的分类在 `POST /api/knowledge` 插入失败并返回通用 `code:500 系统异常`（文案不明确）。触发条件＝分类超 100 字符。建议后续在写入侧做长度校验并返回明确文案。
 - **未验证（如实标注）**：生产无可用测试账号，未做登录态的线上功能回归（端点与数据源已在本地 HTTP 级验证，线上以活体 jar 指纹 + 产物指纹佐证）；`List.vue` 的**浏览器交互层**防抖请求合并与末页回退的视觉表现未在浏览器复验（回退逻辑已静态确认 + HTTP 语义已验证）。
-- **下一步**：待 PO 拍板 commit / push / 部署（后端 jar 需重建；前端 dist 需重建并原子替换）。B-129 / B-130 已在 `docs/backlog.md` 标 `[x]` 闭环。
+- **hotfix 部署上线（2026-10-03 23:15，PO 拍板「立即一行修复并热部署」）**：① 提交 `3577859`(fix) / `efcdd1c`(docs) → push `90ef92c..efcdd1c`。② 门禁 `mvn -o test` **253/0/0** BUILD SUCCESS。③ **本地 before/after 真实验证**（新 jar + 本地 MySQL，真实注册登录）：`POST /api/knowledge{category:"   "}` → `GET /api/knowledge/categories` = `["  复核-带空格  ","复核-正常"]`，**纯空白项 0 命中**（修复前同口径实测泄漏 `['   ','走查-A','走查-B']`）；首尾带空格的分类仍原样返回（本次仅过滤纯空白、不 trim 存储值，避免既有数据语义变化）。④ 后端：回滚点 `/opt/aikb/app.jar.bak-20261003-231528-pre-trim`（= 旧线上 `88a86559…`，117,070,263 B）→ 上传新 jar 双端 sha256 一致 `28aecd7b…`（117,070,270 B）→ `mv -f` 原子替换 → `systemctl restart aikb` → `active` + health `{"status":"UP"}`。⑤ 线上验证：**活体 jar 内 `KnowledgeMapper.xml` 实测含 `TRIM(category)`**；`verify_deploy.py` **3/3 PASS**；匿名探针 `/api/knowledge/categories`、`/api/knowledge/page` 均 **401**（路由存在且鉴权前置）。⑥ 回滚方式：`cp -p /opt/aikb/app.jar.bak-20261003-231528-pre-trim /opt/aikb/app.jar && systemctl restart aikb`。
+- **下一步**：本轮闭环，无待办；B-129 / B-130 已在 `docs/backlog.md` 标 `[x]`。候选项：`knowledge.category` 写入侧长度校验（本轮登记的既有低危债）。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 前端接入 · 服务端分页落地 List.vue）
 

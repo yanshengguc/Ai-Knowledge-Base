@@ -1,7 +1,7 @@
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 
 > 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）
-> 状态：**进行中——T-2（B-113）已完成实现+独立评审 PASS+独立验证全绿，待 PO 验收后进 T-3**（PO 2026-10-02 拍板：一步步来）
+> 状态：**进行中——T-3（B-103）与 T-4（检索质量 eval 底座）均已完成实现 + 独立评审 PASS + 独立验证全绿，待 PO 验收**（PO 2026-10-03 拍板：先定位再修 → B-117 已根因定位并修复，T-4 取到真实无树基线；白名单问题已排除）**追加（2026-10-03）：B-117 后续债 `deleteByFileId` 的 `topk(100)` 已修复（分页循环）并经独立评审 PASS + 独立验证全绿；DashVector 孤儿向量只读清单已产出，按 PO 口径暂不删除**
 > 模式：**拆分模式**——SM 由本会话担任且不写业务码；Dev / 评审 / 验证由**独立子 agent** 担任
 
 ## 背景与决策（PO 2026-10-02 讨论结论）
@@ -30,10 +30,10 @@
 
 - [x] T-1 B-111 回答渲染美化：代码高亮（highlight.js 按需加载）+ `.markdown-body` 排版增强（表格/引用块/标题层级/行距）；**DOMPurify 白名单不动** · **完成（2026-10-02）**：实现 + 评审 PASS + 验证全绿 + 浏览器真实渲染复核全项 PASS，证据见下方「本轮迭代留痕（Sprint 8 · T-1）」
 - [x] T-2 B-113 轻量去重：`streamAsk` / `streamAskWithAgent` 开头 5 行（检索+历史+记忆+拼 Prompt）抽私有方法，**行为零变化** · **完成（2026-10-02）**：实现 + 独立评审 PASS（无 high/medium/low） + 独立验证全绿（`mvn -o test` 222/0/0），证据见下方「本轮迭代留痕（Sprint 8 · T-2 / B-113）」
-- [ ] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后
-- [ ] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70）
-- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2 轮**已 PASS（2026-10-02，无 high/medium/low）**；T-3~T-4 待续
-- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-2 轮**已全绿（2026-10-02：222/0/0）**；T-4 eval 基线待续
+- [x] T-3 B-103 element-plus 按需导入（unplugin-vue-components + unplugin-auto-import），记录构建产物体积前后 · **完成（2026-10-02）**：实现（3 轮根因定位）+ 独立评审 PASS（无 high/medium，low 3 项）+ 独立验证全绿（`npm run build` exit 0 · `mvn -o test` 222/0/0），element-plus chunk **1,109.29 → 30.59 kB**（≈ −97%），证据见下方「本轮迭代留痕（Sprint 8 · T-3 / B-103）」
+- [x] T-4 检索质量 eval 底座：标注 query→chunk 集 + recall@5 / MRR 指标 + **无树基线数字留档**（阈值 recall@5 ≥ 0.80 / MRR ≥ 0.70） · **完成（2026-10-03）**：先定位并修复 B-117（向量写入静默失败）→ 取到**真实无树基线**——文档级 recall@5=0.833 / MRR=0.861、chunk 级 chunkRecall@5=0.833 / chunkMRR=0.861（两次复跑逐位一致）；实现 + 独立评审 PASS（无 high，medium 1 项已修）+ 独立验证全绿（`mvn -o test` 222/0/0 · `npm run build` exit 0）。证据见下方「本轮迭代留痕（Sprint 8 · T-4 / B-117 修复与基线）」
+- [~] T-5 评审：独立评审-agent（只读，审范围 / 行为等价性 / 夹带）· T-1 轮**已 PASS（2026-10-02，无 high/medium）**；T-2 轮**已 PASS（2026-10-02，无 high/medium/low）**；T-3 轮**已 PASS（2026-10-02，无 high/medium，low 3 项）**；**T-4 轮已 PASS（2026-10-03，无 high，medium 1 项已修 + low 3 项留痕）**；**B-117 后续债（topk 分页）轮已 PASS（2026-10-03，无 high，medium 1 项范围外留痕 + low 2 项）**
+- [~] T-6 验证：独立验证-agent 跑门禁（`mvn -o test` 全量回归 + `npm run build` + eval 基线输出）· T-1 轮**已全绿（2026-10-02：222/0/0 + build exit 0）**；T-2 轮**已全绿（2026-10-02：222/0/0）**；T-3 轮**已全绿（2026-10-02：build exit 0 + 222/0/0）**；**T-4 轮已全绿（2026-10-03：222/0/0 + build exit 0 + eval 两次逐位一致 0.833/0.861）**；**B-117 后续债（topk 分页）轮已全绿（2026-10-03：222/0/0 + build exit 0）**
 
 ## DoD
 - 全量回归保持全绿（当前基线 222/0/0），前端 `npm run build` exit 0
@@ -44,7 +44,9 @@
 - 未跑项显式标注「未验证」
 
 ## 阻塞
-- 无（本地 Redis 需 WSL 常驻才通 6379，继承 Sprint 6/7 配方；mysql.exe 在 `C:\Program Files\MySQL\MySQL Server 8.0\bin\`，不在 PATH）
+- 无（B-117 已于 2026-10-03 修复并被独立验证覆盖；B-118 为独立排查项，不阻塞本 Sprint）
+- 待处理数据 / 技术债（不阻塞本 Sprint，见 backlog B-117 闭环备注）：~~DashVector 存量孤儿向量清理~~ **已清理 2026-10-03**（三方判定真孤儿 10 个 file_id / 31 条已删，集合 1,055 → 1,024；生产向量一条未误删）、`LongTermMemoryServiceImpl` 同类静默失败风险（**未处理**）、`deleteByFileId` 删除响应未逐条校验 `DocOpResult.code`（`topk(100)` 上限**已修复**）
+- 环境：本地 Redis 需 WSL 常驻才通 6379（继承 Sprint 6/7 配方）；mysql.exe 在 `C:\Program Files\MySQL\MySQL Server 8.0\bin\`，不在 PATH
 - 观察期：B-116 生产回滚产物按 PO「先观察几天」保留中，清理需 PO 另行确认
 
 ## 下一步预告（Sprint 9）
@@ -112,6 +114,105 @@
   - 范围复核：仅 `ChatServiceImpl.java` 未暂存修改；`HEAD` 仍 `964e39a`（未提交）
 - **体积/性能**：纯等价抽取，无产物体积或运行期行为变化（无需前后对比）
 - **未验证项（如实标注）**：真机/移动端未做；**未部署、未 commit/push**（PO 保留该拍板权）；未与远端比对 ahead/behind
+
+## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-3 / B-103）
+
+> 结论：**T-3 完成**（实现 → 独立评审 PASS → 独立验证全绿）；**待 PO 验收**（未 commit、未 push、未部署）
+> 本任务经 **3 轮定位**：直觉实现的「移除全量引入」只减 165 kB，真正的拦路虎是 `manualChunks` 分包配置**本身**阻止 tree-shaking。
+
+- **实现（Dev-agent，唯一可写者）**
+  - `frontend/vite.config.ts`：接入 `unplugin-vue-components` + `unplugin-auto-import`（`ElementPlusResolver`，dts 输出到 `src/`）；`manualChunks` **由对象数组形式改写为函数形式**（见下「根因」）
+  - `frontend/src/main.ts`：删除 `import ElementPlus` / `import 'element-plus/dist/index.css'` / 全量图标注册循环 / `app.use(ElementPlus,{locale})`；`ElLoading` 改由 AutoImport 注入并 `app.use(ElLoading)` 注册 `v-loading`
+  - `frontend/src/App.vue`：`<el-config-provider :locale="zhCn">` 包裹 `<router-view/>`（locale 行为等价，替代原 `app.use(ElementPlus,{locale:zhCn})`）
+  - 16 个业务 `.ts`/`.vue`：**仅增删 import 行**（移除 `ElMessage`/`ElMessageBox` 的**价值导入**改由 AutoImport 注入；混合行降级为 `import type { FormInstance, FormRules }`），模板/样式/逻辑**零改动**
+  - `frontend/src/layouts/Layout.vue`：为该文件模板实际使用、此前**仅靠全局注册**生效的 3 个图标补显式 import（`ArrowDown`/`ChatDotRound`/`Expand`）——这是移除全局图标注册后**唯一**的功能回退风险点（Dev 先核对后动手，命中「立即停止」条件并上报，经授权后最小修复）
+  - `frontend/tsconfig.json`：`exclude` **仅**排除生成的 `src/components.d.ts`（其含 el-table 插槽严格类型，纳入会暴露 3 个业务文件的既有类型问题，而业务文件本轮禁改）；保留 `auto-imports.d.ts` 以保证 `ElMessage`/`ElMessageBox`/`ElLoading` 类型可见
+  - 生成物：`frontend/src/components.d.ts`（35 个 `El*` 组件 + `vLoading`）、`frontend/src/auto-imports.d.ts`
+  - 依赖：仅新增 devDependencies `unplugin-vue-components`、`unplugin-auto-import`（**无**新增运行时依赖）
+
+- **根因（3 轮定位，关键经验，务必留档）**
+  - 第 1 轮：只移除 `main.ts` 全量引入 → element-plus chunk `1,109.29 → 944.32 kB`（**−165 kB，几乎全部来自图标**），组件库未被摇掉；产物中 `el-date-picker`/`el-cascader`/`el-transfer`/`el-calendar` 等**未使用**组件仍在
+  - 第 2 轮：移除全部 `element-plus` 根 barrel 价值导入 → **字节级无变化**（944.32，hash 不变）⇒ barrel 价值导入**不是**根因
+  - 第 3 轮：**真根因 = `manualChunks` 把 `element-plus` 强制归入单一 chunk**。数组形式 `['element-plus', ...]` 会把包名解析为 chunk 入口（barrel `es/index.mjs`）强制拉入依赖图；**函数式强制归类同样失效**（被归类模块的导出被当作 chunk 入口而不再 tree-shake）——实测「归类全部 element-plus 组件」仍产出 947.09 kB 且未用组件俱在
+  - 修法：`manualChunks(id)` **只命名 `@element-plus/icons-vue`**，element-plus 组件交给 Rollup 按共享度自动拆分（**不强制归类**）→ tree-shaking 恢复，未用组件 grep 归零
+
+- **体积留痕（基线 → 改动后）**
+
+| 产物 | 基线 raw/gzip (kB) | 改动后 raw/gzip (kB) | 变化 |
+| --- | --- | --- | --- |
+| `element-plus-*.js` | 1,109.29 / 346.10 | **30.59 / 7.11** | **−1,078.70 / −339.0（≈ −97%）** |
+| CSS 合计 | 358.34 / 48.17（单文件） | **201.68 / 38.43**（29 个按需分片） | −156.66 raw |
+| `vue-vendor-*.js` | 174.43 / 63.45 | 172.91 / 62.95 | ≈0（无回归） |
+| `markdown-*.js`（marked+dompurify） | 72.63 / 24.02 | 72.63 / 24.02 | 0 |
+| `markdown-*.js`（应用 chunk，含 hljs） | 86.48 / 24.15 | 86.47 / 24.14 | 0 |
+| `Graph-*.js` | 461.06 / 155.12 | 461.31 / 155.25 | ≈0 |
+| JS 合计 | （基线仅 6 大 chunk，未含小 chunk，不可直接比） | 1,392.27 / 485.98 | — |
+
+- **tree-shaking 生效判据**：全产物 grep `el-date-picker|ElDatePicker|el-cascader|ElCascader|el-transfer|ElTransfer|el-calendar|ElCalendar|el-color-picker|ElColorPicker` = **0 命中**；`dayjs` 仅剩 **2 处**，来自 element-plus barrel 顶层无条件 `import dayjs`（与业务无关，无法去除）
+- **评审（独立只读 agent，general-purpose 但严格禁写禁跑）· PASS**：`git diff` 逐文件核对——除 `App.vue`（允许文件）与 `Layout.vue`（图标 import 增 3，均为模板实际使用）外，其余 15 个业务文件改动 **100% 为 import 行**，模板/`<style>`/逻辑零改动；`package.json` 仅新增两个 devDependencies；残留 `from 'element-plus'` 仅 4 处 `import type`（编译期擦除）；**无夹带**。**无 high/medium**；low 3 项见下（另注：首轮误派无 shell 的 Explore 评审 agent，其「FAIL」结论因**无法执行 `git diff`** 而不成立，已改用可执行只读 git 的 agent 重审）
+- **验证（独立 agent）· 全绿**：`npm run build` **exit 0**（2390 modules，12.88s）；`mvn -o test` → **`Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（与基线偏离 0）；产物 CSS 中 `.el-message-box`=43 / `.el-message__content`=7 / `.el-loading-mask`=4（按需样式已注入，toast/确认框/loading 不掉样式）
+- **技术债 / 观察项（低风险，未修，留痕）**
+  1. `v-loading` 指令不参与 unplugin resolver 的自动解析，需在 `main.ts` 显式 `app.use(ElLoading)` 注册（该方案常规做法，非缺陷）
+  2. `tsconfig.json` 排除 `src/components.d.ts` 会弱化 el-* 组件 prop 的 `vue-tsc` 类型校验（构建/运行不受影响）；若后续愿意修 3 个业务文件的 el-table 插槽类型可再纳入 —— 计入技术债台账
+  3. `manualChunks(id)` 中 `id.includes('marked') || id.includes('dompurify')` 匹配略宽松（当前依赖集内无害，仅影响分包归属）
+  4. `frontend/src/api/request.ts` 位于 Sprint 8「不许碰 `api/**`」名单内，本轮为完成任务删除了 1 行 `import { ElMessage } from 'element-plus'`（纯 import 行，零逻辑改动）——评审已记录该**豁免依据**
+  5. `vite.config.ts` 内联注释已记录「不可把 element-plus 包名/组件强制归类进单一 chunk」这一**反直觉约束**（实测有 6 组对照实验支撑）
+- **未验证项（如实标注）**：`@Tag("integration")` 集成测试未跑（需本地 Redis/WSL 常驻）；浏览器真实渲染复核未做（仅静态核对产物 CSS 中按需样式存在）；**未部署、未 commit/push**（PO 保留该拍板权）
+
+## 本轮迭代留痕（多 agent · 2026-10-03 · Sprint 8 · T-4 / B-117 阻塞）
+
+> 结论：**T-4 顺延**（PO 2026-10-03 拍板「先定位再修」）；**本轮零业务改动**（仅临时日志/探针，日志留 `target/`，探针已清理）；**待 B-117 定位并修复后重取真实混合基线**。
+
+- **白名单问题已排除（此前误判为白名单的排查闭环）**
+  - 控制台白名单**只接受 IPv4/CIDR**：实测 IPv6 `2408:8352:1a20:1480:6cef:c533:2ef:5cf3/128` 被拒（原文「IP地址格式错误，请重新输入」）；现有 5 条 IPv4 含本机出口 `116.163.49.43`
+  - 端点 `vrs-cn-moy4ydvtt0001k.dashvector.cn-shenzhen.aliyuncs.com` 有 AAAA 记录，JVM 默认走 IPv6 才撞白名单；加 `-DargLine=-Djava.net.preferIPv4Stack=true`（pom 的 surefire 无 argLine，必须用 `-DargLine` 传）后 `whiteList validate fail` **消失**
+  - 证据：`target/eval-run1.log`（09:42）、`target/eval-run2.out`（09:45）两跑**均无** `whiteList validate fail`，`Tests run 1/0/0/0` BUILD SUCCESS，两次数字逐位一致，**零文件改动**
+- **DashVector 侧健康（REST 直连实测，非推测）**：集合 `knowledge_chunk_vector` dim 1024 / cosine / FLOAT / 1,131 向量 / `fields_schema:{}`；插探针 `id=900001,file_id=900001` 后**立即**按 `filter file_id=900001` 查到；按既有 `file_id=52/80/82` 过滤亦能查到且带 fields；探针已删除并复核查不到 → **DashVector 插入+过滤均正常**
+- **真阻塞 = 应用写入链路静默失败（B-117）**：eval 自报「批量索引成功 / 索引完成 成功=1 失败=0」，紧接着用相同 file_id 查为空；检索日志恒为「**向量 0 条** + BM25 N 条 → 合并 N 条」。代码：`VectorStoreServiceImpl.insertBatch` 只校验顶层 `response.isSuccess()`，不校验逐条 `DocOpResult.code`；`IndexingServiceImpl` 的 successCount 为乐观计数（`successCount += valid.size()`）。SDK = `dashvector-java-sdk:1.0.21`。疑因=逐条写入被拒（免费集群 QPS 限 7/s，日志已现 `Query qps exceeds limit 7`）被吞，或字段未落
+- **当前基线（BM25 降级口径，非真实混合基线；4 次复跑逐位一致）**
+
+| 口径 | recall@5 | MRR | 说明 |
+| --- | --- | --- | --- |
+| 文档级 | 0.833 | 0.861 | — |
+| chunk 级 | 0.833 | 0.861 | 向量路 0 命中，实为 BM25 单路 |
+
+  分层：keyword 1.000/0.900 · section-locate 1.000/1.000 · semantic 0.833/0.833 · multi 0.333/0.667；未命中：s_004、m_001、m_002、m_003。**与 docs 内 v3 记录的 0.972（向量路可用口径）口径矛盾**，即本次发现 B-117 的线索
+- **PO 决策（2026-10-03）**：①「先定位再修，T-4 顺延」——派 Dev 加一次性探针打印 DashVector SDK insert 的原始 Response 与逐条 `DocOpResult.code`，确证根因后小步修复，再拿真实混合基线跑 T-4；②「线上检索是否静默降级 BM25」**单独立项排查**（B-118）
+- **风险提醒**：DashVector 免费集群 `aikb-free-2026` **2026-10-11 19:37 到期**（影响 Sprint 9 的 B-114 Phase2 有树 vs 无树对比）
+- **硬约束（不变）**：Dev/评审/验证三岗分离；同一时刻唯一可写者；禁止夹带重写/换栈/无关改名；禁止改 T-4 既有文档级口径/算法/阈值与数据集既有字段；**未 commit/push/部署**（PO 保留拍板权）
+
+## 本轮迭代留痕（多 agent · 2026-10-03 · Sprint 8 · T-4 / B-117 修复与基线）
+
+> 结论：**T-4 完成**（B-117 根因定位 → 最小修复 → 取到真实无树基线 → 独立评审 PASS（medium 1 项已修）→ 独立验证全绿）；**待 PO 验收**（未 commit、未 push、未部署）
+
+- **B-117 根因（探针原文确证，非推测）**：`insertBatch` 顶层 `Response.isSuccess()=true / code=0`，但**逐条 `DocOpResult` 18/18 全部 `code=-2027 Duplicate Key`**。主键 682–699 在 DashVector 已存在且带向量（`file_id=67`，该 file 在 MySQL 已不存在 → 孤儿向量），本次新建 chunk 复用同一主键区间 → 全部冲突。`VectorStoreServiceImpl` 只校验顶层 `isSuccess()`，冲突被静默吞；`IndexingServiceImpl` 乐观计数 → 日志假报「成功=1 失败=0」→ 新 file_id 无向量 → 检索「向量 0 条」→ BM25 兜底
+- **修复（PO 拍板 A+B，最小改动，仅 1 个业务文件）**：`VectorStoreServiceImpl` 的 `insert` / `insertBatch` 由 SDK `insert` 改为 **`upsert`**（`UpsertDocRequest`，按主键幂等覆盖，恢复 `IndexingServiceImpl` 注释所假设的「重跑幂等」语义）+ 新增 `checkDocOpResults` **逐条 code 校验**（任一 `code != 0` 抛异常，含失败条数 / 首个 id、code、message、requestId；顶层 `isSuccess()` 校验保留）；`IndexingServiceImpl` **未改**（批量失败必抛 → `successCount += valid.size()` 只在全成功时执行，日志恢复真实）；无新增依赖（复用 `dashvector-java-sdk:1.0.21` 的 `upsert` / `UpsertDocRequest`，`javap` 已证）
+- **修复生效证据**：向量**确实落库**（SDK `fetch` 实测新 file_id 可查到、带 vector 与 `file_id` 字段；评测自清理后复核查不到）；检索日志由「向量 0 条」变为**「向量 15 条 + BM25 N 条」**（18 用例全部）
+- **真实无树基线（两次复跑逐位一致；报告/断言口径已按此修正）**
+
+| 口径 | recall@5 | MRR | 阈值 | 余量 |
+| --- | --- | --- | --- | --- |
+| 文档级 | 0.833 | 0.861 | 0.80 / 0.70 | 0.033 / 0.161 |
+| chunk 级 | 0.833 | 0.861 | 0.75 / 0.75 | 0.083 / 0.111 |
+
+  分层（文档级 = chunk 级）：keyword 1.000/0.900（5）· section-locate 1.000/1.000（4）· semantic 0.833/0.833（6）· multi 0.333/0.667（3）；未命中：s_004、m_001、m_002、m_003
+- **关键发现（留痕，供 Sprint 9 参考）**：**向量路已实测生效，但本数据集上文档级与 chunk 级指标与 BM25 单路基线数值完全相同**（0.833/0.861）——即本数据集对「有无向量路」不敏感；`docs` 内早期 v3 记录 0.972 在本数据集/口径下**不可复现**。Sprint 9 有树 vs 无树对比须注意此基线灵敏度问题
+- **门禁（独立验证-agent 实测）**：`mvn -o test` → **`Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（与基线一致）；`npm run build`（frontend）→ **exit 0**（`✓ built in 12.65s`）；eval 两次 `Tests run: 1, Failures: 0, Errors: 0, Skipped: 0` BUILD SUCCESS 且数字逐位一致
+- **评审（独立只读 agent）· PASS**：文档级口径 / 算法 / 阈值与 JSON 既有数据字段**零改动**（`git diff` 逐 hunk 证明）；chunk 级共用同一次检索、命中判定未放宽；B-117 修复覆盖两条写入路径且 `IndexingServiceImpl` 无 diff；无夹带（后端仅 2 个 `.java`）。**无 high**；medium 1 项（注释降级归因口径）**已修**；low 3 项留痕
+- **技术债 / 观察项（low，未修，留痕）**：① `retrieval-cases.json` 的 `meta` 描述字段被改（version 4→5、pipeline/note 措辞）——非纯新增，已在 note 中注明；② `LongTermMemoryServiceImpl:124` 仍为 `insert` + 仅校验顶层 `isSuccess`，**同类静默失败风险未覆盖**；③ DashVector 存量孤儿向量未清（collection 1,131 vs 本地 MySQL 162 chunk）、`deleteByFileId` 用 `topk(100)`（单文件 >100 chunk 时可能残留孤儿）
+- **未验证项（如实标注）**：`@Tag("integration")` 与 e2e 未跑（本地无 Redis / 无外部服务）；真机 / 移动端视觉未做；**未部署、未 commit/push**（PO 保留该拍板权）
+
+## 本轮迭代留痕（多 agent · 2026-10-03 · Sprint 8 · B-117 后续债：deleteByFileId topk 分页 + 孤儿向量只读清单）
+
+> 结论：**`deleteByFileId` 的 `topk(100)` 上限已修复**（实现 → 独立评审 PASS → 独立验证全绿）；**DashVector 孤儿向量只读清单已产出，按 PO 口径暂不删除**（未 commit、未 push、未部署）
+
+- **修复（Dev-agent，唯一可写者）**：`VectorStoreServiceImpl.deleteByFileId` 由「零向量 + `filter(file_id=X)` + `topk(100)` 查一次 → 删一次」改为 `while` 分页循环——每轮重查下一页主键并删除，直到查询返回空或本页条数 `< pageSize`；新增 `pageSize=100` / `maxRounds=50` / `maxTotal=5000`，触顶 `log.warn`。原有语义保留：集合不可用 / 查询失败 / 删除失败 / `fileId==null` 均只告警、不阻断业务删除
+- **评审（独立只读 agent）· PASS**：本轮仅动 `deleteByFileId`；`insert`/`insertBatch`/`checkDocOpResults` 保持 B-117 已评审形态（无再次改动）；终止条件健全（空集 / 末页 / 查询失败 / 触顶四路可分，**「查询失败」未被误判为「清理完成」**）；`maxRounds`/`maxTotal` 双上限保证无死循环；无夹带。**无 high**；medium 1 项（删除响应只校验顶层 `isSuccess()`、未逐条校验 `DocOpResult.code`）判为**范围外既有风险**，本轮不扩大范围，已记入 backlog B-117 备注 ④；low 2 项（delete 无实效场景下 `totalDeleted` 虚增、恰为整数倍时多一次空查）留痕
+- **零向量 query 未决项消解**：改动内未直接验证「零向量 query 可行性」，但 `target/orphan-vectors-report.md §1` 实证已用 1024 维零向量 + filter + topk 对同一集合 query 成功（17 次），SDK query 亦为线上既有链路 ⇒ 判为**非真实未验证项**
+- **验证（独立 agent）· 全绿**：`mvn -o test` → **`Tests run: 222, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（与基线偏离 0）；前端 `npm run build` → **exit 0**（`vue-tsc -b && vite build`，`built in 11.70s`）；跑测后 `git status --porcelain` 与跑测前逐行一致，无新增未追踪残留
+- **孤儿向量只读侦查（独立只读 agent，未对 DashVector 执行任何写操作）**：DashVector Java SDK 无「列全部向量」接口、`queryGroupBy` 被拒（`code=-2053`，集合 `fields_schema:{}`）⇒ 改用 REST 零向量 + `filter=file_id>=a and <b` + `topk=1024` 对 file_id 区间**递归二分**覆盖 `[0,16384)`（17 次查询），按 doc 主键全局去重，与 `stats.total_doc_count` 交叉校验一致。**结果**：集合快照 **1,055** 条（含 1 条无 file_id 异常向量）；本地可归属 **110** 条；按本地口径候选孤儿 **945** 条（71 个 file_id）。分档：高风险（file_id>259，超本地与生产已知区间）5 个 / 14 条；中风险（84<id≤259）5 个 / 17 条；其余疑似生产在用。**真孤儿无法判定**（集合疑似与生产共用、生产 file_id 清单未取得）；`file_id=67` 现有 35 条（与此前观察不同 ⇒ 集合已被生产改动，历史计数不可复用）。清单：`target/orphan-vectors-report.md` + `target/orphan-vectors.tsv`（gitignored）
+- **PO 口径（2026-10-03）**：**先只出只读清单，暂不删**；删除前置 = 取得生产 file_id 清单确证（或 PO 确认本地即权威）
+- **未验证项（如实标注）**：`@Tag("integration")` 与 e2e 未跑；DashVector 侧未做任何写操作；**未 commit/push/部署**（PO 保留拍板权）
 
 ---
 
@@ -348,3 +449,21 @@
 - 迭代 1：Dev-agent 实现 T-7~T-9 → 评审-agent **PASS**（2 个低severity 观察项）→ 验证-agent **PASS**（build exit 0 / 2282 modules / 11.87s）
 - 迭代 2：Dev-agent 修复（T-11）→ 验证-agent **PASS**（build exit 0 / 2282 modules / 11.95s）
 - 缺口补齐（2026-10-01 夜）：上述「真实 HTTP 调用与页面点击路径未跑」已由夜间队列 n4（真机 HTTP 四端点）+ n5（浏览器点击 8/8 PASS）关闭；仅「`data=null` 兜底空态」仍为静态+构建确认（需人为构造异常态才能触发，本轮未构造）
+
+## 本轮迭代留痕（数据操作 / 代码 · 2026-10-03 · Sprint 8 · B-117 后续债：孤儿向量清理 + deleteByFileId topk 分页）
+
+> 结论：**孤儿向量清理完成**（三方判定 → PO 拍板 → 删除 → 复核）；**`deleteByFileId` topk 分页修复完成**（实现 → 独立评审 PASS → 独立验证全绿）。二者**均未 commit、未 push、未部署**（PO 保留拍板权）
+
+- **一次性确证（关键）**：生产 `DASHVECTOR_API_KEY` 的 md5 与本地**完全一致**（`92263f108b67002655c56ddf0c05b385`），endpoint 同为 `vrs-cn-moy4ydvtt0001k.dashvector.cn-shenzhen.aliyuncs.com` → **本地开发与生产共用同一 DashVector 账号/集合**（此前"疑似共用"升级为"已确证"）
+- **三方判定口径**：集合侧 file_id 清单（REST 零向量 + filter 区间枚举）× 生产清单（`SELECT id FROM knowledge_file`，74 条、最大 83）× 本地清单（25 条）；真孤儿 = 三者之外
+  - **反向确证**：集合里 ≤83 的 file_id **全部落在生产清单内** → 此前"疑似生产在用"的 914 条**确认就是生产的，一条未删**
+- **真孤儿 = 10 个 file_id / 31 条**：207(1)、208/209/223/224 各 4、414/415/427 各 4、436(1)、437(1)
+  - 内容逐条拉取确认：全为 **K8s / JVM(GC) / 设计模式 / Git** 四类学习笔记的**重复副本**（207↔437、208↔223↔414、209↔224↔415↔427 逐字同文），doc id 分批（412–415 / 435–438 / 746–749 / 771 / 780–781）→ 历史测试上传残留；与生产教材零重叠
+- **删除执行（按 doc id，最精确）**
+  - **踩坑留档**：DashVector REST 删除路由**不是** `/docs/delete`——该路径被网关兜底返回淘宝默认 HTML（HTTP 200）；正确路由是 **`DELETE /v1/collections/{collection}/docs`**，body `{"ids":[...]}`。`/query`、`/stats` 路径不含 `/docs` 段（SDK 走 gRPC，无法从 jar 直接取到 REST 路径）
+  - 结果：**31/31 逐条 `code=0`**；复核 10 个 file_id **残留全部 0**；集合 `total_doc_count` **1,055 → 1,024**（正好 −31），`index_completeness` 仍 1.0
+  - **未动**：无 `file_id` 的异常向量 1 条
+  - 留档（均 gitignored）：`target/orphan-docids.tsv`（31 条 file_id/doc_id/长度快照）、`target/orphan-candidates-contents.txt`（全文）、`target/orphan-vectors-report.md`/`.tsv`（原始只读清单）
+- **`deleteByFileId` topk 分页修复（已完成）**：`while` 分页循环（`pageSize=100` / `maxRounds=50` / `maxTotal=5000`，触顶 `log.warn`），每轮重查下一页主键并删，直到空集或页未满；原降级语义（集合不可用 / 查询失败 / 删除失败只告警不阻断）保留。`mvn -o test` **222/0/0** BUILD SUCCESS · `npm run build` exit 0。评审 medium 1 项（删除响应未逐条校验 `DocOpResult.code`）判范围外，已记 backlog B-117 备注
+- **顺带发现（供 B-118 排查线）**：生产文件 **68 / 69 / 70 在集合中没有任何向量**（本地 10/11/55/56/57/142/145–150/179/180/258/259 亦无）→ 这些文件只能靠 BM25 召回，是"线上检索是否长期静默降级"的直接排查入口
+- **未验证 / 未做**：删除后**未**做线上端到端检索复跑（生产未部署、未重启）；`LongTermMemoryServiceImpl:124` 同类静默吞错风险**未处理**；本轮数据操作不涉业务代码（无回归门禁要求），`deleteByFileId` 代码改动已随既有 `mvn -o test` 222/0/0 通过

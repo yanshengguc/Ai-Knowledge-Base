@@ -19,7 +19,7 @@
 |---|---|---|
 | 单元/集成测试 | **184 用例 BUILD SUCCESS**(9/15 三组全绿:默认 152+integration 21+e2e 11;e2e 子集 test-e2e.sh 单独跑) | mvn test;e2e 子集 scripts/test-e2e.sh |
 | 工具选择准确率 | **100%**(15/15,8/20 Eval Harness) | 15 个真实用例(该调/不该调),ListAppender 统计 |
-| 检索质量 | **recall@5 / MRR 达标**(18 查询/12 篇文档,阈值 0.80/0.70) | RetrievalQualityEvalTest:真实管线注入(切片→Embedding→DashVector→混合检索+Rerank 全链路,非 mock) |
+| 检索质量 | **达标(实测无树基线,2026-10-03,B-117 修复后,两次逐位一致)**:文档级 recall@5=0.833 / MRR=0.861,chunk 级 0.833 / 0.861(18 查询/12 篇文档;阈 0.80/0.70) | RetrievalQualityEvalTest:真实管线注入(切片→Embedding→DashVector→混合检索+Rerank 全链路,非 mock);向量路经 B-117 修复后已实测生效(日志「向量 15 条」),但本数据集指标与 BM25 单路基线同值;早期 v3 的 0.972 不可复现 |
 | 端到端串联 | **9/9**(8/18 MVP) | 注册→问答→删除全流程 curl 实测 |
 | SSE 流式 | token 流完整 + 连接正常关闭(curl exit=0) | 实测 /api/chat/stream |
 | 搜索降级 | 无 key 时降级纯知识库,对话不中断 | 实测 enableWebSearch=true |

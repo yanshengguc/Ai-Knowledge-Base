@@ -92,6 +92,26 @@
   - 「带 token 的工具调用」未做 HTTP 级端到端（需有效 JWT + session + 真实库数据；鉴权语义由既有 `KnowledgeMcpSecurityTest` 覆盖）；真实 MCP Client（Claude/Cursor/Cherry Studio）联调未做；生产未实测。
   - 未部署、未 commit/push（PO 保留拍板权）。
 
+## 本轮迭代留痕（部署 · 2026-10-03 · B-119 上线）
+
+> 结论：**B-119 已上线生产并线上实测通过**（PO 拍板 提交 + 推送 + 部署）
+
+- **提交/推送**：`97a01cd`(fix，2 新文件) + `85b394d`(docs，sprint/backlog/HANDOFF)；`origin/main` = `85b394d`（0/0 同步）
+- **构建**：本地 `mvn -o clean package -DskipTests` → `Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar`，SHA256 `2d015e0711d158c55753f484fb63bdebe38764c43c4a07fb4eccf20aa1372b1e`（117,064,045 B）；上传后线上 `sha256sum` **双端一致**
+- **回滚点**：`/opt/aikb/app.jar.bak-20261003-pre-b119`（旧 jar `4e88c5c8ea9798050f90873040bb5888773903ee55b00ea3188682367d91e66a`，117,061,796 B）
+- **替换/重启**：`cp` 至 `/opt/aikb/app.jar.new` → 校验哈希 → `mv` 原子替换 → `systemctl restart aikb` → `active`；`http://localhost:8080/actuator/health` = **200 / `{"status":"UP"}`**；重启后 error/exception 行 **0**
+- **线上 B-119 实测**（直连 `:8080`）
+  - 无 session → `400` `{"message":"Session ID missing"}`
+  - 无效 session → `404` `{"message":"Session not found: invalid-session-123"}`
+  - 畸形 session → `404` `{"message":"Session not found: %%%not-a-session%%%"}`
+  - 泄露标记计数（`stackTrace|lineNumber|.java|包名`）**0 / 0 / 0**
+  - 正常 `initialize` → `200` + `Mcp-Session-Id: e8f44e7f-…` + `result.serverInfo.name = ai-knowledge-base-mcp`
+  - 契约守卫：`POST /api/user/login` 畸形 JSON → `200` + `{"code":500,"message":"系统异常，请稍后重试"}`
+- **验收脚本**：`DEPLOY_BASE=http://120.55.76.141/api python scripts/verify_deploy.py` → **3/3 PASS**（注册关闭 → 依赖注册的 5 项跳过，本地回归覆盖）
+- **前端**：本轮零改动，未重发
+- **清理**：服务器 `/tmp/aikb-b119.jar`、`/tmp/b119_verify.sh` 已删（remaining 0）；本地临时凭据 `%TEMP%\aikb-deploy\` 已删
+- **未验证（如实标注）**：带 token 的工具调用 HTTP 端到端；真实 MCP Client（Claude/Cursor/Cherry Studio）联调；前端未重发
+
 ## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-1 / B-111）
 
 > 结论：**T-1 完成**（实现 → 独立评审 PASS → 独立验证全绿 → 浏览器真实渲染复核全项通过）；**待 PO 验收**（未 commit、未 push、未部署）

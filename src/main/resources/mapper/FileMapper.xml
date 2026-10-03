@@ -96,4 +96,28 @@
         WHERE user_id = #{userId}
         GROUP BY status
     </select>
+
+    <!-- B-104 服务端分页:按知识 id 计数 / 取一页 -->
+    <select id="countByKnowledgeId" resultType="long">
+        SELECT COUNT(*) FROM knowledge_file WHERE knowledge_id = #{knowledgeId}
+    </select>
+
+    <select id="selectPageByKnowledgeId" resultType="com.yansheng.aiknowledgebase.entity.FileEntity">
+        select
+        id,
+        user_id,
+        file_name,
+        file_type,
+        file_size,
+        file_url,
+        knowledge_id,
+        status,
+        error_msg,
+        create_time,
+        update_time
+        FROM knowledge_file
+        WHERE knowledge_id = #{knowledgeId}
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
 </mapper>

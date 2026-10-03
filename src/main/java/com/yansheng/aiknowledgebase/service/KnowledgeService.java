@@ -3,12 +3,19 @@ package com.yansheng.aiknowledgebase.service;
 import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
+import com.yansheng.aiknowledgebase.vo.KnowledgePageVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 
 import java.util.List;
 
 public interface KnowledgeService {
     List<KnowledgeVO> getKnowledgeList();
+
+    /**
+     * B-104 服务端分页:按当前用户 + 关键词(title/content) + 分类过滤,返回一页。
+     * 分页护栏与 admin/users 一致:page 下限 1,size 默认 10 / 上限 50。
+     */
+    KnowledgePageVO getKnowledgePage(int page, int size, String keyword, String category);
 
  KnowledgeDetailVO getKnowledgeById(Long id) throws InterruptedException;
   void addKnowledge(KnowledgeAddDTO dto);

@@ -2,6 +2,7 @@ package com.yansheng.aiknowledgebase.service;
 
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.vo.FileContentVO;
+import com.yansheng.aiknowledgebase.vo.FilePageVO;
 import com.yansheng.aiknowledgebase.vo.FileVO;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.web.multipart.MultipartFile;
@@ -15,6 +16,9 @@ public interface FileService
 
     /** 按知识查文件列表(含处理状态) */
     List<FileVO> listByKnowledgeId(Long knowledgeId);
+
+    /** B-104 服务端分页:按知识 id 返回一页文件(含归属校验,口径同 listByKnowledgeId) */
+    FilePageVO getFilePage(Long knowledgeId, int page, int size);
 
     /** 删除文件(级联删切片 + OSS 对象,含权限校验) */
     void deleteFile(Long id);

@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.dto.KnowledgeAddDTO;
 import com.yansheng.aiknowledgebase.dto.KnowledgeUpdateDTO;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
+import com.yansheng.aiknowledgebase.vo.KnowledgePageVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +24,15 @@ public class KnowledgeController {
     public Result<List<KnowledgeVO>> getKnowledgeList(){
         return  Result.success(knowledgeService.getKnowledgeList());
 }
+
+    /** B-104 服务端分页:关键词/分类过滤下移,返回一页(默认 10 / 上限 50;旧接口保持全量不变) */
+    @GetMapping("/knowledge/page")
+    public Result<KnowledgePageVO> getKnowledgePage(@RequestParam(defaultValue = "1") int page,
+                                                    @RequestParam(defaultValue = "10") int size,
+                                                    @RequestParam(required = false) String keyword,
+                                                    @RequestParam(required = false) String category) {
+        return Result.success(knowledgeService.getKnowledgePage(page, size, keyword, category));
+    }
 @GetMapping("/knowledge/{id}")
     public Result<KnowledgeDetailVO> getKnowledgeDetail(@PathVariable Long id) throws InterruptedException {
         return  Result.success(knowledgeService.getKnowledgeById(id));

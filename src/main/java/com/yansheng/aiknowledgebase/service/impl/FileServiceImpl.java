@@ -14,6 +14,7 @@ import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.utils.ByteArrayMultipartFile;
 import com.yansheng.aiknowledgebase.utils.UserContext;
+import com.yansheng.aiknowledgebase.vo.FilePageVO;
 import com.yansheng.aiknowledgebase.vo.FileVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,6 +32,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class FileServiceImpl implements FileService {
+
+    /** B-104 分页护栏:与管理端 admin/users 口径一致(默认 10 / 上限 50) */
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final DocumentService documentService;
     private final OssService ossService;
@@ -109,6 +114,27 @@ public class FileServiceImpl implements FileService {
         return fileMapper.selectFileByKnowledgeId(knowledgeId).stream()
                 .map(this::toVO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * B-104 服务端分页:归属校验后按知识 id 取一页(护栏口径同 listByKnowledgeId)。
+     * 越权语义与既有文件清单接口一致:非作者 -> BusinessException("权限不足")。
+     */
+    @Override
+    public FilePageVO getFilePage(Long knowledgeId, int page, int size) {
+        verifyOwnership(knowledgeId);
+        int safePage = Math.max(page, 1);
+        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+
+        FilePageVO pageVO = new FilePageVO();
+        pageVO.setPage(safePage);
+        pageVO.setSize(safeSize);
+        pageVO.setTotal(fileMapper.countByKnowledgeId(knowledgeId));
+        pageVO.setList(fileMapper.selectPageByKnowledgeId(knowledgeId, safeSize, (long) (safePage - 1) * safeSize)
+                .stream()
+                .map(this::toVO)
+                .collect(Collectors.toList()));
+        return pageVO;
     }
     @Override
     public FileEntity uploadFile(

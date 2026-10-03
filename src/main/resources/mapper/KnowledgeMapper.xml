@@ -103,4 +103,39 @@ DELETE FROM  knowledge
          JOIN knowledge_file f ON c.file_id = f.id
          WHERE f.user_id = #{userId}) AS chunkCount
     </select>
+
+    <!-- B-104 服务端分页过滤条件:关键词命中 title 或 content;分类精确匹配 -->
+    <sql id="knowledgePageFilter">
+        <where>
+            user_id = #{userId}
+            <if test="keyword != null and keyword != ''">
+                AND (title LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+            </if>
+            <if test="category != null and category != ''">
+                AND category = #{category}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countPageByUserId" resultType="long">
+        SELECT COUNT(*) FROM knowledge
+        <include refid="knowledgePageFilter"/>
+    </select>
+
+    <select id="selectPageByUserId"
+            resultType="com.yansheng.aiknowledgebase.entity.KnowledgeEntity">
+        select
+        id,
+        title,
+        content,
+        category,
+        author,
+        user_id,
+        create_time,
+        update_time
+        from knowledge
+        <include refid="knowledgePageFilter"/>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
 </mapper>

@@ -27,4 +27,11 @@ int updateStatus(@Param("id") Long id, @Param("status") String status, @Param("e
 
     /** 按用户统计文件处理状态分布(GROUP BY status) */
     List<java.util.Map<String, Object>> selectStatusSummaryByUserId(Long userId);
+
+    /** B-104 服务端分页:按知识 id 计数 */
+    long countByKnowledgeId(@Param("knowledgeId") Long knowledgeId);
+
+    /** B-104 服务端分页:按知识 id 取一页(ORDER BY id 保证翻页顺序稳定) */
+    List<FileEntity> selectPageByKnowledgeId(@Param("knowledgeId") Long knowledgeId,
+                                             @Param("limit") int limit, @Param("offset") long offset);
 }

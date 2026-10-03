@@ -17,6 +17,7 @@ import com.yansheng.aiknowledgebase.service.KnowledgeService;
 import com.yansheng.aiknowledgebase.service.VectorStoreService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeDetailVO;
+import com.yansheng.aiknowledgebase.vo.KnowledgePageVO;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,11 @@ public class KnowledgeServiceImpl implements KnowledgeService {
             "else " +
             "return 0 " +
             "end";
+
+    /** B-104 分页护栏:与管理端 admin/users 口径一致(默认 10 / 上限 50) */
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 50;
+
     public KnowledgeServiceImpl(KnowledgeMapper knowledgeMapper, FileMapper fileMapper, ChunkMapper chunkMapper,
                                 VectorStoreService vectorStoreService,
                                 DocumentService documentService,
@@ -68,19 +74,47 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         // 只返回当前用户自己的知识(修复越权:此前 selectAll 返回全部用户的知识)
         List<KnowledgeEntity> knowledgeList = knowledgeMapper.selectByUserId(UserContext.getUserId());
         List<KnowledgeVO> result = new ArrayList<>();
-
         for (KnowledgeEntity knowledgeEntity : knowledgeList) {
-            KnowledgeVO knowledgeVO = new KnowledgeVO();
-            knowledgeVO.setId(knowledgeEntity.getId());
-            knowledgeVO.setTitle(knowledgeEntity.getTitle());
-            knowledgeVO.setCategory(knowledgeEntity.getCategory());
-            knowledgeVO.setAuthor(knowledgeEntity.getAuthor());
-            knowledgeVO.setCreateTime(knowledgeEntity.getCreateTime());
-            knowledgeVO.setUpdateTime(knowledgeEntity.getUpdateTime());
-            result.add(knowledgeVO);
-
+            result.add(toVO(knowledgeEntity));
         }
         return result;
+    }
+
+    /**
+     * B-104 服务端分页:按当前用户 + 关键词(title/content) + 分类过滤,返回一页。
+     * 分页参数护栏与 admin/users 一致:page 下限 1,size 默认 10 / 上限 50。
+     */
+    @Override
+    public KnowledgePageVO getKnowledgePage(int page, int size, String keyword, String category) {
+        int safePage = Math.max(page, 1);
+        int safeSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
+        String safeKeyword = keyword == null || keyword.isBlank() ? null : keyword.trim();
+        String safeCategory = category == null || category.isBlank() ? null : category.trim();
+        Long userId = UserContext.getUserId();
+
+        KnowledgePageVO pageVO = new KnowledgePageVO();
+        pageVO.setPage(safePage);
+        pageVO.setSize(safeSize);
+        pageVO.setTotal(knowledgeMapper.countPageByUserId(userId, safeKeyword, safeCategory));
+        List<KnowledgeVO> list = new ArrayList<>();
+        for (KnowledgeEntity entity : knowledgeMapper.selectPageByUserId(userId, safeKeyword, safeCategory,
+                safeSize, (long) (safePage - 1) * safeSize)) {
+            list.add(toVO(entity));
+        }
+        pageVO.setList(list);
+        return pageVO;
+    }
+
+    /** 知识实体 -> VO(列表与分页共用同一映射口径,避免两处漂移) */
+    private KnowledgeVO toVO(KnowledgeEntity knowledgeEntity) {
+        KnowledgeVO knowledgeVO = new KnowledgeVO();
+        knowledgeVO.setId(knowledgeEntity.getId());
+        knowledgeVO.setTitle(knowledgeEntity.getTitle());
+        knowledgeVO.setCategory(knowledgeEntity.getCategory());
+        knowledgeVO.setAuthor(knowledgeEntity.getAuthor());
+        knowledgeVO.setCreateTime(knowledgeEntity.getCreateTime());
+        knowledgeVO.setUpdateTime(knowledgeEntity.getUpdateTime());
+        return knowledgeVO;
     }
 
     @Override

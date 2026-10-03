@@ -52,6 +52,21 @@
 ## 下一步预告（Sprint 9）
 - B-114 Phase2：标题树挂载到混合检索做路由加权（树只提权，不动 hybrid 底座；失败降级回纯 RAG 并打 WARN）→ 上线门槛 = 有树 vs 无树对比 + Sprint 8 基线指标
 
+## B-119 修复任务立项（2026-10-03 · 安全 · 中危）
+
+> 立项依据：2026-10-03 攻防演习 C 项（详见文末「本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后）」）；PO 拍板立项。**状态：待开工（未指派 Dev）**
+
+- **问题**：`/api/mcp-endpoint`（Spring 函数式端点）在无 token 或无效 `mcp-session-id` 时返回 HTTP 400/404，**响应体为完整 Java 堆栈**（类名 / 文件名 / 行号），稳定可复现 → 内部结构信息泄露。业务数据未泄露（工具调用仍被拒「MCP 工具需要认证」）。
+- **根因**：该函数式端点未经过全局异常处理器（对比：普通 `@RestController` 畸形 JSON → HTTP 200 + 「系统异常，请稍后重试」，已脱敏）。
+- **修复范围（仅此一项，禁夹带）**：让 `/api/mcp-endpoint` 的异常出口统一脱敏（可选路径：① 为该函数式端点接入统一异常处理；② 自定义 `@ControllerAdvice`／错误处理器覆盖函数式端点；③ session 解析失败改为脱敏 JSON）。**不改** MCP 工具契约、鉴权语义、`WHITE_LIST`，不放松/收紧现有放行口径。
+- **DoD**
+  - 无 token / 无效 session / 畸形 session 三类请求 → 响应体**不含**类名 / 文件名 / 行号（原文人工核对）
+  - 正常 `initialize` / `tools/list` / 有 token 工具调用行为**零变化**
+  - 全量回归保持全绿（基线 `mvn -o test` 222/0/0）+ `git diff --check` 通过
+  - 未跑项显式标注「未验证」
+- **约束（继承硬约束）**：Controller／端点前缀、`Result` 契约、`BusinessException` = HTTP 200 + body `code:500` 口径不变；改动全量回归全绿才可提交部署；部署前建回滚点；部署后清理临时凭据。
+- **角色分工 / 节奏（三岗分离，同一时刻仅一个可写者）**：Dev-agent 实现 → 评审-agent（只读）审范围／契约／硬约束／夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收（评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO）。
+- **留痕**：开工时在本文件追加「本轮迭代留痕（B-119 修复）」；**未经 PO 明确指示不得 commit / push / 部署**。
 ## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-1 / B-111）
 
 > 结论：**T-1 完成**（实现 → 独立评审 PASS → 独立验证全绿 → 浏览器真实渲染复核全项通过）；**待 PO 验收**（未 commit、未 push、未部署）
@@ -479,3 +494,24 @@
 - **回滚点**：后端 `/opt/aikb/app.jar.bak-20261003-pre-sprint8`（旧 jar `64a4b1b2d1ac3f19d513a294c4062d8ed73fe972f24d84887a83a40f7236e781`）、前端 `/var/www/aikb.bak-20261003-pre-sprint8` + `/var/www/aikb.old-live-20261003`
 - **清理**：服务器 `/tmp/akb-dist-20261003.tar.gz` 已删；本地临时凭据 `%TEMP%\aikb-deploy\env.ps1` 已删；旧备份目录按惯例保留
 - **未验证（如实标注）**：生产注册关闭 → **无法做登录态端到端实测**（上传 / 检索 / SSE 对话）；**B-117 的 `upsert` 写入路径未在线上实测**（仅本地测试与探针覆盖）；本地 `target/orphan-*` 证据与 `%TEMP%\aikb-rollback\` 补丁存档保留
+
+## 本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后：攻防演习 + 用户视角走查）
+
+> 结论：对**已上线的 Sprint 8 生产环境**完成攻防演习（A–F）与用户视角走查；**修出 1 个中危（MCP 堆栈泄露）+ 4 个低危/观察项**；演练数据与临时账号已**零残留**清理。本文档为留痕，**未 commit / 未 push**（PO 保留拍板权）。
+
+- **靶场**：生产（Nginx 静态 + 反代 `/api`）+ 直连 `:8080`；登录态通过**临时账号** `aikb_drill`（id=38, role=user）取得，**测后彻底删除**
+- **A 认证/鉴权**：6 类伪造/篡改 token（`alg=none`、弱密钥 HS256、无签名段、畸形串、小写 `bearer`、空 `Authorization`）→ 全部 401；受保护端点匿名 → 401 ✅
+- **B 白名单绕过**：`/api//user/login`（双斜杠）经 Tomcat 归一化**确实命中白名单、绕过 JWT 过滤器**；但可达目标仅限白名单端点本身，`/api/user/login/../user/me`、`/api/mcp-endpoint/../admin/overview`、`%2F` 编码探针 → 均 401，**fail-closed、无越权收益**（低危，建议后续归一化后再判，另记 B-121）
+- **C MCP 端点（⚠️ 中危）**：无 token 可 `initialize` → 取 session → `tools/list`（`knowledge_search`/`knowledge_stats`/`time_now`）；**调用工具返回「MCP 工具需要认证」，业务数据未泄露**。但：无/无效 `mcp-session-id` 时 HTTP 400/404，**body 为完整 Java 堆栈**（类名/文件名/行号），稳定可复现。**根因**：该 Spring 函数式端点绕过全局异常处理器（普通 API 畸形 JSON → 200 + 「系统异常，请稍后重试」，已脱敏）→ 立 **B-119**
+- **D 参数/边界（登录态）**：
+  - 管理端越权 8 项（GET overview/users、`?limit=999999`、POST users、PATCH 999999/role、PUT 999999/password、DELETE 999999、PATCH 自己 role=superuser）→ **全部 `{"code":500,"message":"权限不足"}`** ✅
+  - IDOR 5 项（`/api/file/1`、`/api/file/1/content`、`/api/knowledge/1`、`/api/outline/file/1`、`/api/file/list/1`）→ **全部「权限不足」** ✅
+  - 上传白名单：`evil.txt` 拒 / **`evil.MD` 通过（大小写绕过，低危）** / `evil.pdf.exe` 拒 / `evil.md`(octet-stream) 通过 / `evil.md.php` 拒 / `ok.md` 通过；`.MD` 的 preview content 下游正常，**无失配**
+  - **`PROCESSING 禁删` 未生效**（上传后立即 DELETE 返回 success；两次实测含 mid-flight 大文件）；但**均未产生孤儿** → **低危 / 文档约束与实现不符**（另记 B-120）
+  - **正面实证**：file 89 日志「向量清理已删除一批, fileId=89, 本批=8, 累计删除=8」即 **B-117 `deleteByFileId` 分页修复的线上实测**（此前留痕标注「未线上实测」，此处补上、缺口关闭）
+- **E T-1 渲染 XSS 红队**：30 条载荷、真实 DOMPurify 管线 + 真实浏览器 → `alertFired=false`、`dompurifyActive=true`（java 围栏 hljs `<span>` 经清洗存活，证明非 passthrough）。3 条被标记：① `<div style="background:url(javascript:alert(1))">` 的 `style` 原样保留 → **低危非 XSS**（现代浏览器不执行 CSS 内 `javascript:`，但 `url()` 可作外链信标）；② `<form>`（action 已剥离）、③ `<template>`（内部 script 已剥离）→ 误报
+- **F 安全响应头**：`X-Frame-Options` / `CSP` / `X-Content-Type-Options` / `HSTS` 全缺（低危）；CORS 异源预检 → 403（防住）
+- **用户视角走查**（真实浏览器，生产）：登录 / 导航 / 知识列表 / 文件预览全部正常，无 console error；发现「侧边栏智能问答在部分视口被滚动容器遮挡」（轻微 UI）；**对话为严格 RAG 接地**，知识库无相关资料时拒答通用编程问题，故 T-1 的代码高亮 / 表格样式在该路径下未获真实数据验证
+- **清理（全部零残留）**：删演练产物 files 85/86/87 与 knowledge 29（API 级联）→ `DELETE FROM user WHERE username='aikb_drill'`；终态 users **34** / `aikb_%` **0** / knowledge **15** / file **74** / chunk **1131** / DashVector `total_doc_count` **1024**、`index_completeness` 1.0；服务 `active` + health `UP`；服务器 `/tmp` 无我方残留；本地临时凭据 `%TEMP%\aikb-deploy\` 已删
+- **未核实项**：三个演练上传对象的 OSS 存亡未能核验（桶私有读，命中与不存在对象探针同为 403）→ 采信「deleteFile 级联删 OSS」约定，日志未显式打印 OSS 删除行
+- **建议**：① 立 **B-119** 修 MCP 堆栈泄露（Dev → 独立评审 → 独立验证）；② **B-120** 汇总低危项（上传白名单大小写 / `PROCESSING 禁删` 护栏 / 安全响应头）；③ **B-121** JWT 白名单归一化；④ B-117 的「线上未实测」缺口**就此关闭**

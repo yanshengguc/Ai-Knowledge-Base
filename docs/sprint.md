@@ -101,7 +101,13 @@
 - **真实路径逻辑复核（无死循环）**：失败条为 `-2024 Key Not Exist` 时，下轮 query 不会再返回它、空页在 L254 提前 `return`；若为瞬时错误且文档仍存在，则下轮 query 重新返回该主键 → 天然重试。护栏 `maxRounds=50` / `maxTotal=5000` 保持。
 - **未受影响**：集合统计 `total_doc_count = 1131`、`index_completeness = 1.0`（探针未改动真实数据）。
 - **清理**：本轮凭据仅以进程环境变量传入（`DEPLOY_PASSWORD`），**未落盘**、无 `%TEMP%\aikb-deploy\` 残留；服务器无 `/tmp` 暂存（`app.jar.new` 已被 `mv` 消费）；旧 jar 备份按惯例保留作回滚点。
-- **未验证（如实标注）**：①「登录 → 建知识/上传文件 → 删除 → 观察向量清理日志与集合数量变化」全链路真实 HTTP E2E 未跑（生产注册关闭、无测试账号，未临时造号/开注册）；② 真实「部分成功混合批」未在生产触发（探针仅证契约形态，未构造真实部分失败批）。
+- **真实 HTTP E2E 补验（补齐上条未验证项① · 2026-10-03 晚）**：以**一次性 DB 造用户**方式（`aikb_e2e_<ts>`，BCrypt 哈希直插 `user` 表，**未开公网注册窗口**）走完真实链路 —— `POST /api/user/login → POST /api/knowledge(knowledgeId=30) → POST /api/file/upload/30(上传 .md，fileId=90) → 轮询 GET /api/file/90 至 SUCCESS → DELETE /api/file/90 (HTTP 200) → 残留核查 → 清理`。删除链路日志（`journalctl -u aikb`）原文：
+  `索引后校验通过, fileId=90, 向量数=16` / `向量清理已删除一批, fileId=90, 本批=16, 成功=16, 失败=0, 累计删除=16` / `已清理向量, fileId=90, count=16` / `文件已删除,fileId=90,knowledgeId=30`。
+  删除前该文件真实向量 **16** → 删除后按 `file_id=90` 直连 DashVector `/query` 残留 **0**。⇒ 修复在真实环境按预期工作（逐条校验、成功数计数、末页早退均命中），**未验证项①至此闭环**。
+  - 顺带发现（非本修复相关的既有现象）：16 条批量 embedding 超 DashScope 单批上限(10)被拒后，应用自动「回退逐条索引」并成功（`索引完成 成功=16 失败=0`），未影响终态。
+  - 收尾：`DELETE /api/knowledge/30` 级联清理 + `DELETE FROM user WHERE username LIKE 'aikb_e2e%'`；服务器 `/tmp` 临时文件已清。
+  - 终态恢复基线：user **34** / knowledge **15** / file **74** / chunk **1131** / DashVector `total_doc_count` **1131**，`aikb_e2e%` 残留 **0**。护栏：未开注册、未改 env/systemd、未重启服务、未触碰既有数据。
+- **未验证（如实标注）**：② 真实「部分成功混合批」未在生产触发（探针仅证契约形态，未构造真实部分失败批）。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-126 deleteByFileId 逐条删除校验 · 修「删除版假成功」）
 

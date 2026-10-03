@@ -121,7 +121,7 @@ import { Plus, Delete, Search, Download } from '@element-plus/icons-vue'
 import {
   addKnowledge,
   deleteKnowledge,
-  getKnowledgeList2 as fetchAllList,
+  getKnowledgeCategories,
   getKnowledgePage,
 } from '@/api/modules/knowledge'
 import request from '@/api/request'
@@ -155,7 +155,7 @@ const keyword = ref('')
 const categoryFilter = ref('')
 const loadError = ref(false)
 const hasFilters = computed(() => !!keyword.value.trim() || !!categoryFilter.value)
-// 分类为自由文本,下拉选项需全量聚合;沿用旧全量接口(失败仅降级为无选项,不影响列表主体)
+// 分类为自由文本,下拉候选由后端 distinct 聚合(B-130);失败仅降级为无选项,不影响列表主体
 const categories = ref<string[]>([])
 
 // 竞态保护:仅最后一次请求可写回(连续输入/快速翻页时,旧响应不得覆盖新结果)
@@ -214,13 +214,11 @@ async function load() {
   }
 }
 
-/** 分类下拉选项(全量聚合);失败不影响列表主体,仅降级为无选项 */
+/** 分类下拉选项(B-130:后端 distinct 聚合,不再拉全量知识);失败不影响列表主体,仅降级为无选项 */
 async function loadCategories() {
   try {
-    const res = await fetchAllList()
-    categories.value = Array.from(
-      new Set((res.data || []).map((k) => k.category).filter(Boolean)),
-    ) as string[]
+    const res = await getKnowledgeCategories()
+    categories.value = res.data || []
   } catch {
     // 保留已有选项,避免网络抖动清空下拉
   }

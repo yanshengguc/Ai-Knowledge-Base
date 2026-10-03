@@ -138,4 +138,14 @@ DELETE FROM  knowledge
         ORDER BY id
         LIMIT #{limit} OFFSET #{offset}
     </select>
+
+    <!-- B-130 分类下拉候选:去重 + 去空 + 排序,只返回分类字符串(替代为生成选项而拉取全量知识的口径) -->
+    <select id="selectDistinctCategoriesByUserId" resultType="java.lang.String">
+        SELECT DISTINCT category
+        FROM knowledge
+        WHERE user_id = #{userId}
+        AND category IS NOT NULL
+        AND category &lt;&gt; ''
+        ORDER BY category
+    </select>
 </mapper>

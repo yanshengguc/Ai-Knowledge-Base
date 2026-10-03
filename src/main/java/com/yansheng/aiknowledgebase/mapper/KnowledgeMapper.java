@@ -30,4 +30,7 @@ public interface KnowledgeMapper {
                                              @Param("category") String category,
                                              @Param("limit") int limit, @Param("offset") long offset);
 
+    /** B-130 分类下拉候选:当前用户去重后的非空分类(分类为自由文本,故需 distinct 聚合) */
+    List<String> selectDistinctCategoriesByUserId(@Param("userId") Long userId);
+
 }

@@ -10,7 +10,7 @@ import type {
   Result,
 } from '@/types/api'
 
-// 知识列表用 GET /knowledge(getKnowledgeList2,List.vue 使用)
+// 知识列表用 GET /knowledge(getKnowledgeList2,Tree.vue 建树与 SaveAsNoteDialog 存笔记下拉使用)
 // 注意:POST /knowledge 是"新增知识"接口,曾有一个误传 {action:'list'} 的死代码函数
 // 会把 list 请求当成新增知识(已删除,防止误用写脏数据)
 export function getKnowledgeList2() {
@@ -25,6 +25,11 @@ export function getKnowledgePage(params: {
   category?: string
 }) {
   return request.get<unknown, Result<KnowledgePageVO>>('/knowledge/page', { params })
+}
+
+/** B-130 分类下拉候选:当前用户去重非空分类(替代为生成选项而拉取全量知识的口径) */
+export function getKnowledgeCategories() {
+  return request.get<unknown, Result<string[]>>('/knowledge/categories')
 }
 
 export function getKnowledgeDetail(id: number) {

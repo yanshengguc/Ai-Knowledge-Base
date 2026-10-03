@@ -33,6 +33,12 @@ public class KnowledgeController {
                                                     @RequestParam(required = false) String category) {
         return Result.success(knowledgeService.getKnowledgePage(page, size, keyword, category));
     }
+
+    /** B-130 分类下拉候选:当前用户去重非空分类(只返回字符串数组,免为聚合选项拉全量知识) */
+    @GetMapping("/knowledge/categories")
+    public Result<List<String>> getKnowledgeCategories() {
+        return Result.success(knowledgeService.getCategories());
+    }
 @GetMapping("/knowledge/{id}")
     public Result<KnowledgeDetailVO> getKnowledgeDetail(@PathVariable Long id) throws InterruptedException {
         return  Result.success(knowledgeService.getKnowledgeById(id));

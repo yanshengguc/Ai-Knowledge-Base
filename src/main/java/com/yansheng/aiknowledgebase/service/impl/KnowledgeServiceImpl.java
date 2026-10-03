@@ -105,6 +105,14 @@ public class KnowledgeServiceImpl implements KnowledgeService {
         return pageVO;
     }
 
+    /** B-130 分类下拉候选:当前用户去重非空分类(无分类时返回空列表,前端降级为无选项) */
+    @Override
+    public List<String> getCategories() {
+        Long userId = UserContext.getUserId();
+        List<String> categories = knowledgeMapper.selectDistinctCategoriesByUserId(userId);
+        return categories == null ? List.of() : categories;
+    }
+
     /** 知识实体 -> VO(列表与分页共用同一映射口径,避免两处漂移) */
     private KnowledgeVO toVO(KnowledgeEntity knowledgeEntity) {
         KnowledgeVO knowledgeVO = new KnowledgeVO();

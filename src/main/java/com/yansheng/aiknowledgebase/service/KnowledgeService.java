@@ -17,6 +17,12 @@ public interface KnowledgeService {
      */
     KnowledgePageVO getKnowledgePage(int page, int size, String keyword, String category);
 
+    /**
+     * B-130 分类下拉候选:当前用户知识条目的去重非空分类(按字典序)。
+     * 供列表页分类下拉使用,免去为聚合选项拉取全量知识(含 content)。
+     */
+    List<String> getCategories();
+
  KnowledgeDetailVO getKnowledgeById(Long id) throws InterruptedException;
   void addKnowledge(KnowledgeAddDTO dto);
   void  updateKnowledge(Long id, KnowledgeUpdateDTO dto);

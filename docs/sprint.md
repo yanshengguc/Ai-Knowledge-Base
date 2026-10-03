@@ -52,6 +52,59 @@
 ## 下一步预告（Sprint 9）
 - B-114 Phase2：标题树挂载到混合检索做路由加权（树只提权，不动 hybrid 底座；失败降级回纯 RAG 并打 WARN）→ 上线门槛 = 有树 vs 无树对比 + Sprint 8 基线指标
 
+## B-120 / B-121 / B-118 安全债修复任务立项（2026-10-03 · 低危 + 排查项）
+
+> 立项依据：2026-10-03 攻防演习低危/观察项（见文末「本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后）」B/D/F 项）。PO 拍板：依序执行 **B-120 → B-121 → B-118**。**状态：B-120 / B-121 开工中；B-120③ 与 B-118 需 PO 授权 / 生产凭据**
+
+### B-120 低危安全项汇总
+- **① 上传白名单大小写绕过（演练记录 `evil.MD` 通过）**：**源码级复核 → 实为误报 / 已缓解**。`FileServiceImpl.uploadFile` 白名单**已经 `originalName.toLowerCase().endsWith(".pdf"/".docx"/".md")` 归一化**（L129-133）；`ParserFactory.getParser`（L32）、`DocumentServiceImpl.indexOutlineIfMarkdown`（L106）、`OutlineIndexServiceImpl`（L312）、`getFileContent`（L289）**均 `toLowerCase`** → `.MD` 通过属**预期的大小写不敏感匹配，非漏洞**，且下游解析/预览**无失配**（与演练观察一致）。**结论：无代码改动，留痕为「非漏洞 / 已缓解」。**
+- **② `PROCESSING 禁删` 护栏未生效**：`FileServiceImpl.deleteFile`（L250-268）**无状态校验**，直接级联删除，与文档约束（README L28/L193、HANDOFF L174、line-rag.md L13/L23）及前端约束（`FileListPanel.vue` L51 处理中禁删、i18n `deleteBlockedProcessing`）不符。**修复**：`deleteFile` 在归属校验通过后增设 `status == PROCESSING` 护栏（抛 `BusinessException("文件处理中,完成后才能删除")`，HTTP 200 + body `code:500`），防半成品被删产生孤儿 chunk/向量。
+- **③ 安全响应头全缺**（`X-Frame-Options` / `CSP` / `X-Content-Type-Options` / `HSTS`）：属 **Nginx 层**服务器配置（静态页由 Nginx 直出，应用层 filter 覆盖不到 HTML），**非仓库代码** → **需 PO 授权 + 生产凭据**。**本轮暂缓，待 PO 拍板。**
+
+### B-121 JWT 白名单判定归一化
+- 现象：`JwtAuthenticationFilter`（L32-47）以原始 `request.getRequestURI()` **精确匹配** `WHITE_LIST`；`/api//user/login` 经容器归一化后命中白名单、绕过过滤器（实测 **fail-closed、无越权收益**）。
+- 修复（最小面）：白名单匹配前对 URI 做**归一化**（折叠重复斜杠、去尾斜杠），使过滤器判定与路由判定一致；**不改** `WHITE_LIST` 集合、**不改**鉴权语义、**不改** MCP 端点分支行为。
+
+### B-118 线上检索是否静默降级 BM25（独立排查项）
+- 背景：B-117 暴露「向量路异常时静默退化 BM25 且不报警」的同类机制，线上是否长期处于该状态未知。
+- 排查范围：线上检索日志 / 降级告警 / 向量集合与 chunk 数对齐（B-117 已留档：生产 file 68/69/70 在集合中**无任何向量**，只能靠 BM25 召回，是直接排查入口）。
+- **前置**：需 PO 提供生产凭据（`DEPLOY_HOST` / `DEPLOY_USER` / `DEPLOY_PASSWORD`）；**未获凭据不得臆造、不得开工**。
+
+### DoD（B-120② / B-121）
+- `mvn -o test` 全量回归**全绿**（当前基线 **228/0/0**）+ `git diff --check` exit 0
+- B-120②：断言 —— PROCESSING 文件 DELETE → `BusinessException`（HTTP 200 + body `code:500`）；SUCCESS/FAILED 文件删除行为**零变化**
+- B-121：`/api//user/login` 不再"绕过"，而是**显式命中白名单**（等价结果、判定不依赖容器）；`%2F` 编码探针仍 fail-closed；非白名单端点匿名访问仍 401
+- 未跑项 / 未验证项显式标注
+
+### 约束（继承硬约束）
+- Controller/端点 `/api` 前缀；`Result` 契约；`BusinessException` = HTTP 200 + body `code:500`（验证看 body 不看状态码）；改动全量回归全绿才可提交部署；**同一时刻仅一个可写者**；部署前建回滚点；部署后清理临时凭据。
+- **不改** MCP 工具契约、`WHITE_LIST` 集合、检索底座、既有 REST 契约；不改 `user.role` / JWT 载荷。
+
+### 角色分工 / 节奏
+- Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
+- **未经 PO 明确指示不得 commit / push / 部署。**
+
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-120② / B-121）
+
+> 结论：**B-120② 与 B-121 完成**（Dev 实现 → 独立评审 PASS（无 high/medium，low 2 项）→ 独立验证全绿，含负向对照）；**待 PO 验收**（未 commit、未 push、未部署）。B-120① 经源码复核判为**误报 / 已缓解（无改动）**；B-120③ 与 B-118 需 PO 授权 / 生产凭据。
+
+- **B-120① 复核（判为非漏洞 · 无代码改动）**：`FileServiceImpl.uploadFile` 白名单**已** `originalName.toLowerCase().endsWith(".pdf"/".docx"/".md")` 归一化（L129-133）；`ParserFactory.getParser`(L32)、`DocumentServiceImpl.indexOutlineIfMarkdown`(L106)、`OutlineIndexServiceImpl`(L312)、`getFileContent`(L289) **均 `toLowerCase`** → `.MD` 通过属**预期的大小写不敏感匹配**，且下游解析/预览**无失配**（与演练观察一致）。演练记录里的「大小写绕过」标签不成立。
+- **实现（Dev-agent，唯一可写者）**
+  - `service/impl/FileServiceImpl.java`：`deleteFile` 在**归属校验之后、级联删除之前**新增 PROCESSING 护栏（L262-265）→ 抛 `BusinessException("文件处理中,完成后才能删除")`；SUCCESS / FAILED 删除路径与级联顺序（chunk→记录→OSS→向量）**零变化**。
+  - `config/JwtAuthenticationFilter.java`：新增私有 `normalizeUri`（折叠重复斜杠 `/{2,}` + 去尾斜杠，L63-73），白名单判定与 MCP 分支改用归一化 URI（L32）；**未改** `WHITE_LIST` 集合、`tryParseToken`、MCP 分支语义，**未引入任何解码**（`%2F` 保持 fail-closed）。
+  - 新增测试：`FileDeleteGuardTest`（6 例：PROCESSING 拦截且四路级联 never、SUCCESS/FAILED 照常级联、非作者/缺知识/缺文件口径不变）、`config/JwtWhitelistNormalizationTest`（6 例：双斜杠/尾斜杠放行、编码斜杠 401、非白名单匿名 401、带 token 时 `UserContext` 设置与清理）。
+- **评审（独立只读 agent）· PASS**
+  - `git status --porcelain` 恰 5 项（含 SM 的 `docs/sprint.md` 立项留痕），无夹带、无未追踪杂物；`git diff` 仅两个 Java 文件预期 hunk；`git diff --check` exit 0。
+  - B-120②：护栏位置/文案正确；未误伤「同名覆盖成功后清旧版」（该路径走异步任务内直连 `fileMapper.deleteById`，不经 `deleteFile`）。
+  - B-121：**「归一化是否放宽白名单」独立结论 = 否，无越权收益**——归一化只能"减斜杠"、造不出新路径，非白名单端点一律仍 401；尾斜杠形态（`/api/user/login/`、`/api/mcp-endpoint/`、`/actuator/health/`）在 Spring Boot 3 默认关闭尾斜杠匹配下**路由 404**，可达差异仅 401→404、无数据/权限收益。
+  - 无 high / medium；**low 2 项**：① 尾斜杠"无越权"结论系框架默认 + 静态核查得出，缺 HTTP 级集成断言；② 未覆盖非白名单尾斜杠形态（`/api/file/1/` 仍 401）的断言。
+- **验证（独立 agent）· 全绿**
+  - `mvn -o test` → **`Tests run: 240, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（基线 228 + 本轮新增 12）；`git diff --check` **exit 0**；`git status --porcelain` 恰 5 项。
+  - **负向对照（关键，已做且未改任何跟踪文件）**：在仓库外临时目录编译「去护栏 / 去归一化」影子类放入 `target/test-classes`（gitignored）→ `FileDeleteGuardTest` **1 例失败**（期望 `BusinessException` 未抛）、`JwtWhitelistNormalizationTest` **2 例失败**（双斜杠/尾斜杠）；删除影子类后复跑 **240/0/0** → 证明断言**承重、非恒真**。
+  - 契约核验：`BusinessException` → `GlobalExceptionHandler` → `Result.error`，**HTTP 200 + body `code:500`**（返回对象、未包 `ResponseEntity`），与硬约束一致。
+- **未验证项（如实标注）**：HTTP 级真实容器端到端；`%2F` 真实容器路由（Tomcat 可能直接 400）；双斜杠「容器路由 ≡ 过滤器判定」仅单元级等价、未容器实测。**未 commit / 未 push / 未部署**（PO 保留拍板权）。
+- **待办（本立项剩余）**：**B-120③** 安全响应头 → Nginx 层配置变更，需 PO 授权 + 生产凭据；**B-118** 线上检索降级排查 → 需生产凭据。
+
 ## B-119 修复任务立项（2026-10-03 · 安全 · 中危）
 
 > 立项依据：2026-10-03 攻防演习 C 项（详见文末「本轮迭代留痕（安全演练 · 2026-10-03 · Sprint 8 上线后）」）；PO 拍板立项。**状态：待开工（未指派 Dev）**

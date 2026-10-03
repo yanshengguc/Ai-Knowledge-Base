@@ -67,6 +67,31 @@
 - **约束（继承硬约束）**：Controller／端点前缀、`Result` 契约、`BusinessException` = HTTP 200 + body `code:500` 口径不变；改动全量回归全绿才可提交部署；部署前建回滚点；部署后清理临时凭据。
 - **角色分工 / 节奏（三岗分离，同一时刻仅一个可写者）**：Dev-agent 实现 → 评审-agent（只读）审范围／契约／硬约束／夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收（评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO）。
 - **留痕**：开工时在本文件追加「本轮迭代留痕（B-119 修复）」；**未经 PO 明确指示不得 commit / push / 部署**。
+## 本轮迭代留痕（多 agent · 2026-10-03 · B-119 修复）
+
+> 结论：**B-119 完成**（Dev 实现 → 独立评审 PASS → 独立验证全绿，含负向对照）；**待 PO 验收**（未 commit、未 push、未部署）。评审遗留 medium 1 项（M-1）待 PO 拍板是否收窄。
+
+- **实现（Dev-agent，唯一可写者）**
+  - 新增 `src/main/java/com/yansheng/aiknowledgebase/config/SafeThrowableSerializationConfig.java`：注册 `SimpleModule` bean，为 `Throwable.class` 定制序列化器，仅输出 `{"message": <getMessage()>}`（null/blank → `"Internal error"`），剥离 `stackTrace`/`suppressed`/`cause`。**未改动任何既有文件。**
+  - 新增 `src/test/java/com/yansheng/aiknowledgebase/McpEndpointErrorLeakTest.java`：`@SpringBootTest(RANDOM_PORT)` + `@ActiveProfiles("local")` HTTP 级回归 6 用例（无 token 400 / 无效 session 404 / 畸形 session 404 / initialize / tools/list / 普通 API 畸形 JSON 守卫）。
+  - 根因（源码级定位）：`/api/mcp-endpoint` 由 Spring AI 注册为函数式端点（RouterFunction），错误出口以 `ServerResponse.badRequest()/status(NOT_FOUND).body(new McpError(...))` **正常返回**；`McpError`（`io.modelcontextprotocol.spec.McpError`）`extends RuntimeException`，被 Spring MVC 用**主 ObjectMapper** 按 Throwable 序列化 → 带出 `stackTrace` 数组（含 `className`/`fileName`/`lineNumber`）。因未抛异常，`@RestControllerAdvice`／`HandlerExceptionResolver` 均不参与 → 物理上拦不到（对应任务书路径③「改为脱敏 JSON」）。
+  - 选型理由：在序列化层拦截是当前约束下**最小**的应用层改法（15 行、零依赖、不动 MCP 工具契约/鉴权/`WHITE_LIST`/端点前缀）；仓库内唯一把 Throwable 当响应体的站点就是该端点。
+- **评审（独立只读 agent）· PASS**
+  - 范围：`git status --porcelain` 恰好 2 个 `??`（上述两文件），`git diff`（跟踪文件）为空，`git diff --check` exit 0；无夹带；无重复 `Module`/`ObjectMapper` 注册冲突（全仓仅此 1 个 `Module` bean）。
+  - 硬约束逐条 ✅：`Result` 契约、`BusinessException`=HTTP200+body `code:500`、`GlobalExceptionHandler` 对普通 `@RestController` 行为、`WHITE_LIST`/`JwtAuthenticationFilter`/`KnowledgeMcpTools`/`application*.properties`/`pom.xml` 均零改动。
+  - **全局副作用独立结论：无现实回归** —— 全仓检索无第二处把 `Throwable/Exception` 当响应体/序列化对象（SSE 载荷为 token/refs/ToolTraceEvent；`GlobalExceptionHandler` 一律返回 `Result`；`RedisConfig`/`ToolTraceSummarizer` 用独立 `ObjectMapper` 实例，不共享主 mapper）。
+  - 无 high；**medium 1 项（M-1，非阻塞）**：全局 `Throwable` 序列化属「钝器」，当前无回归，但属应用级行为变更；可收窄为 SDK 具体类型 `io.modelcontextprotocol.spec.McpError`（SDK 全部错误出口均 `new McpError`）以彻底消除全局变更。**是否收窄待 PO 拍板。**
+  - low 4 项：①「无效 session」与「畸形 session」实为同一 SDK 分支（去重后 400/404 共 2 类）；② 测试 `System.out.println` 打印 body/session；③ 序列化器回显客户端自供 sessionId（非内部结构）；④「带 token 工具调用」未做 HTTP 级覆盖（由既有 `KnowledgeMcpSecurityTest` + 全量回归间接覆盖，判不阻塞）。
+- **验证（独立 agent）· 全绿**
+  - `mvn -o test` → **`Tests run: 228, Failures: 0, Errors: 0, Skipped: 0` / BUILD SUCCESS**（基线 222 + 本轮新增 6 = 228）；`git diff --check` exit 0。
+  - **真实应用 HTTP 复现**（`mvn -o spring-boot:run` @56382 + curl）：三类坏请求 body 原文 = `{"message":"Session ID missing"}`(400) / `{"message":"Session not found: invalid-session-123"}`(404) / `{"message":"Session not found: %%%not-a-session%%%"}`(404)，**均不含** `.java`/`lineNumber`/`stackTrace`/包名/栈帧；`initialize` 200 + `Mcp-Session-Id` 头、`tools/list` 200 返回 3 个工具。
+  - **负向对照（关键）**：临时移除该 config 后重跑 → 6/0/0 变 `Failures: 3`、原堆栈（`WebMvcStreamableServerTransportProvider.java:358`）复现；还原后恢复 6/0/0 → 证明修复**承重且有效**、断言非恒真。
+  - 契约守卫：`POST /api/user/login` 畸形 JSON → 200 + `{"code":500,"message":"系统异常，请稍后重试"}`（硬约束未破）。
+  - 收尾：验证员启动的应用已停、端口 56382/56383/8080 已释放、无残留 java/mvn；WSL distro 已恢复 Stopped；工作区复原（仍恰好 2 个 `??`）。
+- **未验证项（如实标注）**
+  - 「带 token 的工具调用」未做 HTTP 级端到端（需有效 JWT + session + 真实库数据；鉴权语义由既有 `KnowledgeMcpSecurityTest` 覆盖）；真实 MCP Client（Claude/Cursor/Cherry Studio）联调未做；生产未实测。
+  - 未部署、未 commit/push（PO 保留拍板权）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-02 · Sprint 8 · T-1 / B-111）
 
 > 结论：**T-1 完成**（实现 → 独立评审 PASS → 独立验证全绿 → 浏览器真实渲染复核全项通过）；**待 PO 验收**（未 commit、未 push、未部署）

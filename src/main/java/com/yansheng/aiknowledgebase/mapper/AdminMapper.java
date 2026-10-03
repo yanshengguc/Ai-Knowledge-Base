@@ -27,7 +27,7 @@ public interface AdminMapper {
     /** 用户列表分页(不返回 password) */
     List<AdminUserVO> selectUsers(@Param("keyword") String keyword,
                                   @Param("limit") int limit,
-                                  @Param("offset") int offset);
+                                  @Param("offset") long offset);
 
     /** 与分页同条件的总数(count 与 list 必须同一 where 条件,否则分页器会错位) */
     long countUsers(@Param("keyword") String keyword);

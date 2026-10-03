@@ -106,7 +106,8 @@ public class AdminServiceImpl implements AdminService {
         vo.setPage(safePage);
         vo.setSize(safeSize);
         vo.setTotal(adminMapper.countUsers(safeKeyword));
-        List<AdminUserVO> list = adminMapper.selectUsers(safeKeyword, safeSize, (safePage - 1) * safeSize);
+        // B-129:offset 以 long 运算,page 极大时 (safePage-1)*safeSize 不会溢出为负 OFFSET(与 knowledge/page 口径一致)
+        List<AdminUserVO> list = adminMapper.selectUsers(safeKeyword, safeSize, (long) (safePage - 1) * safeSize);
         vo.setList(list);
         return vo;
     }

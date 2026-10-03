@@ -87,7 +87,7 @@
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 前端接入 · 服务端分页落地 List.vue）
 
-> 结论：**B-104 前端接入完成**（Dev 实现 → 独立评审 PASS with nits（2 medium 已修）→ 独立验证 VERIFIED（6/6）→ **真实 HTTP 端到端 17/17 PASS** + **真实浏览器实测 8/8 PASS**）；**待 PO 验收**（未 commit、未 push、未部署）。范围严格限定「把 `List.vue` 切到 `/api/knowledge/page`」，未改后端、未动 `getKnowledgeList2` 契约。
+> 结论：**B-104 前端接入完成并部署上线**（Dev 实现 → 独立评审 PASS with nits（2 medium 已修）→ 独立验证 VERIFIED（6/6）→ **真实 HTTP 端到端 17/17 PASS** + **真实浏览器实测 8/8 PASS** → **生产部署完成**，commit `7e13477`（代码）+ `7723b38`（留痕））。范围严格限定「把 `List.vue` 切到 `/api/knowledge/page`」，未改后端、未动 `getKnowledgeList2` 契约。
 
 - **改动面（3 文件，纯前端）**：`frontend/src/types/api.ts`（+`KnowledgePageVO {total,page,size,list}`）；`frontend/src/api/modules/knowledge.ts`（+`getKnowledgePage(params)`，`getKnowledgeList2()` 一字未动）；`frontend/src/views/knowledge/List.vue`（全量拉取 + 前端过滤 + 前端切片 → 服务端筛选 + 服务端翻页）。
 - **为何不动 `getKnowledgeList2`**：`Tree.vue`（建树）与 `SaveAsNoteDialog.vue`（存笔记下拉）本质需要全量数组，改其契约会直接打挂它们 ⇒ 本轮只新增函数、只改 `List.vue` 一个消费点。
@@ -100,7 +100,11 @@
   - **真实浏览器实测 8/8 PASS**（vite dev + 浏览器）：登录 → 第 1 页 **12 张**（条目01–12）+ 分页显示 2 页 → 第 2 页 **3 张**（13–15）→ 搜索 `条目13` 命中 **1 张**（证明搜索作用于全量而非当前页）→ 分类 `catUI-B` 命中 **3 张** → 清除筛选恢复 12 张；无骨架屏卡死、无数字错乱；播种 15 条已清理（deleted=15）。
   - 环境提示：本地 Redis 未在本机运行，需经 WSL2 localhost 转发（须保持 WSL 进程驻留，否则转发失效导致登录报「系统异常」）。
 - **未验证（如实标注）**：生产未部署（本轮仅本地实测）；超大页码在前端的表现未走查（后端 offset 溢出边界已有单测覆盖）。
-- **下一步（待 PO 拍板）**：① 是否 commit / push；② 是否部署（需先建回滚点，前端走原子替换 dist）。
+- **部署上线（2026-10-03）**：纯前端变更 ⇒ **只需替换 dist**（后端 jar 与线上 HEAD 保持一致，未动）。`npm run build` 产出 dist（74 文件 / 1,632,992 B），打包 tar SHA256 `f0e0fe56…197eba`（520,261 B）**上传后服务器复算一致**；回滚点 `/var/www/aikb.bak-20261003-223104-pre-b104fe.tar.gz`（521,514 B）+ 旧目录保留为 `/var/www/aikb.old-live-20261003-223104`；`tar` 解压到 `/var/www/aikb.new-*` 暂存 → `mv old` + `mv new` **原子替换**（避免「先删后传」的空白窗口）。
+- **线上验证**：外网首页 **200**；线上 `index.html` 资源指纹已切换为新构建（`assets/index-CXdnqjv5.js`，`Content-Type: application/javascript`，68,283 B）；**线上产物内容校验**——`assets/knowledge-CtMbVPzZ.js` 实测包含新端点字符串 `/knowledge/page`（证明新代码真正上线，而非仅换了 index）；`verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录文案统一）；新端点匿名访问仍 401。
+- **已知现象（非缺陷）**：SPA `try_files ... /index.html` 兜底会让旧资源路径也返回 200（实为 index.html），故「旧 js 仍 200」不能作为回滚判据，已改用内容指纹核对。
+- **未验证（如实标注）**：生产注册关闭 ⇒ **无登录态**，故线上未做人手点击式浏览器走查（浏览器实测在本地完成 8/8）；`dist` 内旧文件名清理依赖整目录替换，无残留。
+- **下一步**：本轮闭环，无待办；候选项见 backlog（B-104 后端同源的 B-129、分类下拉取舍 B-130）。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-104 列表服务端分页）
 

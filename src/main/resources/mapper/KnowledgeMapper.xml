@@ -145,7 +145,7 @@ DELETE FROM  knowledge
         FROM knowledge
         WHERE user_id = #{userId}
         AND category IS NOT NULL
-        AND category &lt;&gt; ''
+        AND TRIM(category) &lt;&gt; ''
         ORDER BY category
     </select>
 </mapper>

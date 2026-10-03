@@ -259,6 +259,10 @@ entity.setStatus(FileStatus.PROCESSING.name());
         if (knowledge == null || user == null || !user.getUsername().equals(knowledge.getAuthor())) {
             throw new BusinessException("无权删除该文件");
         }
+        // PROCESSING 禁删:状态机未到终态时删除会留下孤儿 chunk/向量(与前端 FileListPanel 处理中禁删一致)
+        if (FileStatus.PROCESSING.name().equals(file.getStatus())) {
+            throw new BusinessException("文件处理中,完成后才能删除");
+        }
         // 级联:先删切片 → 再删记录 → 最后删 OSS 对象(失败降级)+ 清理向量库(防"删了还能搜到")
         chunkMapper.deleteByFileId(id);
         fileMapper.deleteById(id);

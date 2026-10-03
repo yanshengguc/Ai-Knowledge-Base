@@ -29,7 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain)
             throws ServletException, IOException {
-        String uri = request.getRequestURI();
+        String uri = normalizeUri(request.getRequestURI());
 
         // 白名单:除 MCP 端点外直接放行
         if (WHITE_LIST.contains(uri)) {
@@ -58,6 +58,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } finally {
             UserContext.remove();
         }
+    }
+
+    /** 白名单判定前归一化:折叠重复斜杠、去尾斜杠,使过滤器判定与容器路由判定一致(B-121) */
+    private static String normalizeUri(String uri) {
+        if (uri == null || uri.isEmpty()) {
+            return "";
+        }
+        String normalized = uri.replaceAll("/{2,}", "/");
+        if (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     /** 解析 Authorization: Bearer xxx 并设置 UserContext;成功返回 true,失败返回 false(不写响应) */

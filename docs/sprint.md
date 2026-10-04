@@ -127,7 +127,7 @@
 ### 修复留痕（F1 中 / F2 低 · 2026-10-04）
 
 > 触发：PO 2026-10-04 指令「好的，执行吧」→ 路由 Dev 修复走查发现的 F1/F2（F3 环境相关不修，登记观察）。四档分离：Dev 实现 → 独立评审 → 独立验证，同一时刻仅一可写者。
-> 状态：**已修复 · 未提交 / 未推送 / 未部署**（等 PO 指示）——线上行为仍为修复前版本。
+> 状态：**已修复 · 已提交 / 已推送 / 已部署上线**（2026-10-04，详见下方「### 部署上线留痕（2026-10-04 · B-110 F1/F2 修复上线）」）。
 
 - **F1 修复（后端）**：`FileServiceImpl.getFileContent` 在按 `.md` 后缀判断**之前**新增笔记分支——判定 `fileType` 以 `text/markdown` 开头 **且** `fileUrl` 为空（笔记无 OSS 对象；两条件同时满足，以保护真实上传的 .md）；命中则按 `chunkIndex` 升序、`"\n"` 拼接 chunk 正文作为 content（与 `KnowledgeServiceImpl.readNoteContent` 同口径），空切片返回 `""` 而非 `null`（前端据此区分「正文为空」与「格式不支持」）。**归属校验 `verifyOwnership` 仍前置**，越权读取他人笔记仍被拦截。其余分支（真实 `.md`→OSS、pdf/docx→null）行为逐位不变。
 - **F2 修复（前端）**：`useTextSelection` 新增并导出 `clearSelection()`（`hide()` + `window.getSelection()?.removeAllRanges()`），`Chat.vue` / `Detail.vue` 的 `onLocate` 改调它（根因：点击自身的 mouseup 经 `evaluateDeferred()` 再次置 `visible=true`）；`hide()` 语义未改，仍供 Esc/scroll 使用。
@@ -138,6 +138,19 @@
 - **技术债处置**：**TD-006 / TD-007 本次修复关闭**。
 - **未验证项**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）；移动端 `touchend` 链路（无真机）；生产向量路正常时的长 query 命中率（本地 BM25 降级）。
 - **F3 处置**：不修（检索质量范畴，非 B-110 代码缺陷），登记观察。
+
+### 部署上线留痕（2026-10-04 · B-110 F1/F2 修复上线）
+
+- **提交 / 推送**：`e6b7ca6`(fix 5 文件) + `2436575`(docs 2 文件)，push `dfafb26..2436575`（origin/main **0/0**）。
+- **合规前置**：提交前 `mvn -o test` **293/0/0** 全绿（较上轮 +1，新增「笔记无切片返回空串」用例）。
+- **产物**：后端 jar `1760f895…b89086`（118,562,057 B，`mvn -o clean package -DskipTests` BUILD SUCCESS）；前端 `npm run build` OK，`index.html` `d19608d9…a590df`（512 B），新 chunk `FilePreview-RKg8mVr4.js` / `useTextSelection-CqS50JCr.js`。
+- **回滚点**：`/opt/aikb/app.jar.bak-20261004-pre-b110fix`（旧 B-110 jar `6f36d505…092619`，118,561,573 B）+ `/var/www/aikb.bak-20261004-pre-b110fix`（旧前端 1.8M）。
+- **目标机**：`120.55.76.141`（root / SSH；`hostname` 与 `/opt/aikb/app.jar` + `aikb` 服务 + `/var/www/aikb` 身份核对通过）。
+- **部署**：SFTP 上传 → 双端 SHA256 核对**一致**（jar `1760f895…b89086` / index `d19608d9…a590df`）→ 后端 `mv -f` 原子替换、前端先移旧目录（`aikb.old-20261004-b110fix`）再移入新目录 → `systemctl restart aikb` → **active**（`ActiveEnterTimestamp=2026-10-04 23:11:38 CST`）、监听 `*:8080`、health `{"status":"UP"}`。
+- **验证**：启动窗口（近 3 分钟）`ERROR|Exception|初始化失败` 计数 **0**；外网 `GET /` → **200** 且远端 `index.html` SHA256 与本地**逐位一致**；`/chat`、`/assets/FilePreview-RKg8mVr4.js`、`/assets/useTextSelection-CqS50JCr.js`、`/assets/index-B66M3Z-w.js` 全 **200**；匿名 `POST /api/retrieval/locate` → **401**；`verify_deploy` **3/3 PASS**（匿名拦截 / 注册关闭拦截 / 登录失败文案统一；另 5 项因生产注册关闭按既有口径 SKIP，本地回归已覆盖）。
+- **清理**：服务器 `/tmp/aikb-dist-b110fix.tar.gz`、`/var/www/aikb.old-20261004-b110fix` 已删（`/tmp` 无我方残留）；本地临时 tar 包与临时文件已删；凭据仅以进程环境变量传入（`DEPLOY_PASSWORD`），**未落盘**、无 `%TEMP%\aikb-deploy\` 残留；旧 jar/旧前端备份按惯例保留作回滚点。
+- **未验证（如实标注）**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）——沿用「未验证项」口径；本次 F1/F2 的运行时行为证据来自**本地全栈 + 真实浏览器**（见上方「修复留痕」）。
+- **F3**：不修（检索质量范畴），继续观察。
 
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 

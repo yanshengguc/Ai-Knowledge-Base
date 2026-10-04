@@ -85,6 +85,26 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（多 agent · 2026-10-04 · B-124 树节点标题忠实度抽样体检）
+
+> 结论：**B-124 已实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED，待 PO 验收（未 commit / 未 push / 未部署）**
+
+- **背景**：B-123③ 于 2026-10-03 解绑为独立任务 B-124——对现有 md 树抽样跑「节点标题 embed → 向量检索 → top-k 是否命中该节点锚定的 chunk 区间」，输出忠实度分布，**不做阻断门禁**（先观察后定阈值，沿用 Sprint 8 模式）。双重价值：① 为 B-123「AI 生成节点」积累验证器数据与阈值依据；② 对纯解析树做解析链路回归体检（`StructureAwareSplitter` 改动 / chunk 重切后标题-区间关联漂移的探针）。优先级 P2。
+- **改动（1 新文件、零 DDL、未改任何生产文件、未加 Mapper 方法）**：新增 e2e 评测类 `src/test/java/com/yansheng/aiknowledgebase/TitleFidelityEvalTest.java`（`@SpringBootTest` + `@Tag("e2e")` + `@ActiveProfiles("local")`）。
+- **实现要点**：
+  - 采样=注入固定结构化样例（多级 H1/H2/H3 + 明确正文）走真实管线 `KnowledgeService.createNote`（建 chunk + 向量）→ `OutlineIndexService.indexFile(fileId, SAMPLE_MD)`（建树 + 节点↔chunk 关联，与生产同源索引服务）；固定样本同时充当解析链路漂移探针。
+  - 待检过滤=标题长度 ≥ `MIN_TITLE_LENGTH`(4) 且该节点锚定 chunk 非空；短标题 / 无锚定 chunk 分别计数跳过（样例中 "路由" 2 字符被正确跳过）。
+  - 命中判定=对节点 title 调 `retrievalService.retrieveTopK(title)` 取 top-`EVAL_TOP_K`(5)，命中 = 结果 `chunkId` 落于该节点锚定 chunkId 集合（由 `OutlineMapper.selectRefsByFileId` 按 nodeId 分组得到）；属**语义检索判定**（检索侧已含向量阈值 + BM25 + Rerank），非 title 与正文精确串匹配。
+  - 输出=总体忠实度 + 标题长度分桶（<8 / 8-15 / ≥16）命中率 + 跳过计数 + 未命中清单（fileId / headingPath / title / 锚定 chunkId / topK 实际 chunkId）。
+  - **不设阈值门禁**；仅设防静默空跑断言（待检节点数 > 0 否则抛 `AssertionError`）。
+  - 自清理=沿用 `RetrievalQualityEvalTest` 口径（`deleteKnowledge` 级联 chunks/files/vectors/cache + 检索缓存失效 + `UserContext.remove`）。
+- **门禁**：`mvn -o test` **257/0/0** BUILD SUCCESS（新类属 e2e 组，`pom.xml` 默认 `excludedGroups=integration,e2e` 故不计入默认门禁）。
+- **独立评审 PASS with nits**（无 high/medium）：确认仅 1 新文件、无生产改动 / 无夹带；核对 `KnowledgeServiceImpl.createNote` 落库 `file_name` 恰等于 title（**不追加 `.md`**，`findFileId` 假设成立）；锚定 / 命中逻辑自洽、refs 非空；防空跑断言在位；自清理同口径。
+- **独立验证 VERIFIED**：复现 `git status` 仅 1 新测试文件、`git diff --stat` 空、`mvn -o test` **257/0/0** BUILD SUCCESS；静态确认 `@Tag("e2e")` 与 pom 默认排除。
+- **已明示局限（勿过度解读绝对数值）**：`StructureAwareSplitter` 给每个 chunk 前置所属标题，title 查询与锚定 chunk 首行字面重叠 ⇒ 经 BM25 路放大自命中、总体偏乐观；本项定位为「解析链路自洽体检 + B-123 验证器基线」，**不宣称独立语义忠实度**。
+- **未验证（如实标注）**：本类需真实 DashVector / DashScope，默认门禁不跑、本地未强跑（避免花钱 / 供应商白名单）；忠实度绝对值待显式 `-DexcludedGroups=integration` 手动执行后观察取值。
+- **未 commit / 未 push / 未部署**（PO 保留拍板权）。
+
 ## 本轮迭代留痕（部署 · 2026-10-04 · B-125 上线）
 
 > 结论：**B-125 已提交 / 推送并部署生产，线上校验通过**（PO 2026-10-04 授权「提交并部署」）。后端唯一改动 1 业务文件 + 1 新测试；前端零改动未重发。

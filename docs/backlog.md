@@ -112,7 +112,7 @@
   - **技术价值**: 需求来源故事极鲜活（MC 玩家视角的产品思维）;"RAG 检索当跳转定位器"是把检索复用到非问答场景的架构思考; 与 Obsidian 双链/Wikipedia 内链类比可展开
   - 约束: 投递收口后解锁（PO 9/20 意向,量级 MVP 半个开发日）
 
-- [ ] B-114 知识树+检索索引（9/24 晚 PO 提案，源自其"知识树+检索索引"学习方法论；**PO+双方 AI 评审一致:作为项目后期特色功能，不打断主线，开工窗口 10 月中/Python demo 之后**）:
+- [ ] B-114 知识树+检索索引 **〔Sprint 9 已收口 · 2026-10-04：Phase2 标题树路由加权已实现 + 独立评审 PASS with nits + 独立验证 277/0/0；有树 vs 无树上线门槛未达成（召回不变、MRR 轻微回退）→ 开关 `retrieval.tree-boost.enabled` 默认 false，线上零影响；详见 docs/sprint.md 顶部「Sprint 9」及技术债 TD-002〕**（9/24 晚 PO 提案，源自其"知识树+检索索引"学习方法论；**PO+双方 AI 评审一致:作为项目后期特色功能，不打断主线，开工窗口 10 月中/Python demo 之后**）:
   - **提案核心**: 文档→Chunk→知识树（节点含 parent/children/definition/why/mechanism/related_nodes/检索关键词/面试问题索引/场景索引/source_chunks）→用户问题先经索引定位节点→取 source_chunks 融合现有 hybrid 检索→RAG。定位=从"AI 知识库"到"AI 学习型知识库";知识树负责导航定位，Vector Search 负责语义召回，Source Chunk 保证可溯源
   - **五关评审（通过）**: 作者即用户✓(PO 自己用 AKB 学八股,dogfood 成立)/非 devtool✓/让第一个变强✓/JD 有"知识图谱/混合检索"原话✓(9/26 实测修正:GraphRAG 仅社招算法岗/研究院层,RAPTOR 全渠道 0 命中系公司名假阳性)/动机非"练手"✓——几周来首个全过提案;命名纪律:对外叫「标题层级分块+混合检索」,主动放弃 GraphRAG/RAPTOR/层次化检索词
   - **去过时项（9/24 评审砍掉）**: ①B-107 相似度图谱(68 节点/158 边)不再迭代,降级为横向关联素材;其可视化"效果不行"的根因=只有圆点连线无语义,优化方向是改造成 RAG 交互层（搜索→高亮定位节点→节点详情→source 溯源）,不是单纯美化 ②GraphRAG 完整架构过度设计,只读思想 ③"学习路径/复习 Agent"远期冻结 ④LeanRAG/RAGTree 略读;主参考=RAPTOR 层次聚合+结构感知切片
@@ -131,3 +131,4 @@
 
 ## 技术债（TD）
 - TD-001 Outline 归属校验口径重复：`FileServiceImpl.verifyOwnership` 与 `OutlineIndexServiceImpl.verifyOwnership` 各写一份（语义相同，可能漂移）。影响=安全口径一致性；决定=本轮先记，不为此抽公共件重构主链路；触发条件=出现第三处同口径校验，或任一处口径需变更；回滚=无（纯组织性）
+- TD-002 B-114 Phase2 树路由加权上线门槛未达成：有树 vs 无树对比中召回不变、MRR 轻微回退（md 无树 0.833/0.861 → 有树 0.833/0.833），实测环境降级（本地 Redis 未起 + DashVector gRPC 白名单拒绝 → BM25 单路），且仅 2 篇文档建出树，敏感度不足。影响=功能默认关闭、线上零影响；决定=本轮不改 hybrid/rerank 语义、保留开关默认 false；触发条件=完整环境（Redis + DashVector 可用）下复跑 eval 出现稳定正收益；回滚=关闭/删除 `retrieval.tree-boost.enabled` 即恢复纯 RAG

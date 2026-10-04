@@ -1,3 +1,83 @@
+# Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
+
+> 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）
+> 状态：**收口——上线门槛未达成 · 开关默认关闭**（SM 记账，2026-10-04）
+> T-1/T-2/T-3 已实现 + 独立评审 PASS with nits + 独立验证 VERIFIED（277/0/0）；T-4 有树 vs 无树门槛**未达成** → PO 2026-10-04 拍板「默认关闭 + 修降级缺口 + 记账」；**未 commit / 未 push / 未部署**
+> 模式：**拆分模式**——SM 起草计划、不写业务码；Dev / 评审 / 验证由独立子 agent 担任
+
+## 目标与门槛
+- 将 Phase1 已建的标题树（`knowledge_outline_node` / `knowledge_outline_chunk`）挂载到混合检索做**路由加权**：树只**提权/前置**锚定 chunk，**不动 hybrid（向量+BM25）底座**；树检索失败降级回纯 RAG 并 `log.warn`。
+- 上线门槛 = **有树 vs 无树对比** + Sprint 8 基线（文档级 recall@5 ≥ 0.80 / MRR ≥ 0.70；chunk 级无树基线 chunkRecall@5=0.833 / chunkMRR=0.861，阈值 0.75/0.75）。
+
+## 允许改 / 不许碰
+- 允许：`RetrievalServiceImpl`（插入树路由加权 + 开关）、`OutlineMapper`(+XML) 新增只读查询、`ChunkMapper`（如需按 chunkId 补召回）、`src/test/**`（单测 + eval 改造 + 数据集补 pdf 用例）、`docs/**`、`HANDOFF.md`。
+- 不许：向量/BM25 融合与阈值逻辑、`RerankServiceImpl` 算法语义、`StructureAwareSplitter.split()`、既有表结构（**零 DDL**）、JWT/鉴权、既有 REST 契约。
+
+## 设计（SM 提案；Dev 细化、评审把关）
+落点：`RetrievalServiceImpl.retrieveTopK()`（现 L66-130），在最终返回前插入 `applyTreeBoost(queryText, filtered, results, userId)`：
+1. **定位节点**：以 query 在「当前用户文件范围」的 outline 节点上匹配 title/heading_path（新增 `OutlineMapper.selectNodeIdsByUserQuery`，经 knowledge_file→knowledge→user 归属，LIKE + 最小长度过滤）。
+2. **取锚定 chunk**：命中节点 → `knowledge_outline_chunk` 关联 chunkId 集合（新增按 nodeIds 批量查）。
+3. **路由召回 + 提权/前置**（关键点）：命中节点锚定的 chunk 若不在候选池内 → 按 chunkId 点查补入候选（保证不被 Rerank 截断丢弃）；最终对结果做**稳定前置**（命中项前移、其余保持原相对顺序）。
+4. **降级**：任一步异常 / 无命中 / 无 outline 数据 → `log.warn` + 原结果直出（纯 RAG，问答不中断）；沿用 `RerankServiceImpl` 的 warn 降级风格。
+5. **开关**：`retrieval.tree-boost.enabled`（**默认 false**）→ 关闭时与 Sprint 8 行为**逐位一致**（零回归）。
+
+## 任务
+- [x] T-1 树路由加权实现（开关 + 上述 4 步 + 降级 WARN）——**已实现**：`RetrievalServiceImpl` 拆两步（`enrichPoolWithTreeAnchors` rerank **前**按命中节点锚定 chunkId 补召回，校验 `knowledge.user_id`；`applyTreeBoost` rerank **后**稳定前置）；`OutlineMapper`/`ChunkMapper`（+XML）新增只读查询；开关 `retrieval.tree-boost.enabled` **默认 false**
+- [x] T-2 单测：命中前置 / 无命中降级 / 异常降级 WARN / 开关关闭零行为——**已实现**：新增 `RetrievalServiceTreeBoostTest`（7 例）；`RetrievalServiceImplTest`/`VectorRetrievalDegradationTest` 仅补构造器参数（零逻辑夹带）
+- [x] T-3 eval 改造：数据集加 `format`（md/pdf）+ 分格式统计 + 有树/无树两跑记账；补 2-3 个 pdf 标注用例（B-123 S3 信号前置）——**已实现**：`retrieval-cases.json` v6；md 组沿用阈值 0.80/0.70/0.75/0.75，pdf 组只输出不阻断
+- [x] T-4 有树 vs 无树实测取数，判断是否达门槛——**已跑；结论：门槛未达成**（见下方留痕 T-4）
+- [x] T-5 独立评审（只读）——**PASS with nits**（无 high；medium 1 项=锚定项越权越过 rerank min-score，已修 + 补 2 个边界单测）
+- [x] T-6 独立验证（`mvn -o test` 全量 + `npm run build` + eval 两跑）——**VERIFIED 277/0/0**（含负向对照：改坏 boost gate → 新单测立即 FAIL，还原后 PASS ⇒ 断言承重）
+
+## DoD
+- 开关**默认 false**；关闭时 `mvn -o test` 全量绿，且 eval 与 Sprint 8 基线**逐位一致**。
+- 开启后 chunkRecall@5 / chunkMRR **不回退**且 ≥ 0.75，并记录有树/无树两套确切数字。
+- 树检索失败 → WARN 降级、问答不中断。
+- 未改 hybrid/rerank/splitter 语义；零 DDL；未跑项显式标注「未验证」。
+
+## 风险
+- **Rerank 截断**：boost 必须在最终截断前生效，否则命中 chunk 被 rerank 丢弃 → 提权无效；Dev 需确认 `retrieval.top-k` 取值与 rerank 交互，必要时让 rerank 多返回候选再由树重排截断。
+- 中文 query→标题匹配质量（LIKE/分词），可能需最小长度 / 关键词过滤，避免误提权。
+- 生产 rerank 依赖 `SILICONFLOW_API_KEY`；未配则走 fallback 排序，boost 效果更直接可见。
+- eval 走真实 DashScope/DashVector，依赖在线集群与额度。
+
+## 本轮迭代留痕（Sprint 9 · B-114 Phase2 标题树挂载混合检索 · 路由加权）
+
+> 收口日期 2026-10-04 | **结论：上线门槛未达成 → 开关默认关闭，线上零影响**
+
+### 结论
+- **门槛未达成**：有树 vs 无树对比中「召回不变、MRR 轻微回退」，未满足 DoD「chunk 指标不回退且 ≥ 0.75」。
+- PO 2026-10-04 拍板：**保持 `retrieval.tree-boost.enabled=false`（线上零影响）+ 修降级/缓存缺口 + 记账**，待完整环境复测后再评估是否开启（登记 TD-002）。
+
+### 需求
+- 将 Phase1 已建的标题树（`knowledge_outline_node` / `knowledge_outline_chunk`）挂载到混合检索做**路由加权**：树只**提权/前置**锚定 chunk，**不动 hybrid（向量+BM25）底座**；失败降级回纯 RAG 并 `log.warn`。
+
+### 实现（11 改 + 1 新；零 DDL；未动 hybrid/rerank/splitter 语义、未改既有 REST 契约）
+- `service/impl/RetrievalServiceImpl`：开关 + `enrichPoolWithTreeAnchors` + `applyTreeBoost`；合并过滤 `chunkId == null`；路由召回补入且未被 rerank 选中的锚定项限 1 个前置名额（`TREE_FALLBACK_ANCHOR_QUOTA=1`）；`resultCacheKey` 追加 `:tb=1/0`。
+- `mapper/OutlineMapper`(+XML)：`selectNodeIdsByUserKeywords`（经 file→knowledge→user 归属限定，LIKE title/heading_path）+ `selectChunkIdsByNodeIds`（批量、去重、空集合短路）。
+- `mapper/ChunkMapper`(+XML)：`selectSearchResultsByIds`（三段 join 校验 user_id，按 chunkId 补召回组装 `SearchResult`）。
+- `src/test/.../RetrievalServiceTreeBoostTest`（新增 7 例）：开关关闭=零调用 / 命中前置 / 池内不点查 / 无命中不变 / 异常不抛 / `userId==null` 不查树 / rerank 下 2 锚定项均落选→仅 1 前置。
+- `src/test/.../RetrievalQualityEvalTest` + `resources/eval/retrieval-cases.json` v6：docs 补 `format`（md/pdf）、新增 3 个 pdf 用例、报告按 format 分组；注入后手工 `indexFile` 建树以镜像生产上传路径（局限见下）。
+
+### 验证
+- 门禁 `mvn -o test` **277/0/0**（默认排除 integration/e2e）。
+- 独立评审 **PASS with nits**（无 high；medium 1 项已修）；独立验证 **VERIFIED**（含负向对照承重）。
+- **T-4 数字（md 组）**：无树 recall@5 0.833 / MRR 0.861 / chunkRecall@5 0.833 / chunkMRR 0.861；有树 recall@5 0.833 / **MRR 0.833** / chunkRecall@5 0.833 / **chunkMRR 0.833**；pdf 组 0.667（无阈值，只输出）。
+- **环境实况（影响结论强度）**：本地 Redis 未起 + DashVector gRPC `Cluster whiteList validate fail` ⇒ 实为 **BM25 单路**；且仅 `doc_k8s_manual` / `doc_jvm_tuning` 建出树（nodeCount=5）⇒ 树敏感度有限，门槛结论在降级环境下得出。
+
+### 未验证（如实标注）
+- e2e 生产全链路（Redis/DashVector 受环境限制；生产注册关闭 ⇒ 无登录态端到端）。
+- 新增三条 SQL（`selectNodeIdsByUserKeywords` / `selectChunkIdsByNodeIds` / `selectSearchResultsByIds`）未在真实 MySQL 执行（单测为 mock 层）。
+- 未部署、未在生产验证。
+
+### 技术债
+- **TD-002**：树路由加权上线门槛未达成，待完整环境（Redis + DashVector 可用）复跑 eval；开关默认 false，删除即回退。
+- 既有：TD-001（Outline 归属校验口径重复）不变。
+
+### 决策 / 风险
+- 决策：默认关闭保线上零影响；不趁本轮改 hybrid/rerank/切片语义（严守功能任务禁夹带）。
+- 风险：降级环境下取数，若后续开启需在完整环境重测；LIKE 泛词误命中已由「1 前置名额」限流缓解。
+
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 
 > 开于 2026-10-02 | 承接 Sprint 7（B-116 已上线并完成线上登录态实测，缺口关闭）

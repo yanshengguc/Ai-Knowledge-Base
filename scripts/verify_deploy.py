@@ -82,7 +82,7 @@ kid = next((i.get("id") for i in items if i.get("title") == "部署验证条目"
 check("知识条目创建+列表", code == 200 and kid is not None, f"(id={kid}, 共{len(items)}条)")
 
 # 4. 笔记保存
-code, _ = req("POST", f"/knowledge/{kid}/note", {"content": "部署验证笔记:AI 生成内容标记测试。"}, tok_a)
+code, _ = req("POST", f"/knowledge/{kid}/note", {"title": "部署验证笔记", "content": "部署验证笔记:AI 生成内容标记测试。"}, tok_a)
 check("笔记保存", code == 200, f"(HTTP {code})")
 
 # 5. 导出(Markdown 文件流)

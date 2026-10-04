@@ -167,6 +167,14 @@ function normalizeChunk(src: string): string {
   // 按 UTF-16 code unit 遍历,与 buildDomIndex 完全对称(含代理对/emoji)
   for (let i = 0; i < decoded.length; i++) {
     const ch = decoded[i]
+    // 字面量转义对(\n \r \t 两字符)视同空白整体跳过,与渲染后 DOM 的归一化保持对称
+    if (ch === '\\' && i + 1 < decoded.length) {
+      const next = decoded[i + 1]
+      if (next === 'n' || next === 'r' || next === 't') {
+        i += 1
+        continue
+      }
+    }
     if (SKIP_CHARS.has(ch)) continue
     out += ch
   }
@@ -188,6 +196,14 @@ function buildDomIndex(root: HTMLElement): NormalizedIndex {
     const data = node.data
     for (let i = 0; i < data.length; i++) {
       const ch = data[i]
+      // 字面量转义对(\n \r \t 两字符)视同空白整体跳过(不写入索引,保持 1:1 映射)
+      if (ch === '\\' && i + 1 < data.length) {
+        const next = data[i + 1]
+        if (next === 'n' || next === 'r' || next === 't') {
+          i += 1
+          continue
+        }
+      }
       if (SKIP_CHARS.has(ch)) continue
       chars.push(ch)
       map.push({ node, offset: i })

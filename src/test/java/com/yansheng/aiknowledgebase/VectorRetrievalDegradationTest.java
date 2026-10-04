@@ -6,6 +6,7 @@ import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
+import com.yansheng.aiknowledgebase.mapper.OutlineMapper;
 import com.yansheng.aiknowledgebase.mcp.KnowledgeMcpTools;
 import com.yansheng.aiknowledgebase.service.EmbeddingService;
 import com.yansheng.aiknowledgebase.service.RerankService;
@@ -51,6 +52,7 @@ class VectorRetrievalDegradationTest {
     private ValueOperations<String, Object> valueOperations;
     private ChunkMapper chunkMapper;
     private FileMapper fileMapper;
+    private OutlineMapper outlineMapper;
     private RetrievalServiceImpl retrievalService;
     private FileSearchServiceImpl fileSearchTool;
     private KnowledgeMcpTools mcpTools;
@@ -64,15 +66,17 @@ class VectorRetrievalDegradationTest {
         valueOperations = mock(ValueOperations.class);
         chunkMapper = mock(ChunkMapper.class);
         fileMapper = mock(FileMapper.class);
+        outlineMapper = mock(OutlineMapper.class);
         KnowledgeMapper knowledgeMapper = mock(KnowledgeMapper.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get(anyString())).thenReturn(null); // 缓存一律未命中,走真实检索
 
-        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper, fileMapper);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper, fileMapper, outlineMapper);
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
         ReflectionTestUtils.setField(retrievalService, "rerankEnabled", false);
         ReflectionTestUtils.setField(retrievalService, "hybridEnabled", true);
+        ReflectionTestUtils.setField(retrievalService, "treeBoostEnabled", false);
 
         fileSearchTool = new FileSearchServiceImpl(vectorSearchService, new ObjectMapper());
         mcpTools = new KnowledgeMcpTools(vectorSearchService, knowledgeMapper, fileMapper, chunkMapper, new ObjectMapper());

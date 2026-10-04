@@ -81,4 +81,21 @@
         ORDER BY score DESC
         LIMIT #{limit}
     </select>
+
+    <!-- B-114 Phase2 树路由补召回:按 chunkId 点查,经 knowledge 归属校验属于该用户 -->
+    <select id="selectSearchResultsByIds"
+            resultType="com.yansheng.aiknowledgebase.entity.SearchResult">
+        SELECT c.id AS chunkId,
+               c.file_id AS fileId,
+               c.content AS content,
+               c.chunk_index AS chunkIndex
+        FROM knowledge_chunk c
+        JOIN knowledge_file f ON c.file_id = f.id
+        JOIN knowledge k ON f.knowledge_id = k.id
+        WHERE k.user_id = #{userId}
+          AND c.id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 </mapper>

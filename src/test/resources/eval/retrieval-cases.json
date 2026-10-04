@@ -1,72 +1,102 @@
 {
   "meta": {
     "name": "retrieval-quality-eval",
-    "version": "5",
-    "updated": "2026-10-03",
-    "pipeline": "hybrid(vector+BM25) + rerank(向量路已生效)",
-    "metrics": "recall@5, MRR",
-    "note": "v5:修正 meta 描述口径。B-117 修复后向量路已生效(检索日志「向量 15 条 + BM25 N 条」),但本数据集文档级 0.833/0.861、chunk 级 chunkRecall@5=0.833/chunkMRR=0.861 与 BM25 单路基线完全相同(两次复跑逐位一致),作为当前无树基线;v4 新增的 expectChunks 标注及全部用例数据字段(docs.content/query/expectDocs/expectChunks)保持不变,本次仅更新 meta 描述(version/updated/note/pipeline)。"
+    "version": "6",
+    "updated": "2026-10-04",
+    "pipeline": "hybrid(vector+BM25) + rerank; tree-boost(默认关闭,可用 -Dretrieval.tree-boost.enabled=true 开启)",
+    "metrics": "recall@5, MRR (按 format 分组: md / pdf)",
+    "note": "v6:Sprint 9 / B-114 Phase2。给 docs 增补 format 字段(md/pdf)并按 format 分组统计 —— 树路由加权只对有 markdown 标题结构的 md 文档生效,无结构文档(如 pdf)建不出 outline 树,故 pdf 组对树无加成,必须与 md 分开看,否则会稀释树路由效果。新增 3 个 pdf 用例:其 content 不含 markdown 标题(无 '#' 结构),用于模拟「无结构文本」以观察无结构文档是否为检索短板(B-123 S3 信号前置)。【如实说明】这些 'pdf' 用例实际仍经 createNote 注入(是 md 载体),并非真实 pdf 文件解析结果,仅作「无结构文本」代理。md 组沿用 v5 无树基线阈值(0.80/0.70/0.75/0.75);pdf 组为新用例、无历史基线,只输出不设阻断阈值(先观察后定阈值)。"
   },
   "docs": [
     {
       "id": "doc_jvm",
+      "format": "md",
       "title": "JVM 垃圾回收与内存调优笔记",
       "content": "JVM 调优的核心是理解垃圾回收器与堆内存布局。堆分为新生代(Eden 加两个 Survivor)与老年代,对象优先在 Eden 分配,大对象直接进老年代。Minor GC 频繁但速度快,Full GC 慢且伴随 Stop-The-World 停顿。常见垃圾回收器对比:CMS 已废弃,G1 把堆切成 Region,适合大堆与可预测停顿目标;ZGC 与 Shenandoah 通过着色指针和读屏障实现并发整理,停顿时间亚毫秒级,适合超大堆低延迟场景。调优思路:先用 jstat -gcutil 观察各代增长速度与 GC 频率,再用 jmap dump 堆快照,配合 MAT 分析大对象与内存泄漏点。典型参数:-Xms 与 -Xmx 设为一致避免动态扩容抖动,-XX:MaxGCPauseMillis 设定目标停顿。排查线上 CPU 飙高:top -Hp 找到最耗 CPU 的线程,printf 把线程号转十六进制,再 jstack 定位到具体堆栈。"
     },
     {
       "id": "doc_redis",
+      "format": "md",
       "title": "Redis 缓存穿透击穿雪崩治理",
       "content": "缓存三大经典问题与解法。缓存穿透:查询数据库中根本不存在的 key,请求全部穿透缓存打到数据库;解法是布隆过滤器前置拦截判断 key 是否可能存在,加上空值缓存配合短 TTL。缓存击穿:某个热点 key 过期的瞬间,大量并发请求同时回源压垮数据库;解法是互斥锁重建,只放一个线程去查库回填,其他线程等待,或者采用逻辑过期策略,物理上不删除 key。缓存雪崩:大批 key 同一时刻集中过期,或 Redis 实例整体宕机;解法是过期时间加随机抖动打散、构建多级缓存(本地 Caffeine 加 Redis)、部署集群保证高可用,并在入口做限流降级兜底。数据一致性采用 Cache Aside 模式:先更新数据库再删除缓存,配合延迟双删覆盖主从复制延迟窗口。大 value 要拆分,热 key 用本地缓存承接读压力。"
     },
     {
       "id": "doc_mysql",
+      "format": "md",
       "title": "MySQL 索引优化与执行计划",
       "content": "MySQL InnoDB 的索引结构是 B+ 树:主键为聚簇索引,叶子节点直接存整行数据;二级索引叶子节点存主键值,查询非覆盖列时需要回表。联合索引遵循最左前缀原则,范围查询会让右侧列的索引失效。分析执行计划用 EXPLAIN:重点关注 type 字段(至少要达到 range 级别,出现 ALL 全表扫描必须警惕)、key 实际使用的索引、rows 预估扫描行数,以及 Extra 信息(Using index 表示覆盖索引是好事,出现 Using filesort 或 Using temporary 说明需要优化)。慢查询定位:开启 slow_query_log,long_query_time 设为 1 秒,配合 pt-query-digest 工具聚合分析。深分页优化:先用覆盖索引把 id 查出来再回表取数据,避免 limit 100000,10 这种大偏移全扫描。常见索引失效场景:对索引列使用函数、隐式类型转换、前导模糊匹配 like 百分号开头。"
     },
     {
       "id": "doc_rag",
+      "format": "md",
       "title": "RAG 检索增强生成原理",
       "content": "RAG 检索增强生成让大模型能回答私有知识库的问题。离线链路:文档解析后做切片(滑动窗口带重叠),每个切片经 Embedding 模型向量化,写入向量数据库。在线链路:用户问题同样向量化,在向量库中召回 Top-K 相似切片,拼装进 Prompt 交给大模型,生成带引用出处的回答。提升回答质量的关键在检索环节:混合检索用向量语义召回加 BM25 关键词召回互补,专有名词和精确匹配靠 BM25 兜底,两路结果合并去重后,再用交叉编码器 Rerank 重排精排取 Top-K。切片策略影响很大:固定长度切片会切断语义完整性,按标题和段落结构切更好;chunk 过长会稀释相关性得分,过短则丢失上下文。评估检索质量用 recall@K 和 MRR 指标度量召回与排序,不能只看生成端回答是否流畅。"
     },
     {
       "id": "doc_agent",
+      "format": "md",
       "title": "Agent 工具调用设计",
       "content": "Agent 的本质是模型加工具加循环。Function Calling 机制:把每个工具的名称、功能描述和参数 JSON Schema 告诉模型,模型根据用户意图输出结构化的工具调用请求,由编排层负责实际执行,再把执行结果作为上下文喂回模型进入下一轮,循环往复直到模型产出最终回答。ReAct 模式即思考-行动-观察的循环。工程实践要点:工具描述要写清楚什么场景该用,这直接决定模型的工具选择准确率;必须有死循环防护,用最大步数限制加进展校验双重保险;工具执行失败时把错误信息返回给模型让它自行纠正重试,而不是直接中断整个流程。架构上用工具注册中心加适配器模式,新增工具对编排层零侵入。复杂任务可拆分多 Agent 协作,但优先用单 Agent 配足够的工具。"
     },
     {
       "id": "doc_docker",
+      "format": "md",
       "title": "容器化部署实践",
       "content": "Docker 把应用连同运行环境依赖打包成镜像统一交付。镜像由多个只读层叠加而成,容器是镜像之上加一个可写层;写 Dockerfile 时用多阶段构建减小镜像体积,编译阶段和运行阶段分离,比如 Maven 编译层和 JRE 运行层。docker-compose 编排多服务:MySQL、Redis、后端应用、前端 Nginx 一键拉起,服务之间走内部网络互访,数据库端口不对外暴露减少攻击面。数据卷挂载持久化数据库目录,容器重建数据不丢。健康检查配合 depends_on 的 condition service_healthy 保证启动顺序正确。前端 Nginx 把 /api 请求反向代理到后端服务,SSE 流式响应场景要关闭 proxy_buffering 否则打字机效果会被缓冲住。发布流程:CI 构建镜像推送到 registry,服务器 pull 新镜像后 compose up -d 完成滚动更新。"
     },
     {
       "id": "doc_network",
+      "format": "md",
       "title": "TCP 与 HTTP 基础",
       "content": "TCP 三次握手建立连接:客户端发 SYN,服务端回 SYN 加 ACK,客户端再回 ACK;为什么不能两次握手——防止网络中滞留的历史失效连接请求突然到达服务端,白白建立连接浪费资源。断开用四次挥手,主动关闭方进入 TIME_WAIT 等待 2MSL,确保对方能收到最后的 ACK。TCP 可靠性靠序列号与确认应答、超时重传、滑动窗口做流量控制,拥塞控制包含慢启动、拥塞避免、快重传与快恢复。HTTP/1.1 用长连接复用 TCP 连接,HTTP/2 的二进制分帧与多路复用解决了应用层队头阻塞,HTTPS 在 TCP 之上增加 TLS 握手,用非对称加密交换密钥、对称加密传输数据。排查工具:curl -v 看握手细节,netstat 或 ss 查连接状态分布。"
     },
     {
       "id": "doc_linux",
+      "format": "md",
       "title": "Linux 服务器排查常用命令",
       "content": "服务器出问题先看整体状况:top 看负载均值与 CPU 内存占用,free -h 看内存与 swap 使用,df -h 看磁盘是否打满,iostat 看 IO 等待时间。进程级分析:ps aux 定位目标进程,pidstat 看单进程的 CPU 消耗分布。网络排查:ss -tlnp 看监听端口与对应进程,tcpdump 抓包做协议层分析。日志分析:tail -f 实时滚动输出,grep -C 5 带上下文过滤关键字,less 分页浏览大文件。文本处理三剑客 grep、sed、awk 做日志数据提取与统计。定时任务用 crontab,服务自启管理用 systemctl,journalctl 查看系统服务日志。磁盘 IO 高的进程定位用 iotop。"
     },
     {
       "id": "doc_pattern",
+      "format": "md",
       "title": "常用设计模式速查",
       "content": "单例模式:双重检查锁要加 volatile 防止指令重排,枚举写法天然防反射与反序列化攻击。工厂方法与抽象工厂:把对象创建逻辑延迟到子类,调用方不依赖具体类。策略模式:把算法族封装成可互换的策略对象,配合 Spring 的依赖注入按类型选择实现。模板方法:父类定义执行骨架,子类填充关键步骤。责任链模式:请求沿处理器链依次传递,Web 框架的拦截器和过滤器就是典型实现。观察者模式:事件发布订阅,解耦事件生产方与消费方。代理模式分静态代理与动态代理,JDK 动态代理基于接口,CGLIB 基于子类继承,是 AOP 的实现基础。适配器做接口转换,装饰器做职责增强。设计原则:优先组合而非继承,面向接口编程。"
     },
     {
       "id": "doc_git",
+      "format": "md",
       "title": "Git 协作工作流",
       "content": "分支模型:main 分支保持随时可发布,功能开发拉 feature 分支,完成后提 PR 做代码评审再合入。常用操作:git stash 暂存工作区现场方便切分支,git cherry-pick 把某个分支的单个提交摘到当前分支,git revert 生成一个反向提交来安全撤销改动——已经推送到远端的提交禁止用 reset --hard 回退。整理提交历史用 git rebase -i 交互式压缩合并提交。冲突解决需要理解双方的修改意图后手动合并。误操作找回:git reflog 查看所有 HEAD 移动记录定位丢失的提交。引入 bug 的提交定位:git bisect 二分法自动缩小范围。git hooks 做提交前检查,配合 CI 流水线自动跑测试与构建。"
     },
     {
       "id": "doc_k8s_manual",
+      "format": "md",
       "title": "Kubernetes 运维手册",
       "content": "# Kubernetes 运维手册\n\n## 集群架构\n\n控制平面由四个组件构成:etcd 存储集群全部状态,kube-apiserver 是唯一读写入口,controller-manager 负责副本与节点调和,scheduler 决定 Pod 落在哪个节点。etcd 使用 Raft 协议保持一致性,集群需要多数派(quorum)存活才能写入,三节点集群最多容忍一台故障。生产环境推荐 etcd 独立部署并定期快照备份,etcd 损坏等于整个集群状态丢失。\n\n## 资源调度\n\nPod 请求(requests)与上限(limits)分开设置,scheduler 只看 requests,cgroup 限额按 limits 执行。节点资源不足时触发驱逐,驱逐顺序由优先级和超出请求量共同决定。抢占(Preemption)允许高优先级 Pod 驱逐低优先级 Pod,但只在没有合适节点时发生。节点亲和性与污点容忍控制分布策略,topologySpreadConstraints 保证 Pod 在拓扑域内均匀分布。\n\n## 网络策略\n\nNetworkPolicy 默认行为是全部拒绝:只要 Pod 被任何 NetworkPolicy 选中,未显式放行的流量一律丢弃。策略通过 podSelector 与 ingress/egress 规则组合,命名空间选择器实现跨命名空间控制。注意策略是叠加的,多条策略之间是或关系;空的 podSelector 表示选中命名空间内全部 Pod。CNI 插件必须支持网络策略才生效,Flannel 不支持,Calico 与 Cilium 支持。\n\n## 故障排查\n\nPod 处于 Pending 先看调度事件(kubectl describe),通常是资源不足或亲和性冲突。CrashLoopBackOff 查看上一次容器日志与退出码。ImagePullBackOff 检查镜像地址与凭证。节点 NotReady 检查 kubelet 状态与证书有效期。CoreDNS 解析失败优先排查网络策略是否误伤 DNS 端口。"
     },
     {
       "id": "doc_jvm_tuning",
+      "format": "md",
       "title": "JVM 调优实战笔记",
       "content": "# JVM 调优实战笔记\n\n## 内存区域\n\n堆内分新生代与老年代,新生代含 Eden 与两个 Survivor,默认比例 8:1:1。元空间(Metaspace)在堆外,存储类元数据,默认无上限,受 -XX:MaxMetaspaceSize 约束。直接内存供 NIO 使用,-XX:MaxDirectMemorySize 限制。大对象(超过 -XX:PretenureSizeThreshold)直接进入老年代,频繁创建大对象是 Full GC 的常见诱因。\n\n## GC 选择\n\nJDK8 默认 Parallel GC,吞吐优先但停顿长。CMS 在 JDK14 移除。G1 是 JDK9 后的默认,把堆划分为 1-32MB 的 Region,按停顿目标(-XX:MaxGCPauseMillis,默认 200ms)增量回收。ZGC 着色指针+读屏障,停顿亚毫秒级,适合超大堆与低延迟场景,代价是吞吐略降。选择经验:堆小于 4G 用 G1,延迟敏感或堆超 16G 考虑 ZGC。\n\n## 调优参数\n\n-XX:+UseG1GC 启用 G1。频繁 Full GC 先看大对象与元空间,再看晋升速度(-XX:MaxGCPauseMillis 调小会牺牲吞吐)。-Xms 与 -Xmx 设成相同避免堆抖动。GC 日志用 -Xlog:gc* 开启,JDK8 是 -XX:+PrintGCDetails。命令 jstat -gcutil pid 1000 每秒输出各代占用与 GC 次数,jmap -histo 看对象分布直方图。\n\n## 线上故障案例\n\n案例一:服务每小时固定 Full GC,GC 日志显示晋升失败,根因是缓存大 Map 未设上限,加入 Caffeine 最大条目后恢复。案例二:元空间持续上涨直至溢出,arthas dashboard 显示类加载数同步增长,定位到动态代理每次生成新类,改为缓存代理对象。案例三:接口毛刺,jstat 显示 Young GC 频繁但正常,arthas trace 定位是安全点(Safepoint)等待过长,某大循环未插入安全点,升级 JDK 修复。"
+    },
+    {
+      "id": "doc_pdf_kafka",
+      "format": "pdf",
+      "title": "Kafka 消息可靠性设计(无结构文本代理)",
+      "content": "Kafka 的核心概念包括主题、分区、副本与消费者组。同一个消费者组内,一个分区同一时刻只能被一个消费者消费,这是它实现并行消费的基础。为了保证消息不丢失,生产者端要设置 acks=all,等待所有同步副本写入成功再返回;broker 端要靠副本因子和最小同步副本数 min.insync.replicas 配合,任一条件不满足就拒绝写入。消费者端要关闭自动提交位移,改为处理完业务后手动提交,避免消息还没处理就位点前移。幂等生产者通过 producer id 加序列号去重,事务则可以跨分区原子写入,实现精确一次语义。顺序性只在单分区内保证,跨分区不保证,所以按业务主键选分区键才能保证同一业务实体的消息有序。"
+    },
+    {
+      "id": "doc_pdf_es",
+      "format": "pdf",
+      "title": "Elasticsearch 倒排索引与分片(无结构文本代理)",
+      "content": "Elasticsearch 的搜索性能来自倒排索引:它把文档中的每个词映射到包含该词的文档列表,查询时按词直接定位候选文档,而不必逐条扫描原文。写入时先进入内存缓冲并记录 translog 保证宕机不丢,达到 refresh 间隔后生成新的段 segment,segment 一旦生成就不再修改,删除只是标记,靠后台 merge 合并段回收空间。正因为 segment 不可变,近实时搜索才有大约一秒的延迟。分片 shard 是数据水平拆分单位,主分片在创建索引时固定,副本分片数量可以后续调整;分片过多会让集群元数据与查询协调开销变大,太少又无法水平扩展。相关性打分默认用 BM25,可通过 boost 调整字段权重。"
+    },
+    {
+      "id": "doc_pdf_ddd",
+      "format": "pdf",
+      "title": "领域驱动设计落地要点(无结构文本代理)",
+      "content": "领域驱动设计强调用统一语言连接业务与代码,核心是把复杂的业务领域拆成一个个限界上下文,每个上下文内有一份独立且自洽的领域模型。上下文之间通过上下文映射定义协作关系,常见模式有共享内核、防腐层与开放主机服务;防腐层用来隔离外部模型的污染,避免外部概念渗透进核心域。聚合是一致性边界,聚合根负责维护不变式,外部只能通过聚合根访问聚合内部,一次事务只修改一个聚合。实体靠标识区分,值对象靠属性相等且不可变。领域事件用来表达领域中发生的重要事实,解耦上下游。分层上通常分应用层、领域层与基础设施层,领域层不依赖框架与数据库。"
     }
   ],
   "cases": [
@@ -290,6 +320,42 @@
       ],
       "expectChunks": [
         { "doc": "doc_jvm_tuning", "any": ["元空间持续上涨直至溢出", "类加载数同步增长"] }
+      ]
+    },
+    {
+      "id": "p_001",
+      "task": "semantic",
+      "difficulty": "medium",
+      "query": "Kafka 怎么保证消息一条都不丢",
+      "expectDocs": [
+        "doc_pdf_kafka"
+      ],
+      "expectChunks": [
+        { "doc": "doc_pdf_kafka", "any": ["acks=all", "min.insync.replicas", "幂等生产者"] }
+      ]
+    },
+    {
+      "id": "p_002",
+      "task": "semantic",
+      "difficulty": "medium",
+      "query": "Elasticsearch 为什么搜索这么快,写入过程是怎样的",
+      "expectDocs": [
+        "doc_pdf_es"
+      ],
+      "expectChunks": [
+        { "doc": "doc_pdf_es", "any": ["倒排索引", "translog", "BM25"] }
+      ]
+    },
+    {
+      "id": "p_003",
+      "task": "semantic",
+      "difficulty": "medium",
+      "query": "怎么用领域驱动设计划分微服务边界",
+      "expectDocs": [
+        "doc_pdf_ddd"
+      ],
+      "expectChunks": [
+        { "doc": "doc_pdf_ddd", "any": ["限界上下文", "防腐层", "聚合根"] }
       ]
     }
   ]

@@ -5,6 +5,7 @@ import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
+import com.yansheng.aiknowledgebase.mapper.OutlineMapper;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.service.RerankService;
 import com.yansheng.aiknowledgebase.service.VectorSearchService;
@@ -33,6 +34,7 @@ class RetrievalServiceImplTest {
     private ValueOperations<String, Object> valueOperations;
     private ChunkMapper chunkMapper;
     private FileMapper fileMapper;
+    private OutlineMapper outlineMapper;
     private RetrievalServiceImpl retrievalService;
 
     @BeforeEach
@@ -44,13 +46,15 @@ class RetrievalServiceImplTest {
         valueOperations = mock(ValueOperations.class);
         chunkMapper = mock(ChunkMapper.class);
         fileMapper = mock(FileMapper.class);
+        outlineMapper = mock(OutlineMapper.class);
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper, fileMapper);
+        retrievalService = new RetrievalServiceImpl(vectorSearchService, rerankService, redisTemplate, chunkMapper, fileMapper, outlineMapper);
         // 因为 @Value 注入的字段在纯 new 出来的对象里不会自动赋值，手动塞进去
         ReflectionTestUtils.setField(retrievalService, "topK", 3);
         ReflectionTestUtils.setField(retrievalService, "similarityThreshold", 0.35);
         ReflectionTestUtils.setField(retrievalService, "rerankEnabled", false);
         ReflectionTestUtils.setField(retrievalService, "hybridEnabled", true);
+        ReflectionTestUtils.setField(retrievalService, "treeBoostEnabled", false);
     }
 
     @Test

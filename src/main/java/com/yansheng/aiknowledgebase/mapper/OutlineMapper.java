@@ -33,4 +33,20 @@ public interface OutlineMapper {
 
     /** 节点溯源:关联的真实切片(含正文,preview 由服务层截断) */
     List<OutlineSourceChunkVO> selectRefsByNodeId(@Param("nodeId") Long nodeId);
+
+    /**
+     * B-114 Phase2 树路由只读查询:在「当前用户文件范围」内,按关键词 LIKE 匹配节点的 title / heading_path。
+     * 归属校验链路:knowledge_outline_node.file_id → knowledge_file.knowledge_id → knowledge.user_id = #{userId}。
+     * 关键词任一命中即算命中(OR),词由服务层切分并做长度过滤;仅返回节点 id,limit 由调用方控制。
+     */
+    List<Long> selectNodeIdsByUserKeywords(@Param("userId") Long userId,
+                                           @Param("keywords") List<String> keywords,
+                                           @Param("limit") int limit);
+
+    /**
+     * B-114 Phase2 树路由只读查询:按 nodeIds 批量取关联的 chunkId 集合(去重);调用方保证非空。
+     * 归属校验由上游 {@link #selectNodeIdsByUserKeywords} 的 user_id 限定传递保证
+     * (node 已属该用户文件范围,其关联 chunk 同属该用户),本查询不再重复 join knowledge。
+     */
+    List<Long> selectChunkIdsByNodeIds(@Param("nodeIds") List<Long> nodeIds);
 }

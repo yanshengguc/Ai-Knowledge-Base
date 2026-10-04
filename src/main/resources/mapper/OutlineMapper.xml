@@ -74,4 +74,32 @@
         WHERE r.node_id = #{nodeId}
         ORDER BY r.chunk_index
     </select>
+
+    <!-- B-114 Phase2 树路由:用户文件范围内按关键词 LIKE 匹配节点 title/heading_path(任一命中即选中) -->
+    <select id="selectNodeIdsByUserKeywords" resultType="java.lang.Long">
+        SELECT n.id
+        FROM knowledge_outline_node n
+        JOIN knowledge_file f ON n.file_id = f.id
+        JOIN knowledge k ON f.knowledge_id = k.id
+        WHERE k.user_id = #{userId}
+          AND (
+        <foreach collection="keywords" item="kw" separator=" OR ">
+            n.title LIKE CONCAT('%', #{kw}, '%') OR n.heading_path LIKE CONCAT('%', #{kw}, '%')
+        </foreach>
+          )
+        ORDER BY n.id
+        LIMIT #{limit}
+    </select>
+
+    <!-- B-114 Phase2 树路由:命中节点 → 锚定 chunkId 集合(去重)。
+         归属校验由上游 selectNodeIdsByUserKeywords 的 user_id 限定传递保证(node 属该用户文件范围,
+         其关联 chunk 同属该用户),此处不再重复 join knowledge。 -->
+    <select id="selectChunkIdsByNodeIds" resultType="java.lang.Long">
+        SELECT DISTINCT r.chunk_id
+        FROM knowledge_outline_chunk r
+        WHERE r.node_id IN
+        <foreach collection="nodeIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 </mapper>

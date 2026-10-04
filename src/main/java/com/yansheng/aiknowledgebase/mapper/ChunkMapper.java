@@ -22,4 +22,13 @@ public interface ChunkMapper {
     List<SearchResult> selectByFullText(@Param("userId") Long userId,
                                         @Param("query") String query,
                                         @Param("limit") int limit);
+
+    /**
+     * B-114 Phase2 树路由补召回:按 chunkId 点查可直接组装成 SearchResult 的字段
+     * (chunkId/fileId/content/chunkIndex;score 为 null,fileName 由检索出口 fillFileNames 统一补齐)。
+     * 归属校验:knowledge_chunk.file_id → knowledge_file.knowledge_id → knowledge.user_id = #{userId},
+     * 防止跨用户补召回。调用方保证 ids 非空。
+     */
+    List<SearchResult> selectSearchResultsByIds(@Param("userId") Long userId,
+                                                @Param("ids") List<Long> ids);
 }

@@ -7,12 +7,14 @@ import com.yansheng.aiknowledgebase.entity.SearchResult;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.service.KnowledgeService;
+import com.yansheng.aiknowledgebase.service.OutlineIndexService;
 import com.yansheng.aiknowledgebase.service.RetrievalService;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.KnowledgeVO;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,10 +22,13 @@ import org.springframework.test.context.ActiveProfiles;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 /**
  * Eval Harness:检索质量评估(recall@K / MRR,数据集驱动)
@@ -35,10 +40,22 @@ import java.util.TreeMap;
  *    评估对象是混合检索(向量+BM25)+ Rerank 全链路,不是 mock。
  *  - 独立测试用户 + 用例后 deleteKnowledge 级联清理(chunks/files/vectors/cache)。
  *
- * 指标:
- *  - recall@5 / MRR:文档级(按 fileId 去重,口径与 v3 完全一致,阈值不动)
- *  - chunkRecall@5 / chunkMRR:chunk 级(树敏感,命中 chunk 需落在 Top-5 chunk 内),
- *    v4 新增 expectChunks 标注后启用,为 Sprint 9 知识树对命中 chunk 提权提供无树基线对比
+ * 指标(v6):
+ *  - 文档级 recall@5 / MRR、chunk 级 chunkRecall@5 / chunkMRR;均按 format(md / pdf)分组输出。
+ *  - 分组理由:Sprint 9 树路由加权只对含 markdown 标题结构的 md 文档生效;
+ *    无结构文档(如 pdf)建不出 outline 树 → 无树加成。混算会稀释树路由效果,必须分开看。
+ *  - md 组沿用 v5 无树基线阈值(0.80/0.70/0.75/0.75);pdf 组为新用例、无历史基线,
+ *    只输出不设阻断阈值(先观察后定阈值,用于判断"无结构文档是否为检索短板")。
+ *  - 开关:retrieval.tree-boost.enabled 默认 false;可用 -Dretrieval.tree-boost.enabled=true
+ *    在本次运行开启树路由(Spring @Value 会读系统属性),用于有树/无树两跑对比。
+ *
+ * 【如实说明】数据集经 createNote 注入(非真实上传),故 outline 树不自动生成:
+ *  - md 用例:注入后由本测试手工调用 outlineIndexService.indexFile(fileId, content) 补建树,
+ *    以对齐生产「上传 .md → handleDocument → indexOutlineIfMarkdown → indexFile」的树状态;
+ *  - pdf 用例:content 不含 markdown 标题,是「无结构文本」代理,并非真实 pdf 文件解析结果;
+ *    其 indexFile 返回 0 节点(无树),与生产非 md 不建树的终态一致。
+ *  开关 retrieval.tree-boost.enabled 默认 false → 关闭时建不建树都不改变检索结果,
+ *  「关闭 = Sprint 8 无树基线逐位一致」的 DoD 不受本建树前置影响。
  *
  * 面试讲法:工具选择准确率(15/15)只证明"该不该检索"对了,
  * 检索质量 eval 证明"检索回来的是什么"也对——评估体系两端闭环。
@@ -50,15 +67,15 @@ class RetrievalQualityEvalTest {
 
     private static final String CASES_FILE = "eval/retrieval-cases.json";
 
-    /** 阈值:recall@5 与 MRR 的回归下限(v2 数据集 10 篇文档实测基线 1.0/1.0,留方差余量防静默退化) */
+    /** 阈值:recall@5 与 MRR 的回归下限(md 组;沿用 v5 无树基线,留方差余量防静默退化) */
     private static final double RECALL_THRESHOLD = 0.80;
     private static final double MRR_THRESHOLD = 0.70;
 
     /**
-     * chunk 级(树敏感)阈值:与文档级并存,度量命中 chunk 是否落在 Top-5。
+     * chunk 级(树敏感)阈值(md 组):与文档级并存,度量命中 chunk 是否落在 Top-5。
      * 实测无树基线(2026-10-03,两次复跑逐位一致):文档级 0.833/0.861、chunk 级 chunkRecall@5=0.833 / chunkMRR=0.861。
-     * B-117 修复后向量路已生效(实测检索日志「向量 15 条 + BM25 N 条」);但本数据集上该指标与 BM25 单路基线完全相同,
-     * 即当前无树基线,作为 Sprint 9 有树对比的基准;阈值 0.75/0.75 相对 0.833/0.861 留方差余量 0.08/0.11,防静默退化。
+     * 阈值 0.75/0.75 相对 0.833/0.861 留方差余量 0.08/0.11,防静默退化。
+     * pdf 组为新用例、无历史基线 → 只输出不设阈值(先观察后定阈值)。
      */
     private static final double CHUNK_RECALL_THRESHOLD = 0.75;
     private static final double CHUNK_MRR_THRESHOLD = 0.75;
@@ -70,10 +87,17 @@ class RetrievalQualityEvalTest {
     private KnowledgeService knowledgeService;
     @Autowired
     private RetrievalService retrievalService;
+    /** B-114 Phase2:手工为 md 用例补建 outline 树,对齐生产「上传 .md」的建树入口 */
+    @Autowired
+    private OutlineIndexService outlineIndexService;
     @Autowired
     private FileMapper fileMapper;
     @Autowired
     private ObjectMapper objectMapper;
+
+    /** 树路由加权开关(默认 false;可在命令行用 -Dretrieval.tree-boost.enabled=true 开启,用于有树/无树两跑) */
+    @Value("${retrieval.tree-boost.enabled:false}")
+    private boolean treeBoostEnabled;
 
     @Test
     void evalRetrievalQuality() throws Exception {
@@ -83,6 +107,12 @@ class RetrievalQualityEvalTest {
             dataset = objectMapper.readValue(in, EvalDataset.class);
         }
         Map<String, String> meta = dataset.meta;
+
+        // 1.1 docId → format(md / pdf),用于按格式分组统计
+        Map<String, String> docFormats = new LinkedHashMap<>();
+        for (EvalDoc doc : dataset.docs) {
+            docFormats.put(doc.id, doc.format == null ? "md" : doc.format);
+        }
 
         // 2. 独立测试用户(检索按用户隔离,评估环境只含本次注入的文档)
         long ts = System.currentTimeMillis();
@@ -121,23 +151,44 @@ class RetrievalQualityEvalTest {
                 docFileIds.put(doc.id, fileId);
             }
 
+            // 3.1 B-114 Phase2 eval 建树前置(补 T-3 缺口):
+            //   eval 经 createNote 注入(非真实上传),默认不建 outline 树 → 树路由对 md 也无从生效。
+            //   为使 md 用例的树状态与生产「上传 .md → handleDocument → indexOutlineIfMarkdown → indexFile」一致,
+            //   这里对每个用例手工调用 indexFile(fileId, content) 补建树(幂等:先删后插)。
+            //   pdf 用例是「无结构文本」代理(非真实 pdf,content 无 markdown 标题):同样调用 indexFile,
+            //   parser 无标题时返回 0 节点(见 OutlineIndexServiceImpl L77-80),代表「无树」——
+            //   与生产非 md 文件不建树的终态一致,故两格式走同一入口、口径一致可比。
+            //   注:开关默认关闭时 boost 被 gate 掉,建不建树都不改变检索结果
+            //   → 「关闭 = Sprint 8 无树基线逐位一致」这条 DoD 仍成立。
+            for (EvalDoc doc : dataset.docs) {
+                int nodeCount = outlineIndexService.indexFile(docFileIds.get(doc.id), doc.content);
+                System.out.printf("建树 format=%s doc=%s nodeCount=%d%n",
+                        doc.format == null ? "md" : doc.format, doc.id, nodeCount);
+            }
+
             // 4. 等待向量可见(DashVector 写入通常立即可读,探测兜底传播延迟)
             waitUntilIndexed(user.getId());
 
             // 5. 逐用例评估:文档级排名 → recall@5 / MRR;chunk 级(树敏感)→ chunkRecall@5 / chunkMRR
+            //    累加器按 format 分组:[recallSum 或 chunkRecallSum, mrrSum 或 chunkMrrSum, count]
             int total = dataset.cases.size();
             double recallSum = 0;
             double mrrSum = 0;
-            Map<String, double[]> byTask = new TreeMap<>();
+            Map<String, double[]> byFormat = new TreeMap<>();
             List<String> failures = new ArrayList<>();
-            // chunk 级累加器(仅统计带 expectChunks 的用例;文档级累加器与口径完全不动)
             int chunkCaseCount = 0;
             double chunkRecallSum = 0;
             double chunkMrrSum = 0;
-            Map<String, double[]> chunkByTask = new TreeMap<>();
+            Map<String, double[]> chunkByFormat = new TreeMap<>();
             List<String> chunkFailures = new ArrayList<>();
 
             for (EvalCase c : dataset.cases) {
+                // 用例所属 format:expectDocs 的 format 一致时归该 format,否则记入 mixed(不参与阈值)
+                Set<String> caseFormats = c.expectDocs.stream()
+                        .map(d -> docFormats.getOrDefault(d, "md"))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                String caseFormat = caseFormats.size() == 1 ? caseFormats.iterator().next() : "mixed";
+
                 // 保留原始检索结果(chunkId/content/fileId/fileName/chunkIndex 及返回顺序),文档级与 chunk 级共用同一次检索
                 List<SearchResult> results = retrievalService.retrieveTopK(c.query);
                 List<Long> ranked = rankedDocIds(results);
@@ -158,14 +209,14 @@ class RetrievalQualityEvalTest {
 
                 recallSum += recall;
                 mrrSum += rr;
-                double[] agg = byTask.computeIfAbsent(c.task, t -> new double[3]);
+                double[] agg = byFormat.computeIfAbsent(caseFormat, t -> new double[3]);
                 agg[0] += recall;
                 agg[1] += rr;
                 agg[2] += 1;
 
                 if (recall < 1.0 || firstRank == 0) {
-                    failures.add(String.format("❌ [%s/%s] %s → 预期=%s 实际Top5=%s",
-                            c.id, c.task, c.query,
+                    failures.add(String.format("❌ [%s/%s/%s] %s → 预期=%s 实际Top5=%s",
+                            c.id, c.task, caseFormat, c.query,
                             c.expectDocs,
                             top5.stream().map(id -> docIdOf(docFileIds, id)).toList()));
                 }
@@ -208,7 +259,7 @@ class RetrievalQualityEvalTest {
                     chunkCaseCount++;
                     chunkRecallSum += cRecall;
                     chunkMrrSum += cMrr;
-                    double[] cAgg = chunkByTask.computeIfAbsent(c.task, t -> new double[3]);
+                    double[] cAgg = chunkByFormat.computeIfAbsent(caseFormat, t -> new double[3]);
                     cAgg[0] += cRecall;
                     cAgg[1] += cMrr;
                     cAgg[2] += 1;
@@ -231,13 +282,13 @@ class RetrievalQualityEvalTest {
                             actualDesc.add(r.getFileName() + ":" + r.getChunkIndex()
                                     + (hitWords.isEmpty() ? "" : "[" + String.join(",", hitWords) + "]"));
                         }
-                        chunkFailures.add(String.format("❌ [%s/%s] %s → 期望=%s 实际Top5=%s",
-                                c.id, c.task, c.query, expectDesc, actualDesc));
+                        chunkFailures.add(String.format("❌ [%s/%s/%s] %s → 期望=%s 实际Top5=%s",
+                                c.id, c.task, caseFormat, c.query, expectDesc, actualDesc));
                     }
                 }
             }
 
-            // 6. 分层报告
+            // 6. 分层报告(总体 + 按 format 分组)
             double recall = recallSum / total;
             double mrr = mrrSum / total;
             double chunkRecall = chunkCaseCount == 0 ? 0 : chunkRecallSum / chunkCaseCount;
@@ -246,25 +297,27 @@ class RetrievalQualityEvalTest {
             System.out.printf("数据集: %s v%s | 管线: %s | 用例数: %d%n",
                     meta.getOrDefault("name", "-"), meta.getOrDefault("version", "-"),
                     meta.getOrDefault("pipeline", "-"), total);
-            System.out.printf("总体 recall@5 = %.3f | MRR = %.3f%n", recall, mrr);
-            System.out.println("--- 按任务类型(召回/排序短板一眼可见) ---");
-            for (Map.Entry<String, double[]> e : byTask.entrySet()) {
+            System.out.printf("树路由加权(tree-boost.enabled) = %s%n", treeBoostEnabled);
+            System.out.printf("总体 recall@5 = %.3f | MRR = %.3f | chunkRecall@5 = %.3f | chunkMRR = %.3f%n",
+                    recall, mrr, chunkRecall, chunkMrr);
+            System.out.println("--- 按 format 分组(md: 树路由可生效 / pdf: 无结构文本代理,无树加成) ---");
+            System.out.printf("  %-7s %-14s %-8s %-16s %-11s%n",
+                    "format", "recall@5", "MRR", "chunkRecall@5", "chunkMRR");
+            for (Map.Entry<String, double[]> e : byFormat.entrySet()) {
+                String fmt = e.getKey();
                 double[] v = e.getValue();
-                System.out.printf("  %-10s recall@5=%.3f MRR=%.3f (%.0f例)%n",
-                        e.getKey(), v[0] / v[2], v[1] / v[2], v[2]);
+                double[] cv = chunkByFormat.get(fmt);
+                double fmtChunkRecall = (cv == null || cv[2] == 0) ? 0 : cv[0] / cv[2];
+                double fmtChunkMrr = (cv == null || cv[2] == 0) ? 0 : cv[1] / cv[2];
+                System.out.printf("  %-7s %-14.3f %-8.3f %-16.3f %-11.3f (文档级%.0f例 / chunk级%.0f例) %s%n",
+                        fmt, v[0] / v[2], v[1] / v[2], fmtChunkRecall, fmtChunkMrr, v[2],
+                        cv == null ? 0 : cv[2],
+                        "md" .equals(fmt) ? "[阈值 0.80/0.70/0.75/0.75]"
+                                : "pdf".equals(fmt) ? "[观察中,未设阈值]" : "[mixed,未设阈值]");
             }
-            System.out.println("--- 未达满分的案例(进缺陷清单,优化切片/混合权重后重跑) ---");
+            System.out.println("--- 文档级未达满分的案例(进缺陷清单,优化切片/混合权重后重跑) ---");
             for (String f : failures) {
                 System.out.println("  " + f);
-            }
-            System.out.println("--- chunk 级(树敏感,Top-5 chunk)---");
-            System.out.printf("总体 chunkRecall@5 = %.3f | chunkMRR = %.3f (含期望用例 %d 条)%n",
-                    chunkRecall, chunkMrr, chunkCaseCount);
-            System.out.println("--- chunk 级按任务类型 ---");
-            for (Map.Entry<String, double[]> e : chunkByTask.entrySet()) {
-                double[] v = e.getValue();
-                System.out.printf("  %-14s chunkRecall@5=%.3f chunkMRR=%.3f (%.0f例)%n",
-                        e.getKey(), v[0] / v[2], v[1] / v[2], v[2]);
             }
             System.out.println("--- chunk 级未命中案例(query / 期望 doc+关键词 / 实际 Top-5 fileName:chunkIndex[命中词]) ---");
             for (String f : chunkFailures) {
@@ -272,15 +325,34 @@ class RetrievalQualityEvalTest {
             }
             System.out.println("==============================");
 
-            // 7. 断言:低于阈值 = 检索链路退化,需排查(而非必须满分)
-            org.junit.jupiter.api.Assertions.assertTrue(recall >= RECALL_THRESHOLD,
-                    String.format("recall@5 = %.3f 低于阈值 %.2f,检索召回退化,需排查混合检索/切片策略", recall, RECALL_THRESHOLD));
-            org.junit.jupiter.api.Assertions.assertTrue(mrr >= MRR_THRESHOLD,
-                    String.format("MRR = %.3f 低于阈值 %.2f,检索排序退化,需排查 Rerank 链路", mrr, MRR_THRESHOLD));
-            org.junit.jupiter.api.Assertions.assertTrue(chunkRecall >= CHUNK_RECALL_THRESHOLD,
-                    String.format("chunkRecall@5 = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,Sprint 9 有树对比基准需复核", chunkRecall, CHUNK_RECALL_THRESHOLD));
-            org.junit.jupiter.api.Assertions.assertTrue(chunkMrr >= CHUNK_MRR_THRESHOLD,
-                    String.format("chunkMRR = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,Sprint 9 有树对比基准需复核", chunkMrr, CHUNK_MRR_THRESHOLD));
+            // 7. 断言:md 组沿用原阈值;pdf 组只输出不设阻断阈值(先观察后定阈值)
+            double[] mdDoc = byFormat.get("md");
+            if (mdDoc != null && mdDoc[2] > 0) {
+                double mdRecall = mdDoc[0] / mdDoc[2];
+                double mdMrr = mdDoc[1] / mdDoc[2];
+                org.junit.jupiter.api.Assertions.assertTrue(mdRecall >= RECALL_THRESHOLD,
+                        String.format("md 组 recall@5 = %.3f 低于阈值 %.2f,检索召回退化,需排查混合检索/切片策略", mdRecall, RECALL_THRESHOLD));
+                org.junit.jupiter.api.Assertions.assertTrue(mdMrr >= MRR_THRESHOLD,
+                        String.format("md 组 MRR = %.3f 低于阈值 %.2f,检索排序退化,需排查 Rerank 链路", mdMrr, MRR_THRESHOLD));
+            }
+            double[] mdChunk = chunkByFormat.get("md");
+            if (mdChunk != null && mdChunk[2] > 0) {
+                double mdChunkRecall = mdChunk[0] / mdChunk[2];
+                double mdChunkMrr = mdChunk[1] / mdChunk[2];
+                org.junit.jupiter.api.Assertions.assertTrue(mdChunkRecall >= CHUNK_RECALL_THRESHOLD,
+                        String.format("md 组 chunkRecall@5 = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,有树对比基准需复核", mdChunkRecall, CHUNK_RECALL_THRESHOLD));
+                org.junit.jupiter.api.Assertions.assertTrue(mdChunkMrr >= CHUNK_MRR_THRESHOLD,
+                        String.format("md 组 chunkMRR = %.3f 低于阈值 %.2f,chunk 级召回/排序退化,有树对比基准需复核", mdChunkMrr, CHUNK_MRR_THRESHOLD));
+            }
+            // pdf 组:无历史基线,只输出观察值,不阻断(见上方分组报告)
+            if (byFormat.containsKey("pdf")) {
+                double[] pdfDoc = byFormat.get("pdf");
+                double[] pdfChunk = chunkByFormat.get("pdf");
+                System.out.printf("[观察] pdf 组 recall@5=%.3f MRR=%.3f chunkRecall@5=%.3f chunkMRR=%.3f —— 未设阈值%n",
+                        pdfDoc[0] / pdfDoc[2], pdfDoc[1] / pdfDoc[2],
+                        (pdfChunk == null || pdfChunk[2] == 0) ? 0 : pdfChunk[0] / pdfChunk[2],
+                        (pdfChunk == null || pdfChunk[2] == 0) ? 0 : pdfChunk[1] / pdfChunk[2]);
+            }
 
         } finally {
             // 8. 自清理:级联删 chunks/files/vectors + 失效检索缓存(失败也要清)
@@ -363,6 +435,8 @@ class RetrievalQualityEvalTest {
 
     static class EvalDoc {
         public String id;
+        /** v6 新增:文档格式(md / pdf);缺省视为 md(向后兼容旧数据集) */
+        public String format = "md";
         public String title;
         public String content;
     }

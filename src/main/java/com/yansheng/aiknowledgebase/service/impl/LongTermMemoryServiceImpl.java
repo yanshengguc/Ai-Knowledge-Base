@@ -124,6 +124,25 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
                     collection.insert(InsertDocRequest.builder().doc(doc).build());
             if (!resp.isSuccess()) {
                 log.warn("长期记忆写入失败: code={}, message={}", resp.getCode(), resp.getMessage());
+            } else {
+                // 顶层成功仍可能逐条失败(如 -2027 Duplicate Key),只 warn 不抛,保持降级语义
+                List<DocOpResult> results = resp.getOutput();
+                if (results != null) {
+                    int failed = 0;
+                    DocOpResult first = null;
+                    for (DocOpResult r : results) {
+                        if (r.getCode() != 0) {
+                            failed++;
+                            if (first == null) {
+                                first = r;
+                            }
+                        }
+                    }
+                    if (failed > 0) {
+                        log.warn("长期记忆写入部分失败: 失败条数={}, 首个失败 id={}, code={}, message={}",
+                                failed, first.getId(), first.getCode(), first.getMessage());
+                    }
+                }
             }
         } catch (Exception e) {
             // 降级:记忆写入失败不影响对话主流程
@@ -181,7 +200,31 @@ public class LongTermMemoryServiceImpl implements LongTermMemoryService {
                 toDelete.add(oldestId);
             }
             if (!toDelete.isEmpty()) {
-                collection.delete(DeleteDocRequest.builder().ids(toDelete).build());
+                Response<List<DocOpResult>> delResp =
+                        collection.delete(DeleteDocRequest.builder().ids(toDelete).build());
+                if (!delResp.isSuccess()) {
+                    log.warn("长期记忆治理删除失败: code={}, message={}, 待删={}条",
+                            delResp.getCode(), delResp.getMessage(), toDelete.size());
+                } else {
+                    // 顶层成功仍可能逐条失败,只 warn 不抛,治理失败不阻塞写入
+                    List<DocOpResult> delResults = delResp.getOutput();
+                    if (delResults != null) {
+                        int failed = 0;
+                        DocOpResult first = null;
+                        for (DocOpResult r : delResults) {
+                            if (r.getCode() != 0) {
+                                failed++;
+                                if (first == null) {
+                                    first = r;
+                                }
+                            }
+                        }
+                        if (failed > 0) {
+                            log.warn("长期记忆治理删除部分失败: 失败条数={}, 首个失败 id={}, code={}, message={}",
+                                    failed, first.getId(), first.getCode(), first.getMessage());
+                        }
+                    }
+                }
                 log.info("长期记忆治理:userId={}, 检出={}条, 过期删除={}条, 容量淘汰={}",
                         userId, hits.size(), expired, toDelete.size() - expired);
             }

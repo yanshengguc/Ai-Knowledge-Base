@@ -71,11 +71,10 @@
   - 技术备选: AntV G6/D3 更专业但重,MVP 用 ECharts;接口需新增 /api/graph 聚合端点(共引边可 MySQL 聚合 chat 引用记录)
   - 约束: 维持"维护期解锁",若维护期想展示,只做 L1 树(零后端改动)
 - [ ] B-108 Python+LangGraph 多 Agent 复刻版（简历方向，独立仓库，不在本仓库 Sprint 内）
-- [ ] B-111 AI 回答渲染美化（9/20 PO 试用反馈"回答格式应该更好看"）:
-  - **现状实锤**: utils/markdown.ts = 裸 marked + DOMPurify，注释明写"代码高亮不做(轻量)"；表格/引用块/标题无增强排版
-  - **改动（纯前端 ~1-2h）**: ①代码块高亮（highlight.js，marked 已装零新增生态风险）；②.markdown-body 排版增强（表格边框/引用块样式/h 标题层级/行距）；③references 引用内容同套样式已复用，顺带受益
-  - 注意: 流式渲染时 renderMarkdown 每帧全量重跑，高亮库注意按需加载；DOMPurify 白名单不动（防 XSS 回归）
-  - 量级小，投递收口后可与 B-110 MVP 同批做
+- [x] B-111 AI 回答渲染美化（9/20 PO 试用反馈「回答格式应该更好看」）**已完工并上线（Sprint 8 · T-1，2026-10-02，提交 `970775d`）**:
+  - **已完成**: `frontend/src/utils/markdown.ts` 接入 `highlight.js/lib/core` + 12 语言按需注册 + `marked.use({renderer.code})` 覆写代码高亮；`Chat.vue` / `Detail.vue` / `FilePreview.vue` 就地增强 `.markdown-body` / `.markdown-preview` 排版（表格/引用块/标题层级/行距）；DOMPurify 白名单零改动；`renderMarkdown` 签名与三个调用点零改动
+  - **证据**: docs/sprint.md「本轮迭代留痕（Sprint 8 · T-1 / B-111）」—— 独立评审 PASS + 独立验证全绿 + 浏览器真实渲染复核全项 PASS；随 Sprint 8 部署上线
+  - **未验证项（如实留档）**: 真机/移动端视觉未看；highlight.js 落在应用 chunk 而非 vendor（缓存策略话题，未修）
 - [x] B-112 文件在线预览 **MVP 完成(9/21 晚,PO"点击对应位置看原文")**: 后端 `GET /api/file/{id}/content`(作者归属校验同 getFileById 口径;OssService 新增 getContent,key 解析与 delete 共用,**5MB 上限防大文件拖垮 2C2G**;md 按文件名后缀返回原文,pdf/docx content=null——contentType 因浏览器而异不可靠);前端 FilePreview.vue 抽屉(renderMarkdown/DOMPurify 管线复用)+三处入口(树文件节点点击/图谱侧栏"查看原文"/文件列表预览按钮);FileContentTest 6 用例;默认 168+integration 21+e2e 10=199 全绿;线上 jar 12e7adc3 实测 4/4(md 原文/越权拒/不存在报错/匿名 401)。pdf/docx 二进制渲染不在 MVP(返回元信息由前端提示)
   - **现状实锤**: FileController 仅 upload/GET {id}/GET list 三端点——**无内容/下载端点**；前端 Detail.vue 与 FileListPanel.vue 零预览/下载入口，上传后内容黑盒
   - **MVP（~2-3h）**: 后端 `GET /api/file/{id}/content`（校验作者归属==当前用户，返回原始 md 文本）+ 前端 Detail 抽屉 renderMarkdown 展示——**md 文件直接复用 B-111 渲染管线，教材 11 章全是 md，学习场景立即可用**
@@ -103,14 +102,15 @@
   - 技术价值: 知识库数据接入是 RAG 产品标配问点（仅文件上传偏薄）; SSRF 攻防是云安全高频题——feature+安全双向加持
   - 依赖注意: 章节树/结构感知对 md 有效，PDF 提取为裸文本; 教材类版权内容仅走线上库，永不进 git
 
-- [ ] B-110 知识跳转（9/20 PO 提出，灵感:MC 任务 mod"缺什么→左键看怎么获得"）:
+- [x] B-110 知识跳转（9/20 PO 提出，灵感:MC 任务 mod"缺什么→左键看怎么获得"）:
   - **交互**: 阅读文档/AI 回答时选中文本 → 指令创建跳转超链接（**仅选中部分标蓝**，非全文自动链）→ 点击跳转到知识库中解释该概念的章节/片段并高亮
-  - **MVP（~3-4h，零 AI 参与，防幻觉最稳）**: 选中文本 →"在知识库定位"按钮 → 复用现有 RAG 混合检索（选中词当 query）→ 命中则跳 Detail 页 + 滚动定位高亮 chunk。目标永远来自真实检索结果
+  - **MVP（~3-4h，零 AI 参与，防幻觉最稳）**: 选中文本 →"在知识库定位"按钮 → 复用现有 RAG 混合检索（选中词当 query）→ 命中则跳 Detail 页 + 滚动定位高亮 chunk。目标永远来自真实检索结果 **〔Sprint 10 落点修正（PO 2026-10-04）：chunk 属文件、Detail 页不渲染文件正文 ⇒ 落点改为命中文件原文预览 `FilePreview` + 滚动定位高亮；详见 docs/sprint.md Sprint 10〕**
   - **进阶（+2-3h）**: AI 回答输出标记语法（如 [[概念]]），前端渲染蓝链；点击后端检索定位。**防幻觉铁律: 链接目标 chunk 必须来自真实检索，AI 只负责"判断哪些词值得链"，绝不许 AI 编造目标**
   - **定位实现**: chunk 级锚点——优先给 StructureAwareSplitter 补 offset 元数据（+1-2h）；或前端全文字符串匹配（chunk 有 overlap 需处理）
   - **一鱼两吃**: 跳转关系落库 = B-107 L3 网图天然需要"边"数据（节点=chunk，边=跳转/共引），做了 B-110 等于给 L3 铺路
   - **技术价值**: 需求来源故事极鲜活（MC 玩家视角的产品思维）;"RAG 检索当跳转定位器"是把检索复用到非问答场景的架构思考; 与 Obsidian 双链/Wikipedia 内链类比可展开
   - 约束: 投递收口后解锁（PO 9/20 意向,量级 MVP 半个开发日）
+  - **Sprint 10 已收口（2026-10-04）：后端 POST /api/retrieval/locate + 前端选中定位与原文高亮已实现，评审 PASS、mvn 290/0/0、npm build exit 0；线上真实浏览器验收待部署后补；详见 docs/sprint.md Sprint 10**
 
 - [ ] B-114 知识树+检索索引 **〔Sprint 9 已收口 · 2026-10-04：Phase2 标题树路由加权已实现 + 独立评审 PASS with nits + 独立验证 277/0/0；有树 vs 无树上线门槛未达成（召回不变、MRR 轻微回退）→ 开关 `retrieval.tree-boost.enabled` 默认 false，线上零影响；详见 docs/sprint.md 顶部「Sprint 9」及技术债 TD-002〕**（9/24 晚 PO 提案，源自其"知识树+检索索引"学习方法论；**PO+双方 AI 评审一致:作为项目后期特色功能，不打断主线，开工窗口 10 月中/Python demo 之后**）:
   - **提案核心**: 文档→Chunk→知识树（节点含 parent/children/definition/why/mechanism/related_nodes/检索关键词/面试问题索引/场景索引/source_chunks）→用户问题先经索引定位节点→取 source_chunks 融合现有 hybrid 检索→RAG。定位=从"AI 知识库"到"AI 学习型知识库";知识树负责导航定位，Vector Search 负责语义召回，Source Chunk 保证可溯源
@@ -132,3 +132,6 @@
 ## 技术债（TD）
 - TD-001 Outline 归属校验口径重复：`FileServiceImpl.verifyOwnership` 与 `OutlineIndexServiceImpl.verifyOwnership` 各写一份（语义相同，可能漂移）。影响=安全口径一致性；决定=本轮先记，不为此抽公共件重构主链路；触发条件=出现第三处同口径校验，或任一处口径需变更；回滚=无（纯组织性）
 - TD-002 B-114 Phase2 树路由加权上线门槛未达成：有树 vs 无树对比中召回不变、MRR 轻微回退（md 无树 0.833/0.861 → 有树 0.833/0.833），实测环境降级（本地 Redis 未起 + DashVector gRPC 白名单拒绝 → BM25 单路），且仅 2 篇文档建出树，敏感度不足。影响=功能默认关闭、线上零影响；决定=本轮不改 hybrid/rerank 语义、保留开关默认 false；触发条件=完整环境（Redis + DashVector 可用）下复跑 eval 出现稳定正收益；回滚=关闭/删除 `retrieval.tree-boost.enabled` 即恢复纯 RAG
+- TD-003 定位精度依赖归一化文本匹配（Sprint 10 · B-110）：`knowledge_chunk` 无字符级 offset、`split()` 不产出偏移 ⇒ `overlap`/重复片段可能命中首处；跨 `<img>/<hr>` 等无文本节点场景必降级。影响=定位偏移可能不准；决定=本轮接受降级路径（片段横幅 + 提示）；触发条件=片段重复度高或含图片锚；回滚=去掉 `FilePreview` 的 `locate` 入参与 `utils/highlight.ts`，前端恢复纯预览。
+- TD-004 未命中时结果面板闪现（Sprint 10 · B-110）：先开 loading 弹窗、空结果再关并 toast，快网络下可见「弹出即消失」。影响=体验毛刺，无功能错误；决定=本轮先记；触发条件=快网络下体验优化；回滚=无（纯前端）。
+- TD-005 i18n key 冗余（Sprint 10 · B-110）：`filePreview.locateSnippet` 已定义未引用。影响=无功能影响（冗余）；决定=本轮先记；触发条件=下次清理 i18n；回滚=无。

@@ -1,3 +1,78 @@
+# Sprint 10 · 目标：B-110 知识跳转 MVP（选中文本 → 复用 RAG 检索定位 → 原文高亮）
+
+> 开于 2026-10-04 | 承接 Sprint 9（B-114 Phase2 已收口 · 开关默认关闭）
+> 状态：**已收口 · 待部署**（SM 起草 → PO 2026-10-04 批准；**落点=命中文件原文预览 + 高亮**；实现/评审/验证/攻防演习已完成，线上真实浏览器验收待部署后补）
+> 模式：**拆分模式**——SM 起草计划、不写业务码；Dev / 评审 / 验证由独立子 agent 担任
+
+## 目标与门槛
+- 交互：在 **AI 回答（Chat.vue）** 或 **知识正文（Detail.vue）** 中选中一段文本 → 浮现「在知识库定位」→ 后端用选中文本当 query **复用现有混合检索**（`RetrievalServiceImpl.retrieveTopK`）→ 返回真实命中的 chunk（fileId / fileName / chunkIndex / content）→ **落点=命中文件原文预览（`FilePreview`）并滚动定位 + 高亮**该片段（PO 2026-10-04 定；理由见「风险」第 2 条）。
+- **防幻觉铁律**：跳转目标**永远来自真实检索结果**；零 AI 参与、不生成链接、不编造目标；**未命中就不跳**。
+- 上线门槛（可验证验收点）：
+  1. 选中 → 定位 → 高亮全链路**真实浏览器**走通（≥3 个不同 query 命中）；
+  2. 命中片段在文件原文中**偏移正确**（高亮落在正确文本，非错位、非整篇）；
+  3. **未命中**时不静默：给明确「未找到」反馈、不跳转到错误位置；
+  4. **越权隔离**：非本人文件/知识绝不进入结果（与 `retrieveTopK` 同口径）；
+  5. **零 DDL**；既有 REST 契约与聊天主链路行为**零变化**；`mvn -o test` 全绿 + `npm run build` exit 0。
+
+## 允许改 / 不许碰
+- 允许：新增只读端点 `RetrievalController`（`/api/retrieval/locate`）+ 窄 VO；`frontend/src/views/chat/Chat.vue`、`frontend/src/views/knowledge/Detail.vue`、`frontend/src/views/knowledge/components/FilePreview.vue`（**新增可选定位入参，保持既有 `open({id,fileName})` 调用兼容**）、新增前端小程序/api 封装；`src/test/**`、`docs/**`、`HANDOFF.md`。
+- 不许：**不改** `RetrievalServiceImpl` 的检索/融合/rerank 算法语义与阈值、**不动** hybrid 底座、**零 DDL**（不给 `knowledge_chunk` 加 offset 列）、**不改** `StructureAwareSplitter.split()` 输出（B-114 铁律：逐字节不变）、不改 JWT/鉴权、不改既有端点契约、`retrieveTopK` 签名不动。
+
+## 设计（SM 提案；Dev 细化、评审把关）
+1. **后端（T-1）**：新增只读端点 `POST /api/retrieval/locate`，body `{ query, topK? }`（topK 默认 5、上限 10），直接复用 `retrieveTopK(query)`（**自动继承当前用户隔离**），响应 `Result<List<ChunkHitVO>>`（fileId / fileName / chunkIndex / content / score）。零算法改动、零 DDL。
+2. **前端选中入口（T-2）**：封装「选中文本 → 浮层按钮」通用能力（小组件或 composable），挂到 Chat.vue 的 `.msg-content` 与 Detail.vue 的 `.detail-content`；选中非空才显示，不干扰既有点击/滚动。
+3. **前端结果与跳转（T-3）**：
+   - 调 locate → **空则** `ElMessage` 明确「未在知识库中找到相关片段」，**不跳转**；
+   - **非空则**展示命中列表（文件名 + chunkIndex + 片段预览，**选中词高亮**），可点「查看原文」；
+   - **命中后跳转落点（PO 2026-10-04 定）**：打开命中文件原文预览（复用 `FilePreview.open`），**新增可选 locate 入参**（命中 chunk 文本），原文渲染后 DOM 文本匹配定位 + 高亮 + `scrollIntoView`；不额外跳知识详情页。
+4. **定位策略（关键风险点）**：以命中 chunk 的 `content`（真实检索结果）为锚，对文件原文做**归一化字符串匹配**（折叠空白/换行差异 + 处理 `StructureAwareSplitter` 每块前置标题导致的差异）取起始偏移，渲染后用 `Range` 包裹高亮。**匹配失败即降级**：不静默错位，改在结果面板高亮片段本身并提示「原文未定位到精确位置」。
+5. **兜底**：locate 失败/超时/无选中 → 明确反馈，不跳转；不改任何既有行为。
+
+## 任务
+- [x] T-1 后端 `POST /api/retrieval/locate`：复用 `retrieveTopK` + 参数护栏（query 非空、topK ≤ 10）+ 窄 VO；新增契约测试（正向命中 / 空 query 拒绝 / topK 越界收敛 / 响应字段完整） —— 结果：已实现（RetrievalController/RetrievalLocateDTO/ChunkHitVO + 契约测试 13 用例；后补 @NotBlank + @Size(max=2000) 长度护栏）
+- [x] T-2 前端选中入口：Chat.vue AI 回答 + Detail.vue 正文通用选中浮层（桌面/移动均可用，不干扰既有交互） —— 结果：已实现（useTextSelection + SelectionLocateButton，挂 Chat/Detail）
+- [x] T-3 前端结果面板 + `FilePreview` 定位高亮（含匹配失败降级路径） —— 结果：已实现（KnowledgeLocatePanel + FilePreview 可选 locate 入参，Range 高亮 + 失败降级横幅）
+- [x] T-4 独立评审（只读）：范围/夹带/**越权隔离**/**高亮 XSS**（注入须转义或走 DOMPurify）/既有契约零变化 —— 结果：独立评审 PASS（无阻断项）
+- [x] T-5 独立验证：`mvn -o test` 全量 + `npm run build` + 真实浏览器走查（3 条 query 命中）+ 负向（未命中 / 越权 / 无选中） —— 结果：mvn 290/0/0 + npm build exit 0；HTTP 实测 401/空白 500/topK 收敛；真实浏览器验收待部署后补
+- [x] T-6 收口三件事（真实路径实测 + 排查 bug + 独立评审）+ **攻防演习**（选中文本注入 / 超长 query / 越权 / 高亮 XSS） —— 结果：已完成（收口三件事 + 攻防演习；发现并修复 query 无长度护栏的资源放大：1MB 14256ms→17ms）
+
+## DoD
+- 上述 5 条门槛全达成；未跑项**显式标注「未验证」**。
+- 新端点契约：Controller `/api` 前缀、HTTP 恒 200、失败 body `code:500`。
+- 未改检索/融合/rerank 语义与 `split()` 输出；**零 DDL**；`retrieveTopK` 签名不变。
+- 技术债台账：若采用「归一化文本匹配」定位，登记其局限（overlap / 多行 chunk 可能匹配首处）。
+
+## 风险
+- **无字符级 offset**：`knowledge_chunk` 只有 `chunk_index`/`content`，`split()` 不产出 offset ⇒ 定位只能靠文本匹配；`overlap` 与「每块前置标题」会致**误匹配/多义**。DoD 要求实测证明偏移正确，否则退化为「片段面板高亮」。
+- **Detail 页不渲染文件正文**：chunk 属于**文件**，知识详情页（`Detail.vue` L11 只渲染知识自身 `content` + 文件列表）不渲染文件正文 ⇒ backlog 原文「跳 Detail 页并滚动定位」字面不成立。**PO 2026-10-04 拍板：落点=命中文件原文预览（`FilePreview`）+ 高亮**；backlog B-110 条目已同步修正。
+- 选中交互与移动端冲突（长按选择 / 浮层按钮遮挡）；**XSS**：选中文本与片段写入 `v-html` 必须转义（既有 `renderMarkdown` + DOMPurify 或 `textContent`）。
+- locate 端点**对外暴露检索能力** ⇒ 频率/参数护栏与用户隔离为评审重点。
+
+
+## 本轮迭代留痕（Sprint 10 · B-110 知识跳转 MVP）
+
+> 收口 2026-10-04 | 状态：**已收口 · 待部署**（线上真实浏览器验收待部署后补）
+
+- **范围与实现**
+  - 后端新增只读端点 `POST /api/retrieval/locate`（`RetrievalController` + `RetrievalLocateDTO` + `ChunkHitVO`）：复用 `RetrievalService.retrieveTopK`——**零算法改动、零 DDL、签名不动**，自动继承 `UserContext` 用户隔离；`query` 由 `@NotBlank` + `@Size(max=2000)` 在 Web 层前移拦截，`topK` 缺省 5 / 收敛 `[1,10]`；失败仍 HTTP 恒 200 + body `code:500`。
+  - 前端新增 `composables/useTextSelection.ts`、`features/locate/SelectionLocateButton.vue`（含视口收敛与上下翻转）、`features/locate/KnowledgeLocatePanel.vue`、`utils/highlight.ts`；挂载于 `Chat.vue` 的 `.msg-content` 与 `Detail.vue` 的 `.detail-content`。
+  - `FilePreview.vue` 新增**可选** `locate` 入参（既有 `open({id,fileName})` 四个调用点字节级未改）：渲染后按命中 chunk 原文做**归一化文本匹配** + `Range` 包裹 `<mark>` 高亮 + `scrollIntoView`；**匹配失败不静默错位**，降级为抽屉顶部片段横幅 + 提示。
+- **证据**
+  - `mvn -o test`：**290 通过 / 0 失败 / 0 错误**（新增 `RetrievalLocateContractTest` 13 用例）。
+  - `npm run build`：**exit 0**。
+  - HTTP 实测（本地 local profile）：无 token → **401**；空白 query → HTTP 200 + `code:500`「查询文本不能为空」；`topK=999` → 返回长度 ≤10；未命中 → 空数组。
+  - 独立评审：**PASS**（无阻断项）——新端点在鉴权范围内且沿用用户隔离；进 DOM 路径无 v-html 注入；既有契约零变化；i18n zh/en 对称。
+  - 攻防演习：SQL/模板注入、XSS 反射、越权、错误堆栈外泄、topK 崩溃**均无可利用路径**；发现并修复**已认证资源放大**——`query` 无长度护栏致 1MB 请求 14256ms，加 `@Size(max=2000)` 后同量级 **17ms** 且未触达检索。
+- **未验证项（如实留档）**
+  - **真实浏览器端到端验收未跑通**（≥3 条命中 query + 原文高亮偏移正确）：本机 DashVector 集群白名单校验失败、服务降级 BM25 且本地无索引数据；**待部署后在线上补验**。
+  - 并发饱和/连接池压测未做；生产 DashVector 可用时的真实耗时未知。
+  - 前端浮层翻转与 `chunkIndex` 隐藏的浏览器视觉表现未目视（仅编译级 + 代码级核对）。
+- **技术债**
+  - **TD-003 定位精度依赖归一化文本匹配**：`knowledge_chunk` 无字符级 offset、`split()` 不产出偏移 ⇒ `overlap`/重复片段可能命中首处；跨 `<img>/<hr>` 等无文本节点场景必降级。触发条件：片段重复度高或含图片锚。回滚：去掉 `FilePreview` 的 `locate` 入参与 `utils/highlight.ts`，前端恢复纯预览。
+  - **TD-004 未命中时结果面板闪现**：先开 loading 弹窗、空结果再关并 toast，快网络下可见「弹出即消失」。影响：体验毛刺，无功能错误。
+  - **TD-005 i18n key 冗余**：`filePreview.locateSnippet` 已定义未引用。
+
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

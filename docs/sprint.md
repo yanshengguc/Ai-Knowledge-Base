@@ -85,6 +85,16 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（部署 · 2026-10-04 · B-125 上线）
+
+> 结论：**B-125 已提交 / 推送并部署生产，线上校验通过**（PO 2026-10-04 授权「提交并部署」）。后端唯一改动 1 业务文件 + 1 新测试；前端零改动未重发。
+
+- **提交链**：`27f1dc6`(fix: 逐条校验告警) → `9cba8ad`(docs: 收口留痕)，push `6b3b283..9cba8ad`（origin/main 同步）。
+- **构建**：本地 `mvn -o clean package -DskipTests` → `target/Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar`，117,071,080 B，SHA256 `357bb44755af39dda24f7970ce8750bf79943fb974875826f9cc51b8c1768dbc`；产物字节级校验含新增文案（`长期记忆写入部分失败` / `长期记忆治理删除失败` / `长期记忆治理删除部分失败` 均为 True）。
+- **部署**：回滚点 `/opt/aikb/app.jar.bak-20261004-pre-b125`（旧 jar = B-126 的 `6edc4264cc5343a287d67bff9f0eafff41e4ba28fdb9c15dc6cec46c9b246337`，117,070,516 B）；上传 `/opt/aikb/app.jar.new` **双端 sha256 一致** → `mv -f` 原子替换 → `systemctl restart aikb` → **active**、`/actuator/health` `{"status":"UP"}`、**Started in 11.746 seconds**、重启窗口 error **0**。
+- **线上校验**：`DEPLOY_BASE=http://120.55.76.141/api python scripts/verify_deploy.py` → **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录文案统一；依赖注册的 5 项跳过，本地回归覆盖）；外网首页 **200**；服务器侧 `初始化失败` 计数 **0**（向量库 / 长期记忆均未降级）；服务器 `/opt/aikb` 无 `.new` 残留、`/tmp` 无暂存残留。
+- **未验证（如实标注）**：生产注册关闭 ⇒ 无登录态端到端；长期记忆「顶层 success + 逐条失败」路径线上无法确定性触发（纯日志观测、**无用户可见行为变化**，降级语义由单测 mock 覆盖）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-04 · B-125 长期记忆静默吞错观测性修复）
 
 > 结论：**B-125 完成实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED（含负向对照），待 PO 验收（未 commit / 未 push / 未部署）**。模式：拆分模式（SM 本会话不写业务码；Dev / 评审 / 验证由独立子 agent 担任，同一时刻仅一个可写者）。

@@ -165,7 +165,7 @@
   - 偏差（如实标注）：验证代理的 MCP 浏览器通道不可用，改用本机 **Edge 154 `headless=new` + CDP**（真实浏览器引擎与真实渲染/选区/网络，非 DOM 模拟）。
 - **订正口径**：此前「真实用户视角走查」记录的本地「高亮通过」属**数据形态侥幸**（本地 seed 切片为真实换行、与线上不一致），**不代表线上可用**；本次以「构造线上数据形态」的 A/B 重新承重。线上复核须**先部署 F4 版**后再跑。
 - **门禁 / 构建**：前端 `npm run build`（vue-tsc + vite）**exit 0**（独立复跑确认）；后端未涉及（零后端改动）。本地数据已逐字节还原、检索缓存 key 已删、后端 56382 已停。
-- **未验证（如实标注）**：移动端 `touchend` 链路（桌面鼠标链路已线上真实浏览器复核通过，见下方「线上真实浏览器复核」）。
+- **未验证（如实标注）**：无（桌面鼠标链路与移动端 `touchend` 链路均已线上复核，见下方两条复核记录；其中 touch 链路为**合成 TouchEvent**、非真机，偏差见该条）。
 - **部署上线留痕（2026-10-04 · PO 指令「提交并部署」）**：
   - **提交 / 推送**：`e943817`（fix 1 文件：`FilePreview.vue`，+16 行）→ `e661140`（docs 3 文件：`sprint.md`/`backlog.md`/`HANDOFF.md`）；push `99f827d..e661140`（origin/main 0/0，本地无未提交改动）。
   - **产物（双端 SHA256 核对一致）**：后端 jar SHA256 `67AF289C3A3F456EBF5FBA775E757D8A3280229195494D12D101A14DDB50AEB7`（118,562,057 B）；前端 `index.html` SHA256 `611112168073E372FDB1948056E129B200AA785935215C5AE852A490270327C0`，新增/更新 chunk `FilePreview-B4AKKtGX.js`。
@@ -174,6 +174,7 @@
   - **清理**：服务器 `rm -f /tmp/aikb-dist-f4.tar.gz /tmp/aikb-app-f4.jar`、`rm -rf /var/www/aikb.old-20261004-f4`（`/tmp` 无 `aikb` 残留）；本地暂存 `%TEMP%\aikb-f4-deploy` 已删；部署凭据仅以进程环境变量传入、**未落盘**、未写入文档；回滚点按惯例保留。
   - **未验证（如实标注）**：**线上登录态真实浏览器 F4 复核**——生产注册关闭、无可用测试账号（与 F1/F2 同一口径）；本轮线上证据为「前端产物 SHA256 逐位一致 + 外网资源可达 + 匿名 401 + 契约 3/3」，F4 运行时行为证据仍来自本地全栈 + 真实浏览器 A/B。（**注：该项已由下一条「线上真实浏览器复核」关闭**）
   - **线上真实浏览器复核（2026-10-04 · 补做 · 通过）**：生产注册关闭，改用生产演示账号 `demo`/`demo123`（README 已公开该密码）在真实浏览器执行完整链路——`/chat` 提问 → 在 AI 回答中选中「缓存击穿」→ 浮层「在知识库定位」→ 结果面板 **4 条命中**（文件名均为「缓存三大问题:穿透、击穿、雪崩」，即 file 4 手记）→ 点切片 #1「查看原文」→ 抽屉渲染笔记正文；DOM 统计 **`mark.fp-locate-highlight` = 1、`.fp-locate-banner` = 0**（高亮文本含「缓存击穿」）。**根因链路同时以只读接口复核**：`POST /api/retrieval/locate`（demo 登录态）返回切片 content 为**字面量** `\n`（Python `repr` 显示 `'\\n'`），而 MySQL 全库 `knowledge_chunk` 的 `\n` 字面量计数 **0**、`/api/file/{id}/content` 为**真实换行** ⇒ 字面量由**向量路 DashVector metadata** 引入，与修复假设一致（此前用 `LIKE` 统计的字面量计数失真：`LIKE` 中 `\` 是转义符，应以 `REPLACE` 差异计数为准）。截图 `%TEMP%\trae\screenshots\F4-verify-final-state.png`。**全程只读，未改任何生产数据**。
+  - **移动端 `touchend` 链路复核（2026-10-04 · 补做 · 通过）**：同一线上会话，在 `/chat` 的 AI 回答中选中「缓存击穿」后，改用**真实 `Touch`/`TouchEvent`** 派发 `touchstart → touchend`（脚本回值 `touched_via=TouchEvent`）⇒ 选区浮层 `selection-locate-btn` 出现 → 点击「在知识库定位」→ 结果面板 **4 条命中**（均「缓存三大问题:穿透、击穿、雪崩」）→「查看原文」→ DOM 统计 **`mark.fp-locate-highlight` = 1、`.fp-locate-banner` = 0**。**偏差（如实标注）**：为**合成 TouchEvent**（非真机、非移动视口），仅覆盖 `touchend` **监听分支的触发**与共享的高亮归一化逻辑，未覆盖真机触摸手势（如长按选择、移动端滚动）。截图 `%TEMP%\trae\screenshots\F4-touchend-final-state.png`。只读，未改生产数据。
 
 
 

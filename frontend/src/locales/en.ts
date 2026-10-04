@@ -60,6 +60,16 @@ export default {
     loadFailed: 'Failed to load content, please retry',
     notSupported: 'Preview not supported for this format (md text only)',
     viewOriginal: 'View original',
+    locateFailed: 'Exact position not found in the document; the matched snippet is shown below',
+    locateSnippet: 'Matched snippet',
+  },
+  locate: {
+    entry: 'Locate in knowledge base',
+    resultTitle: 'Knowledge base matches',
+    loading: 'Locating…',
+    notFound: 'No related snippet found in the knowledge base',
+    viewOriginal: 'View original',
+    chunkLabel: 'Chunk #{n}',
   },
   nav: {
     knowledge: 'Knowledge',

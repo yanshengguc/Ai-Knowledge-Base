@@ -1,6 +1,7 @@
 import request from '@/api/request'
 import type {
   ChatResponse,
+  ChunkHitVO,
   FileContentVO,
   FileVO,
   KnowledgeDTO,
@@ -75,6 +76,11 @@ export function getFileById(id: number) {
 /** B-112 在线预览:md 文本类返回 content;pdf/docx content=null */
 export function getFileContent(id: number) {
   return request.get<unknown, Result<FileContentVO>>(`/file/${id}/content`)
+}
+
+/** B-110 知识定位:用选中文本复用 RAG 检索,返回命中片段(未命中为 []) */
+export function locateChunks(query: string, topK?: number) {
+  return request.post<unknown, Result<ChunkHitVO[]>>('/retrieval/locate', { query, topK })
 }
 
 export function getFileList(knowledgeId: number) {

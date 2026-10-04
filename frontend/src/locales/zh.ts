@@ -60,6 +60,16 @@ export default {
     loadFailed: '原文加载失败,请重试',
     notSupported: '该格式暂不支持在线预览(仅支持 md 文本)',
     viewOriginal: '查看原文',
+    locateFailed: '原文未定位到精确位置,已在下方展示命中片段',
+    locateSnippet: '命中片段',
+  },
+  locate: {
+    entry: '在知识库定位',
+    resultTitle: '知识库命中片段',
+    loading: '正在定位…',
+    notFound: '未在知识库中找到相关片段',
+    viewOriginal: '查看原文',
+    chunkLabel: '切片 #{n}',
   },
   nav: {
     knowledge: '知识库',

@@ -203,6 +203,17 @@
     :answer="saveNoteAnswer"
     :question="saveNoteQuestion"
   />
+
+  <!-- B-110 选中文本 → 在知识库定位 -->
+  <SelectionLocateButton
+    :visible="selVisible"
+    :x="selX"
+    :top="selTop"
+    :bottom="selBottom"
+    :text="selText"
+    @locate="onLocate"
+  />
+  <KnowledgeLocatePanel ref="locatePanelRef" />
 </template>
 
 <script setup lang="ts">
@@ -227,6 +238,9 @@ import { renderMarkdown } from '@/utils/markdown'
 import { useI18n } from 'vue-i18n'
 import SaveAsNoteDialog from './components/SaveAsNoteDialog.vue'
 import TokenUsageStrip from './components/TokenUsageStrip.vue'
+import SelectionLocateButton from '@/features/locate/SelectionLocateButton.vue'
+import KnowledgeLocatePanel from '@/features/locate/KnowledgeLocatePanel.vue'
+import { useTextSelection } from '@/composables/useTextSelection'
 
 const chatStore = useChatStore()
 const { t } = useI18n()
@@ -238,6 +252,28 @@ const toolsExpanded = ref(false)
 const showScrollButton = ref(false)
 const messageListRef = ref<HTMLElement>()
 const activeModeCount = computed(() => Number(webSearchOn.value) + Number(agentOn.value))
+
+const locatePanelRef = ref<InstanceType<typeof KnowledgeLocatePanel> | null>(null)
+
+// B-110 仅在 .msg-content(AI 回答正文)内选中文本时浮现定位按钮
+const {
+  visible: selVisible,
+  x: selX,
+  top: selTop,
+  bottom: selBottom,
+  text: selText,
+  hide: hideSelection,
+} = useTextSelection({
+  isWithin: (node) => {
+    const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
+    return !!el?.closest('.msg-content') && (messageListRef.value?.contains(node) ?? false)
+  },
+})
+
+function onLocate(text: string) {
+  hideSelection()
+  void locatePanelRef.value?.locate(text)
+}
 
 const TOOL_ICONS = {
   file_search: Search,

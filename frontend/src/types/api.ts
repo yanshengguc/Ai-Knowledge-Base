@@ -67,6 +67,16 @@ export interface FileContentVO {
   content?: string | null
 }
 
+/** B-110 知识定位:选中文本经 RAG 检索命中的原文片段(未命中返回空数组) */
+export interface ChunkHitVO {
+  fileId: number
+  fileName?: string
+  /** 切片序号;旧缓存条目可能缺失,后端补填失败时保留 null */
+  chunkIndex?: number | null
+  content: string
+  score?: number
+}
+
 // 聊天
 export interface SearchResult {
   knowledgeId: number

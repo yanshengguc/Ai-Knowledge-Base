@@ -8,7 +8,7 @@
       <el-button type="success" text :icon="EditPen" @click="noteVisible = true">{{ t('knowledge.createNote') }}</el-button>
     </div>
 
-    <div class="detail-content markdown-body" v-html="renderMarkdown(detail.content || t('upload.noContent'))" />
+    <div ref="detailContentRef" class="detail-content markdown-body" v-html="renderMarkdown(detail.content || t('upload.noContent'))" />
 
     <!-- 已有文件列表(删除后通知父级同步列表与上传轮询) -->
     <FileListPanel
@@ -36,6 +36,17 @@
 
   <!-- 新建笔记弹窗(写优先:内容同步向量化,立刻可检索) -->
   <NoteCreateDialog v-if="detail" v-model:visible="noteVisible" :knowledge-id="detail.id" @created="loadFileList" />
+
+  <!-- B-110 选中文本 → 在知识库定位 -->
+  <SelectionLocateButton
+    :visible="selVisible"
+    :x="selX"
+    :top="selTop"
+    :bottom="selBottom"
+    :text="selText"
+    @locate="onLocate"
+  />
+  <KnowledgeLocatePanel ref="locatePanelRef" />
 </template>
 
 <script setup lang="ts">
@@ -50,6 +61,9 @@ import FileUploadPanel from './components/FileUploadPanel.vue'
 import EditKnowledgeDialog from './components/EditKnowledgeDialog.vue'
 import NoteCreateDialog from './components/NoteCreateDialog.vue'
 import { renderMarkdown } from '@/utils/markdown'
+import SelectionLocateButton from '@/features/locate/SelectionLocateButton.vue'
+import KnowledgeLocatePanel from '@/features/locate/KnowledgeLocatePanel.vue'
+import { useTextSelection } from '@/composables/useTextSelection'
 
 // 父组件只负责:详情/文件列表数据持有 + 子组件编排(弹窗开合、事件路由)
 const route = useRoute()
@@ -63,6 +77,28 @@ const loadFailed = ref(false)
 const editVisible = ref(false)
 const noteVisible = ref(false)
 const uploadPanelRef = ref<InstanceType<typeof FileUploadPanel> | null>(null)
+const detailContentRef = ref<HTMLElement | null>(null)
+const locatePanelRef = ref<InstanceType<typeof KnowledgeLocatePanel> | null>(null)
+
+// B-110 仅在知识正文(.detail-content)内选中文本时浮现定位按钮
+const {
+  visible: selVisible,
+  x: selX,
+  top: selTop,
+  bottom: selBottom,
+  text: selText,
+  hide: hideSelection,
+} = useTextSelection({
+  isWithin: (node) => {
+    const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
+    return !!el?.closest('.detail-content') && (detailContentRef.value?.contains(node) ?? false)
+  },
+})
+
+function onLocate(text: string) {
+  hideSelection()
+  void locatePanelRef.value?.locate(text)
+}
 
 async function loadFileList() {
   if (!detail.value) return

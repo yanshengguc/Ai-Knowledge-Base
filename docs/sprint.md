@@ -85,6 +85,28 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（多 agent · 2026-10-04 · B-125 长期记忆静默吞错观测性修复）
+
+> 结论：**B-125 完成实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED（含负向对照），待 PO 验收（未 commit / 未 push / 未部署）**。模式：拆分模式（SM 本会话不写业务码；Dev / 评审 / 验证由独立子 agent 担任，同一时刻仅一个可写者）。
+
+**问题（B-117 同源债 · 评审第 1 项）**：`LongTermMemoryServiceImpl` —— ① `remember()` 写入后只判顶层 `isSuccess()`，逐条 `DocOpResult.code` 不校验；② `governBeforeWrite()` 的 `collection.delete()` 返回值被完全丢弃。
+
+**修复形态（与 B-117 的关键分歧）**：长期记忆是**降级路径**（类注释「任何异常不影响主流程」），**不能照搬 B-117 的 upsert + 抛异常**（会炸掉对话链路）；正确形态 = **逐条校验 + `log.warn`（含失败条数 / 首个失败 id / code / message）+ 不抛**。范围 = 1 文件 2 处，纯观测性增强、零行为变化。
+
+**不做**：`insert` 不改 `upsert`（时间戳主键无 B-117 复用冲突根因）；`DEFAULT_DIMENSION=1536` 不夹带（留本条 ③ 独立处理）；不引入失败计数 metric。
+
+**门禁**：`mvn -o test` **257/0/0**（基线 255 + 新增 2）BUILD SUCCESS。
+
+**新增测试**：`LongTermMemoryServiceImplTest`（Mockito mock `DashVectorCollection` + `EmbeddingService` + `ReflectionTestUtils` 注入私有字段 + logback `ListAppender`）2 用例 —— 用例A `rememberDegradesAndWarnsWhenPerDocInsertFails`（governanceEnabled=false，insert 顶层 success + output 含 code=-2027 → 不抛 + 捕获 warn）；用例B `rememberDegradesAndWarnsWhenGovernanceDeleteFails`（governanceEnabled=true，query 返回过期 hit → delete 顶层 success + code=-2027 → 捕获 warn）。
+
+**负向对照**：`git stash push` 还原修复前业务文件 → 2/2 **FAIL**（断言「应 WARN 出逐条失败的 code」），`git stash pop` 复原 → 2/2 **PASS** ⇒ 断言承重。
+
+**独立评审**：PASS with nits（无 high/medium；low 3 项：写/删两处逐条统计循环重复可提 helper、测试断言耦合日志文案、`r.getCode()` 未防 `r == null`（SDK 概率极低 + 外层 catch 兜底），均判本轮不改）。
+
+**夹带核查**：`git status --porcelain` 仅 1 改（业务文件）+ 1 新（测试文件）。
+
+**未验证（如实标注）**：真实厂商 DashVector 的「顶层 success + 逐条失败」路径无法在本地确定性复现（本机公网 IP 不在集群白名单，SDK gRPC `Cluster whiteList validate fail`；与 B-126 同一环境限制）；本改为纯日志观测、**无用户可见行为变化**，降级语义（不抛、正常返回）由 mock 单测覆盖。
+
 ## 本轮迭代留痕（部署 · 2026-10-03 · B-126 上线）
 
 > 结论：**B-126 已提交/推送并部署生产，线上校验通过**（PO 2026-10-03 授权「提交并部署」）。后端唯一改动 1 文件；前端零改动未重发。

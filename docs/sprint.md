@@ -65,6 +65,12 @@
 - **T-4 数字（md 组）**：无树 recall@5 0.833 / MRR 0.861 / chunkRecall@5 0.833 / chunkMRR 0.861；有树 recall@5 0.833 / **MRR 0.833** / chunkRecall@5 0.833 / **chunkMRR 0.833**；pdf 组 0.667（无阈值，只输出）。
 - **环境实况（影响结论强度）**：本地 Redis 未起 + DashVector gRPC `Cluster whiteList validate fail` ⇒ 实为 **BM25 单路**；且仅 `doc_k8s_manual` / `doc_jvm_tuning` 建出树（nodeCount=5）⇒ 树敏感度有限，门槛结论在降级环境下得出。
 
+### 复测（2026-10-04 · PO 启动本地 Redis 后 · 独立 agent）
+- 原 T-4 两个降级源之一（本地 Redis 未起）已由 PO 解除；另一源为 DashVector SDK gRPC `Cluster whiteList validate fail`（本机公网 IP 不在集群白名单），**与 Redis 无关**。
+- 独立 agent 复跑（闸门：先跑 tree-boost off 基线判断向量路是否恢复）：启动即 `VectorStoreServiceImpl: 向量库初始化失败(...降级为 BM25): ...ABORTED: Cluster whiteList validate fail`；每条 query `向量检索失败,降级为BM25单路`；合并日志恒为 `向量 0 条 + BM25 N 条` ⇒ **仍为 BM25 单路、向量路未恢复**，故按闸门规则**未跑 tree-boost on 对比**。
+- 数字复现：md 无树 recall@5 0.833 / MRR 0.861 / chunkRecall@5 0.833 / chunkMRR 0.861（与 T-4 逐位一致，环境确定性良好）；pdf 0.667（无阈值）。⇒ **复测未改变 T-4 结论，TD-002 维持**。
+- 复测前置条件：将本机公网 IP 加入 DashVector 集群白名单（或在向量路正常的机器上跑）后，再跑 off/on 两次对比。
+
 ### 未验证（如实标注）
 - e2e 生产全链路（Redis/DashVector 受环境限制；生产注册关闭 ⇒ 无登录态端到端）。
 - 新增三条 SQL（`selectNodeIdsByUserKeywords` / `selectChunkIdsByNodeIds` / `selectSearchResultsByIds`）未在真实 MySQL 执行（单测为 mock 层）。

@@ -1,7 +1,7 @@
 # Sprint 10 · 目标：B-110 知识跳转 MVP（选中文本 → 复用 RAG 检索定位 → 原文高亮）
 
 > 开于 2026-10-04 | 承接 Sprint 9（B-114 Phase2 已收口 · 开关默认关闭）
-> 状态：**已收口 · 待部署**（SM 起草 → PO 2026-10-04 批准；**落点=命中文件原文预览 + 高亮**；实现/评审/验证/攻防演习已完成，线上真实浏览器验收待部署后补）
+> 状态：**已收口 · 已部署上线**（SM 起草 → PO 2026-10-04 批准；**落点=命中文件原文预览 + 高亮**；实现/评审/验证/攻防演习/部署全部完成，见下方「部署上线留痕」；线上真实浏览器验收因生产注册关闭、无可用测试账号，按 PO 2026-10-04 拍板记「未验证项」）
 > 模式：**拆分模式**——SM 起草计划、不写业务码；Dev / 评审 / 验证由独立子 agent 担任
 
 ## 目标与门槛
@@ -51,7 +51,7 @@
 
 ## 本轮迭代留痕（Sprint 10 · B-110 知识跳转 MVP）
 
-> 收口 2026-10-04 | 状态：**已收口 · 待部署**（线上真实浏览器验收待部署后补）
+> 收口 2026-10-04 | 状态：**已收口 · 已部署上线**（部署证据见下方「部署上线留痕」；线上真实浏览器验收按 PO 2026-10-04 拍板记「未验证项」）
 
 - **范围与实现**
   - 后端新增只读端点 `POST /api/retrieval/locate`（`RetrievalController` + `RetrievalLocateDTO` + `ChunkHitVO`）：复用 `RetrievalService.retrieveTopK`——**零算法改动、零 DDL、签名不动**，自动继承 `UserContext` 用户隔离；`query` 由 `@NotBlank` + `@Size(max=2000)` 在 Web 层前移拦截，`topK` 缺省 5 / 收敛 `[1,10]`；失败仍 HTTP 恒 200 + body `code:500`。
@@ -63,8 +63,8 @@
   - HTTP 实测（本地 local profile）：无 token → **401**；空白 query → HTTP 200 + `code:500`「查询文本不能为空」；`topK=999` → 返回长度 ≤10；未命中 → 空数组。
   - 独立评审：**PASS**（无阻断项）——新端点在鉴权范围内且沿用用户隔离；进 DOM 路径无 v-html 注入；既有契约零变化；i18n zh/en 对称。
   - 攻防演习：SQL/模板注入、XSS 反射、越权、错误堆栈外泄、topK 崩溃**均无可利用路径**；发现并修复**已认证资源放大**——`query` 无长度护栏致 1MB 请求 14256ms，加 `@Size(max=2000)` 后同量级 **17ms** 且未触达检索。
-- **未验证项（如实留档）**
-  - **真实浏览器端到端验收未跑通**（≥3 条命中 query + 原文高亮偏移正确）：本机 DashVector 集群白名单校验失败、服务降级 BM25 且本地无索引数据；**待部署后在线上补验**。
+- **未验证项（如实留档；PO 2026-10-04 拍板按「未验证项」收）**
+  - **真实浏览器端到端验收未跑通**（≥3 条命中 query + 原文高亮偏移正确）：本机 DashVector 集群白名单校验失败、服务降级 BM25 且本地无索引数据；部署后因**生产注册已关闭、无可用测试账号**，未能以登录态在线上复跑，故最终按「未验证项」收（与 Sprint 7~9 同类项同口径）。线上 HTTP 级证据见下方「部署上线留痕」。
   - 并发饱和/连接池压测未做；生产 DashVector 可用时的真实耗时未知。
   - 前端浮层翻转与 `chunkIndex` 隐藏的浏览器视觉表现未目视（仅编译级 + 代码级核对）。
 - **技术债**
@@ -72,6 +72,16 @@
   - **TD-004 未命中时结果面板闪现**：先开 loading 弹窗、空结果再关并 toast，快网络下可见「弹出即消失」。影响：体验毛刺，无功能错误。
   - **TD-005 i18n key 冗余**：`filePreview.locateSnippet` 已定义未引用。
 
+
+## 部署上线留痕（2026-10-04 · B-110 上线）
+- **提交 / 推送**：`e7a3e9b`(feat, 15 文件, +1057/−5) + `6c41a51`(docs, 3 文件) → push `2952149..6c41a51`（main，`git rev-list --left-right --count origin/main...HEAD` = `0 0`）。
+- **构建**（本地，`mvn -o clean package -DskipTests`）：`Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar`（118,561,573 B），SHA256 `6f36d505…092619`；前端 `npm run build` exit 0（`dist/index.html` SHA256 `24a91b53…08d568`）。
+- **回滚点**：`/opt/aikb/app.jar.bak-20261004-pre-b110`（旧线上 jar SHA256 `8e9737a5…94f1b5`，即 B-114 Phase2 jar）+ `/var/www/aikb.bak-20261004-pre-b110`（旧前端）。
+- **部署**：SFTP 上传 `app.jar.new` 与前端 `tar.gz` → 双端 SHA256 与本地**逐字节一致** → 前端先移走旧目录再移入新目录（原子替换）、后端 `mv -f` 原子替换 → `systemctl restart aikb` → active。
+- **线上验证**：health `{"status":"UP"}`；启动日志 `初始化失败` **0** / `ERROR` **0**（仅 MCP 自动配置历史 WARN）；`verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录文案统一，依赖注册 5 项按惯例跳过、本地回归覆盖）；外网首页 **200**，`index.html` SHA256 与本地 dist 一致；新前端 chunk `useTextSelection-Ca8kOTwY.js`、`FilePreview-DGW2rTkq.js` 等全部 **200**；`POST /api/retrieval/locate` 匿名 → **401**。
+- **清理**：`/tmp` 无暂存、`/opt/aikb` 无 `.new`、`/var/www/aikb.old-b110` 已删；凭据仅经进程环境变量、未落盘。
+- **回滚**：`cp -p /opt/aikb/app.jar.bak-20261004-pre-b110 /opt/aikb/app.jar && systemctl restart aikb`；前端 `rm -rf /var/www/aikb && cp -rp /var/www/aikb.bak-20261004-pre-b110 /var/www/aikb`。
+- **未验证**：登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号），按 PO 拍板记「未验证项」；新端点的鉴权与参数护栏**仅由匿名 401 + 本地 HTTP 级实测覆盖**，登录态命中/高亮未在线上目视。
 
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 

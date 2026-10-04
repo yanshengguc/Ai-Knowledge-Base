@@ -110,7 +110,7 @@
   - **一鱼两吃**: 跳转关系落库 = B-107 L3 网图天然需要"边"数据（节点=chunk，边=跳转/共引），做了 B-110 等于给 L3 铺路
   - **技术价值**: 需求来源故事极鲜活（MC 玩家视角的产品思维）;"RAG 检索当跳转定位器"是把检索复用到非问答场景的架构思考; 与 Obsidian 双链/Wikipedia 内链类比可展开
   - 约束: 投递收口后解锁（PO 9/20 意向,量级 MVP 半个开发日）
-  - **Sprint 10 已收口（2026-10-04）：后端 POST /api/retrieval/locate + 前端选中定位与原文高亮已实现，评审 PASS、mvn 290/0/0、npm build exit 0；线上真实浏览器验收待部署后补；详见 docs/sprint.md Sprint 10**
+  - **Sprint 10 已收口并上线（2026-10-04）：后端 POST /api/retrieval/locate + 前端选中定位与原文高亮已实现，评审 PASS、mvn 290/0/0、npm build exit 0；jar `6f36d505…092619`（118,561,573 B）+ 前端 dist `24a91b53…08d568` 已双端哈希一致并原子替换上线（回滚点 `/opt/aikb/app.jar.bak-20261004-pre-b110` + `/var/www/aikb.bak-20261004-pre-b110`），`verify_deploy` 3/3 PASS、启动 0 报错 0 降级；登录态真实浏览器端到端因生产注册关闭、无可用测试账号，按 PO 2026-10-04 拍板记「未验证项」；详见 docs/sprint.md Sprint 10「部署上线留痕」**
 
 - [ ] B-114 知识树+检索索引 **〔Sprint 9 已收口 · 2026-10-04：Phase2 标题树路由加权已实现 + 独立评审 PASS with nits + 独立验证 277/0/0；有树 vs 无树上线门槛未达成（召回不变、MRR 轻微回退）→ 开关 `retrieval.tree-boost.enabled` 默认 false，线上零影响；详见 docs/sprint.md 顶部「Sprint 9」及技术债 TD-002〕**（9/24 晚 PO 提案，源自其"知识树+检索索引"学习方法论；**PO+双方 AI 评审一致:作为项目后期特色功能，不打断主线，开工窗口 10 月中/Python demo 之后**）:
   - **提案核心**: 文档→Chunk→知识树（节点含 parent/children/definition/why/mechanism/related_nodes/检索关键词/面试问题索引/场景索引/source_chunks）→用户问题先经索引定位节点→取 source_chunks 融合现有 hybrid 检索→RAG。定位=从"AI 知识库"到"AI 学习型知识库";知识树负责导航定位，Vector Search 负责语义召回，Source Chunk 保证可溯源

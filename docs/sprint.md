@@ -85,6 +85,28 @@
 - Dev-agent（唯一可写者）实现 → 评审-agent（只读）审范围/契约/硬约束/夹带 → 验证-agent 跑门禁 → SM 回写 → PO 验收。评审 FAIL 沿用 1 轮回 Dev / 2 轮三岗会诊 / 3 轮挂牌 PO。
 - **未经 PO 明确指示不得 commit / push / 部署。**
 
+## 本轮迭代留痕（多 agent · 2026-10-04 · B-127 DTO 参数校验前移）
+
+- **身份/模式**：SM=本会话（不写业务码）；Dev / 独立评审 / 独立验证 均为独立子 agent。开工三件事（读 sprint.md / 报身份 / 报站会）已执行。
+- **PO 决策（2026-10-04）**：SM 轻量探查发现 `pom.xml` **无** `spring-boot-starter-validation`、本地 `.m2` 仅有 javax 版 `hibernate-validator 6.2.5`（与 Boot 3 的 jakarta 不兼容）⇒ 当前 `@Valid` 是**空操作**。PO 拍板**引入依赖 + 完整实现**（含 `@Size`）。
+- **改动（7 改 + 1 新）**：
+  - `pom.xml`：+`spring-boot-starter-validation`（version 由 parent 3.3.4 管理）。
+  - `dto/KnowledgeAddDTO`、`dto/KnowledgeUpdateDTO`、`dto/NoteDTO`：jakarta `@NotBlank`（标题/内容/笔记标题/笔记内容）+ `@Size`（title 200 / category 50 / 笔记标题 255，对齐 `docs/schema.sql`）；`source` 不加约束。
+  - `controller/KnowledgeController`：三端点 `@RequestBody` 加 `@Valid`；`createNote` 全限定名改 import；类内缩进格式化（纯可读性，零逻辑改动）。
+  - `handler/GlobalExceptionHandler`：新增显式 `@ExceptionHandler(MethodArgumentNotValidException.class)` → 取首个 `FieldError` 默认消息、`log.warn`、返回 `Result.error(msg)`；既有三个 handler 行为未变。
+  - `controller/GraphController`：**未改动**（原文件缩进本已规范，避免无意义 diff）。
+  - 新增 `test/KnowledgeDtoValidationContractTest`：13 例 standalone MockMvc（`setControllerAdvice(new GlobalExceptionHandler())`）。
+- **连带修正（PO 2026-10-04 批准）**：`scripts/verify_deploy.py` 笔记用例补 `title`（B-127 后 `NoteDTO.title` 必填；该用例仅在注册开放模式执行，生产注册关闭时不跑，但仍须保持验证资产正确）。
+- **关键前置结论（修正立项担心点）**：`GlobalExceptionHandler` 原有兜底 `@ExceptionHandler(Exception.class)` **事实上已接住** `MethodArgumentNotValidException`（它继承 `BindException`），契约**不会**退化为 400；仍补显式 handler，用于给出明确字段提示并消除 error 级堆栈噪音。
+- **契约证据**：负向用例三重互锁 `status().isOk()` + `jsonPath("$.code").value(500)` + `verify(service, never())`；缺 title 用例追加 `jsonPath("$.message").value("标题不能为空")`，用于区分显式 handler 与兜底「系统异常，请稍后重试」。
+- **门禁**：全量 `mvn -o test` **270/0/0**（基线 257 + 13）BUILD SUCCESS（整改前 266，补 4 例覆盖后 270）。**首次构建需联网**拉依赖，之后 `-o` 可复用。
+- **独立评审**：PASS with nits（无 high；medium=缺 `@Size` 上边界/超长用例 → 已补 4 例；low=多字段错误顺序不定致 message 不稳（已用单字段缺失用例锁定）、Controller 缩进属可读性噪音、update 收紧属行为变更需留痕、LF/CRLF 无功能影响）。
+- **独立验证**：VERIFIED（全量 270/0/0 + 单类 13/0/0；`dependency:tree` 证实 `hibernate-validator:8.0.1.Final` + `jakarta.validation-api:3.0.2` 在 classpath；承重推理：若 Web 层校验未生效或契约退化为 400，三重断言必失败）。
+- **行为变更留痕**：`PUT /api/knowledge/{id}` 由「允许空 title/content」收紧为拒绝；已核前端 `EditKnowledgeDialog.vue`（唯一 PUT 调用方）与 note 两处调用方恒发完整字段，后端测试均直连 Service（`KnowledgeAccessControlTest`）→ 不破坏现有调用方。**Service 层手写校验保留**（纵深防御）。
+- **夹带核验**：`git status --short` 仅 7 改 1 新（含上述 PO 批准的 1 行脚本修正）；`KnowledgeServiceImpl` 未改。
+- **未验证（如实标注）**：未部署、无生产 HTTP 端到端实测（仅 standalone MockMvc）；integration/e2e 组未跑（沿用默认 `excludedGroups`）。
+- **状态**：**未 commit / 未 push / 未部署**（PO 保留拍板权）。
+
 ## 本轮迭代留痕（多 agent · 2026-10-04 · B-124 树节点标题忠实度抽样体检）
 
 > 结论：**B-124 已实现 + 独立评审 PASS with nits（无 high/medium）+ 独立验证 VERIFIED，待 PO 验收（未 commit / 未 push / 未部署）**

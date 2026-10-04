@@ -152,6 +152,22 @@
 - **未验证（如实标注）**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）——沿用「未验证项」口径；本次 F1/F2 的运行时行为证据来自**本地全栈 + 真实浏览器**（见上方「修复留痕」）。
 - **F3**：不修（检索质量范畴），继续观察。
 
+### F4 修复与验证留痕（2026-10-04 · B-110 · 方案 a）
+
+> 触发：PO 2026-10-04 指令「按方案 a 修复 F4 并验证」→ 四档分离：Dev 实现 → 独立评审 → 独立验证，同一时刻仅一可写者。
+> 状态：**已修复 · 待提交 / 待部署**（部署后补「部署上线留痕」）。
+
+- **F4（线上缺陷·定位高亮失效）**：线上 `POST /api/retrieval/locate` 返回的切片 `content` 把换行存成**字面量两字符** `\`+`n`（实测 `has_LITERAL_backslash_n=True, has_real_NL=False`），而 `/api/file/{id}/content` 的**文件正文是真实换行**（`has_real_NL=True`）。`FilePreview.vue` 的归一化匹配中 `SKIP_CHARS` 含真实 `\n` 但**不含反斜杠与字母 n** ⇒ needle 残留 `\`+`n`、DOM 归一化后不含 ⇒ `indexOf` 恒为 -1 ⇒ 落降级横幅（`.fp-locate-banner`）、无高亮（线上笔记与 OSS md 两类命中均 `marks=0`）。
+- **方案 a（PO 认可）**：前端归一化层把「字面量转义序列」视同空白——一处改动、零迁移、**不回填存量 chunk**。
+- **修复（1 文件 +16 行，零夹带）**：`FilePreview.vue` 的 `normalizeChunk` 与 `buildDomIndex` 两处逐字符循环**对称**新增——`\` 后接 `n`/`r`/`t` 时**整对跳过 2 字符**（`i += 1; continue`）。要点：整对跳过（**不**折叠成 1 个空格）⇒「保留字符 ↔ 源偏移」仍 1:1、高亮不错位；孤立 `\`、真实换行路径不受影响；字面量 `\r\n`（4 字符）被连续两次对跳过，等效空白。
+- **独立评审**：`PASS with nits`（无 high/medium）。核实：两处条件完全对称；`chars.length === map.length` 恒成立、`map[start]`/`map[end]` 取值仍正确；边界（末尾孤立 `\`、后接非 n/r/t、字面量 `\r\n`、接续真实换行、emoji 代理对）逐条安全；无夹带。nit(low)：正文真含 `\`+`n`/`r`/`t`（如 Windows 路径 `C:\new`、代码块里的 `\n` 示例）时该 2 字符被一并跳过、Range 可能多覆盖 2 字符——属既有子串匹配设计固有，非本次引入，记 **TD-008**。
+- **独立验证（本地全栈 + 真实浏览器引擎，A/B 承重）**：本地 demo 切片为**真实换行**（这正是此前本地走查「高亮通过」的原因）⇒ **人为构造 F4 数据**：`UPDATE knowledge_chunk SET content=REPLACE(content,CHAR(10),'\\n') WHERE id=284`（file 146 `redis-cache-aside-design.md` / chunk_index 3），并加 `--retrieval.similarity-threshold=0.01 --retrieval.rerank.enabled=false` 使命中确定来自 MySQL（`POST /api/retrieval/locate` 实测 rank2 = fileId146/chunkIndex3，其 `content` 为字面量 `\n`、其余候选为真实 `\n`）。同一操作链（选中「空值缓存」→ 浮层 → 定位 5 命中 → 点 file146「查看原文」）：**修复前 `marks=0 / banner=1`；修复后 `marks=1 / banner=0`**（修复后高亮文本 = 整条 chunk284）。证据：`%TEMP%\aikb-f4\{before_dom.json, fixed_dom.json, before_drawer.png, fixed_drawer.png, step2_locate_response.json}`。
+  - 偏差（如实标注）：验证代理的 MCP 浏览器通道不可用，改用本机 **Edge 154 `headless=new` + CDP**（真实浏览器引擎与真实渲染/选区/网络，非 DOM 模拟）。
+- **订正口径**：此前「真实用户视角走查」记录的本地「高亮通过」属**数据形态侥幸**（本地 seed 切片为真实换行、与线上不一致），**不代表线上可用**；本次以「构造线上数据形态」的 A/B 重新承重。线上复核须**先部署 F4 版**后再跑。
+- **门禁 / 构建**：前端 `npm run build`（vue-tsc + vite）**exit 0**（独立复跑确认）；后端未涉及（零后端改动）。本地数据已逐字节还原、检索缓存 key 已删、后端 56382 已停。
+- **未验证（如实标注）**：线上登录态真实浏览器复核（**须先部署 F4 版**）；移动端 `touchend` 链路。
+
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

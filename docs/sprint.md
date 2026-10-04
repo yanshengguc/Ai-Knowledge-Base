@@ -2,7 +2,7 @@
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）
 > 状态：**收口——上线门槛未达成 · 开关默认关闭**（SM 记账，2026-10-04）
-> T-1/T-2/T-3 已实现 + 独立评审 PASS with nits + 独立验证 VERIFIED（277/0/0）；T-4 有树 vs 无树门槛**未达成** → PO 2026-10-04 拍板「默认关闭 + 修降级缺口 + 记账」；**未 commit / 未 push / 未部署**
+> T-1/T-2/T-3 已实现 + 独立评审 PASS with nits + 独立验证 VERIFIED（277/0/0）；T-4 有树 vs 无树门槛**未达成** → PO 2026-10-04 拍板「默认关闭 + 修降级缺口 + 记账」；**已 commit(`e955117`/`b5adac8`/`b7f1882`) + push + 部署上线**（jar `8e9737a5…94f1b5` 双端一致，`verify_deploy` 3/3 PASS，见下方「部署上线留痕」）
 > 模式：**拆分模式**——SM 起草计划、不写业务码；Dev / 评审 / 验证由独立子 agent 担任
 
 ## 目标与门槛
@@ -74,7 +74,7 @@
 ### 未验证（如实标注）
 - e2e 生产全链路（Redis/DashVector 受环境限制；生产注册关闭 ⇒ 无登录态端到端）。
 - 新增三条 SQL（`selectNodeIdsByUserKeywords` / `selectChunkIdsByNodeIds` / `selectSearchResultsByIds`）未在真实 MySQL 执行（单测为 mock 层）。
-- 未部署、未在生产验证。
+- 部署已执行；生产注册关闭 ⇒ 无登录态端到端；tree-boost 开关默认 false，线上未开启走查（部署证据见下方「部署上线留痕」）。
 
 ### 技术债
 - **TD-002**：树路由加权上线门槛未达成，待完整环境（Redis + DashVector 可用）复跑 eval；开关默认 false，删除即回退。
@@ -83,6 +83,17 @@
 ### 决策 / 风险
 - 决策：默认关闭保线上零影响；不趁本轮改 hybrid/rerank/切片语义（严守功能任务禁夹带）。
 - 风险：降级环境下取数，若后续开启需在完整环境重测；LIKE 泛词误命中已由「1 前置名额」限流缓解。
+
+### 部署上线留痕（2026-10-04 · B-114 Phase2 上线）
+- **提交 / 推送**：`e955117`(feat, 10 文件) + `b5adac8`(docs, 3 文件) + `b7f1882`(docs, 复测补记) → push `ee764e1..b7f1882`（main）。
+- **构建**（本地，`mvn -o clean package -DskipTests`）：`Ai-Knowledge-Base-0.0.1-SNAPSHOT.jar`（118,557,675 B），SHA256 `8e9737a5…94f1b5`。
+- **回滚点**：`/opt/aikb/app.jar.bak-20261004-pre-b114p2`（旧线上 jar SHA256 `c77119ac…413ab`，即 B-127 jar）。
+- **部署**：SFTP 上传 `app.jar.new` → 双端 SHA256 一致 → `mv -f` 原子替换 → `systemctl restart aikb` → active（ActiveEnterTimestamp 2026-10-04 10:42:34 CST）。
+- **线上验证**：health `{"status":"UP"}`；重启后（since 10:42:30）error/exception 计数 **0**；服务器侧 `降级为 BM25|初始化失败` 计数 **0**（DashVector 数据面正常）；`verify_deploy.py` **3/3 PASS**（匿名 401 / 注册关闭拦截 / 登录文案统一）；`/tmp` 无暂存、`/opt/aikb` 无 `.new` 残留；凭据仅经进程环境变量、未落盘。
+- **回滚**：`cp -p /opt/aikb/app.jar.bak-20261004-pre-b114p2 /opt/aikb/app.jar && systemctl restart aikb`。
+- **未验证**：生产注册关闭 ⇒ 无登录态端到端；开关 `retrieval.tree-boost.enabled` 默认 false ⇒ 线上检索行为与部署前逐位一致（本次仅版本前移）。
+- **踩坑（留档）**：PowerShell 不认 `\$(...)` 转义（与 bash 不同）→ 命令替换被本地展开、远程命令判断段被破坏并致 SSH 连接强制关闭；实际 `mv`+`重启`均已生效，改用无反斜杠转义的纯命令复核状态后继续，未重跑替换。
+
 
 # Sprint 8 · 目标：低成本收尾包 + 检索质量 eval 底座（B-114 Phase2 的前置）
 

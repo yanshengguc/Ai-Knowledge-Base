@@ -107,7 +107,13 @@
   - 顺带发现（非本修复相关的既有现象）：16 条批量 embedding 超 DashScope 单批上限(10)被拒后，应用自动「回退逐条索引」并成功（`索引完成 成功=16 失败=0`），未影响终态。
   - 收尾：`DELETE /api/knowledge/30` 级联清理 + `DELETE FROM user WHERE username LIKE 'aikb_e2e%'`；服务器 `/tmp` 临时文件已清。
   - 终态恢复基线：user **34** / knowledge **15** / file **74** / chunk **1131** / DashVector `total_doc_count` **1131**，`aikb_e2e%` 残留 **0**。护栏：未开注册、未改 env/systemd、未重启服务、未触碰既有数据。
-- **未验证（如实标注）**：② 真实「部分成功混合批」未在生产触发（探针仅证契约形态，未构造真实部分失败批）。
+- **真实「部分成功混合批」补验（补齐未验证项② · 2026-10-04）**：用 30 个临时 victim doc（id `999000000101`~`130`，`file_id=F`）+ 短周期 churn（`upsert → sleep 0.03 → delete`，错峰并行），对一个真实 chunk 数约 120 的测试文件触发 `DELETE /api/file/F`，使 app 的 `query→delete` 窗口内 victim 被切走 → 真实逐条 `-2024`。生产日志原文（`journalctl -u aikb`，已由 PO 侧独立复核，非转述）：
+  `向量清理已删除一批, fileId=95, 本批=100, 成功=96, 失败=4, 累计删除=96` / `向量清理已删除一批, fileId=95, 本批=35, 成功=35, 失败=0, 累计删除=131` / `已清理向量, fileId=95, count=131`。
+  ⇒ **失败≥1 且 成功≥1**（真实部分成功混合批已触发）；**失败条不计入 `累计删除`**（第 1 批 100 条、失败 4，累计只加 96）；**未因末页短/含失败而提前收尾**（继续第 2 轮）；**最终 `count=131` 只含成功数**。**未验证项②至此闭环，B-126 未验证项清零。**
+  - 同形态真实 REST 响应（顶层 `code:0` + 逐条混合）作契约对照：`{"code":0,"message":"The first failed operation is [op:delete, id:999000000098, message:Key Not Exist]","output":[{"doc_op":"delete","id":"999000000099","code":0,"message":""},{"doc_op":"delete","id":"999000000098","code":-2024,"message":"Key Not Exist"}]}`。
+  - 过程留痕：首轮 4 次竞态未命中——排除了「DashVector 写后读延迟」（实测 upsert→立即可见、delete→立即不可见，无延迟），且 victim 多在 query 时处于删除态被过滤；改进为「约 30 victim + 偏向存在 + 短周期 + 错峰 + 拉大批量/δ」后第 1 轮即命中。
+  - 收尾与终态（均独立复核）：30 个 victim 全删、`file_id=95` 与契约 id 查询残留 **0**、`aikb_e2e%` 残留 **0**、`/tmp` 已清；user **34** / knowledge **15** / knowledge_file **74** / knowledge_chunk **1131** / DashVector `total_doc_count` **1131**，恢复基线。护栏：未开注册、未改 env/systemd、未重启服务、未触碰既有数据。
+- **未验证**：无（①②均已闭环）。
 
 ## 本轮迭代留痕（多 agent · 2026-10-03 · B-126 deleteByFileId 逐条删除校验 · 修「删除版假成功」）
 

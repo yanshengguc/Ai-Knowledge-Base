@@ -83,6 +83,62 @@
 - **回滚**：`cp -p /opt/aikb/app.jar.bak-20261004-pre-b110 /opt/aikb/app.jar && systemctl restart aikb`；前端 `rm -rf /var/www/aikb && cp -rp /var/www/aikb.bak-20261004-pre-b110 /var/www/aikb`。
 - **未验证**：登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号），按 PO 拍板记「未验证项」；新端点的鉴权与参数护栏**仅由匿名 401 + 本地 HTTP 级实测覆盖**，登录态命中/高亮未在线上目视。
 
+## 真实用户视角走查留痕（2026-10-04 · B-110 · 补做）
+
+> 触发：PO 2026-10-04 指令「先补做 B-110 的真实用户视角走查」（项目铁律②：以真实用户视角按实际使用流程走查 bug；B-110 此前只做了①攻防演习）。
+> 方式：**本地全栈 + 真实浏览器**（后端 `java -jar … --spring.profiles.active=local --server.port=56382` + 前端 `npm run dev` → http://localhost:5173，vite 代理 56382；health `{"status":"UP"}`）。登录 `demo` 账号（名下有已索引 chunk），**无生产数据污染、未新增/修改任何数据**。
+> 环境实况（影响结论强度）：本地 DashVector 仍 `Cluster whiteList validate fail` ⇒ **检索降级 BM25 单路**（启动日志实锤：`向量检索失败,降级为BM25单路`；每条 query 合并日志恒为 `向量 0 条 + BM25 N 条`）；本地 MySQL 为历史测试数据，本次仅用 `demo`。
+
+### 主链路（happy path）——通过
+- 流程：登录 → 对话提问（缓存三问）→ 在 AI 回答 `.msg-content` 选中「空值缓存」→ 浮层「在知识库定位」→ 结果面板「知识库命中片段」2 条 → 点首条（`redis-cache-aside-design.md` 切片 #3）「查看原文」→ 抽屉渲染原文并**精确高亮**。
+- 证据：结果面板回显 2 条（`146:redis-cache-aside-design.md 切片#3` / `145:缓存三大问题… 切片#0`），片段内选中词高亮；抽屉内 `mark.fp-locate-highlight` **数量=1**，`mark` 文本与命中切片**逐字一致**（「空值缓存…挡住反复查询不存在数据的穿透流量。」），**未出现降级横幅**（`locateBanner=false`），`scrollIntoView` 生效（高亮滚入视口）；截图留档。
+- **防幻觉结论成立**：目标来自真实检索；0 命中只提示、不跳转、不打开预览。
+
+### 边界 / 异常（逐项）
+- ✅ **未命中**：选中「以上内容均来自参考资料」（API 实测 0 命中）→ 仅弹 `ElMessage`「未在知识库中找到相关片段」，结果面板**不显示**（`dialogsVisible=[false]`）。
+- ✅ **Esc 隐藏浮层**：选中后按 Esc → 浮层消失（选区仍在 DOM）。
+- ✅ **滚动隐藏浮层**：滚动消息容器 → 浮层消失。
+- ✅ **参数护栏（HTTP 级）**：`query` 2000 字 → `code:200`；2001 字 → HTTP 200 + body `code:500`「查询文本过长，最多 2000 字」；纯空白 → body `code:500`「查询文本不能为空」。
+- ✅ **双挂载点**：知识详情页 `.detail-content` 选中「三大问题防护」→ 浮层正常浮现；定位 → 0 命中走同一提示路径。
+- ✅ **连续多次定位**：本次连续定位 5+ 次，均独立正常。
+- ➖ **浮层边缘翻转**：桌面 chat 布局滚动容器顶部 ≈100px，`selTop` 恒 >42 ⇒ 上方空间始终足够，翻转分支**实际不可达**（数值实测 `selTop=102 / btn 66~94 / vh=622`，判定为上方；非缺陷，窄视口/移动端才可能触发）。
+- ➖ **预览中再次定位**：结果面板与原文抽屉均为 modal（带遮罩），打开时聊天不可交互 ⇒ 该流程不成立。
+- ⚠️ **chunkIndex 缺失隐藏标签**：代码 `v-if="hit.chunkIndex != null"` 已实现，但本次**无 `chunkIndex=null` 命中样本**，未目视复现（仅代码核对）。
+
+### 体验断点 / 隐藏故障（分级）
+- **F1（中）命中「手记」来源时「查看原文」为死路且提示误导**：手记（`fileType` 含 `source=manual`）的 chunk 可被 locate 命中（本例 AI 回答的 3 条引用恰是手记 145），但 `GET /api/file/{id}/content` 对手记返回 `content:null` ⇒ 抽屉文案「该格式暂不支持在线预览(仅支持 md 文本)」，**与事实矛盾**（本身就是 md 笔记），用户拿不到任何原文。复现：提问 → 答案引用手记 → 定位 → 选中手记命中 → 查看原文。建议（择一，交 PO 定）：① 后端对 `source=manual` 返回拼接后的 chunk/knowledge 文本，使原文可渲染+高亮；② 前端对手记来源给出准确文案（如「该片段来自笔记，暂不支持查看原文」）并保留结果面板内片段；③ 结果面板对手记命中隐藏/禁用「查看原文」。
+- **F2（低）定位后浮层按钮不消失（残留）**：`onLocate` 调 `hideSelection()` 后，点击本身的 `mouseup` 又触发 `evaluateDeferred()`，而 `@mousedown.prevent` 保留了选区 ⇒ `evaluate()` 再次置 `visible=true`，按钮**重新浮现**并停留（成功/未命中皆然），可能悬在内容或结果面板上方，直到用户点别处/滚动/Esc。复现：任意定位动作后按钮仍在（实测 `btnStillThere=true`）。修法建议：`onLocate` 后在下一个宏任务清除选区（`getSelection().removeAllRanges()`），或加「click 抑制一次」标志。
+- **F3（低·环境相关）整句/长选中易 0 命中**：仅本地 BM25 单路 + rerank 0.3 下限所致（长 query 命中被下限淘汰，如「JVM 内存结构与 GC」→0）；生产向量路正常时表现待复核。影响 B-110 体感（用户按习惯选整句易只见 warning）。**非 B-110 代码缺陷**，属检索质量范畴，登记观察。
+
+### 技术债（新增）
+- **TD-006 手记来源命中无法查看原文**：见 F1。触发条件=`locate` 命中 `source=manual` 的 chunk；影响=「查看原文」死路 + 文案误导；临时规避=结果面板内片段可读。回滚=本项无代码改动。**已于 2026-10-04 修复（F1）**，详见下方「### 修复留痕（F1 中 / F2 低 · 2026-10-04）」。
+- **TD-007 定位浮层按钮残留**：见 F2。影响=体验毛刺/遮挡；**已于 2026-10-04 修复（F2）**，详见下方「修复留痕」。
+
+### 未验证项（如实标注）
+- 线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）——沿用「未验证项」口径。
+- 移动端 `touchend` 选中链路（本机无真机/模拟器）。
+- `chunkIndex=null` 命中样本（未构造）。
+- 生产向量路正常时的长 query 命中率（本地降级，未复现生产条件）。
+
+### 结论 / 下一步
+- B-110 主链路与防幻觉在真实浏览器下**成立**；发现 **2 个可修复缺陷（F1 中 / F2 低）** + 1 项环境相关观察（F3）。
+- 按铁律需 Dev 修复 F1/F2 → 独立评审 → 独立验证后收口；**本轮仅走查、未改码、未 commit/push/部署**，等 PO 指示。
+
+### 修复留痕（F1 中 / F2 低 · 2026-10-04）
+
+> 触发：PO 2026-10-04 指令「好的，执行吧」→ 路由 Dev 修复走查发现的 F1/F2（F3 环境相关不修，登记观察）。四档分离：Dev 实现 → 独立评审 → 独立验证，同一时刻仅一可写者。
+> 状态：**已修复 · 未提交 / 未推送 / 未部署**（等 PO 指示）——线上行为仍为修复前版本。
+
+- **F1 修复（后端）**：`FileServiceImpl.getFileContent` 在按 `.md` 后缀判断**之前**新增笔记分支——判定 `fileType` 以 `text/markdown` 开头 **且** `fileUrl` 为空（笔记无 OSS 对象；两条件同时满足，以保护真实上传的 .md）；命中则按 `chunkIndex` 升序、`"\n"` 拼接 chunk 正文作为 content（与 `KnowledgeServiceImpl.readNoteContent` 同口径），空切片返回 `""` 而非 `null`（前端据此区分「正文为空」与「格式不支持」）。**归属校验 `verifyOwnership` 仍前置**，越权读取他人笔记仍被拦截。其余分支（真实 `.md`→OSS、pdf/docx→null）行为逐位不变。
+- **F2 修复（前端）**：`useTextSelection` 新增并导出 `clearSelection()`（`hide()` + `window.getSelection()?.removeAllRanges()`），`Chat.vue` / `Detail.vue` 的 `onLocate` 改调它（根因：点击自身的 mouseup 经 `evaluateDeferred()` 再次置 `visible=true`）；`hide()` 语义未改，仍供 Esc/scroll 使用。
+- **改动范围（5 文件，零 DDL / 零新依赖 / 无无关改名）**：`FileServiceImpl.java`(+18)；`FileContentTest.java`(+66/-1，新增 3 例：笔记乱序拼接、上传 md 有 OSS 仍走 OSS 回归、笔记无切片返回 `""`)；`useTextSelection.ts`(+12/-1)；`Chat.vue`(+2/-2)；`Detail.vue`(+2/-2)。
+- **独立评审**：`PASS with nits`（无 high/medium）。核实要点：判定条件无误判/漏判（上传路径 `fileUrl` 恒非空，唯一 `text/markdown`+null url 组合来自 `createNote`）；归属校验前置保住；F2 `removeAllRanges()` 后延迟 `evaluate()` 必走 `hide()` 分支；无夹带。nits：`chunkIndex` 为 null 时 `Comparator.comparingInt` NPE（**既有债**，`schema.sql` NOT NULL + 唯一写入点自增，当前不可触发，本次不修）；`ChunkMapper.xml` 已 `ORDER BY`，Java 再排为口径一致性保留。
+- **独立验证（本地全栈 + 真实浏览器，demo 账号）**：F1-A `GET /api/file/145/content` → `content` 非空（length=316，含「空值缓存」，不再 null），`146` 仍走 OSS（269，回归不变）；F1-B 结果面板点「缓存三大问题…」切片#0「查看原文」→ 抽屉渲染笔记正文、`mark.fp-locate-highlight` 数量=1、**未出现**「该格式暂不支持在线预览(仅支持 md 文本)」、`locateBanner=false`，`146` 对照仍正常高亮；F1-C 未命中仅 warning 不打开预览、Esc/滚动隐藏仍生效；F2 真实 CDP 鼠标点击浮层按钮后 700ms DOM 断言 `visibleLocateBtn=0`（命中/未命中两路径），无残留；控制台错误 0 条。
+- **单测 / 构建**：`mvn -o test -Dtest=FileContentTest` **9/0/0**；Dev 全量 `mvn -o test` **292/0/0**；前端 `npm run build`（vue-tsc + vite）exit 0；后端 `mvn -o package -DskipTests` BUILD SUCCESS，验证侧已用新 jar 起服务（health UP）完成上述真实浏览器复验。
+- **技术债处置**：**TD-006 / TD-007 本次修复关闭**。
+- **未验证项**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）；移动端 `touchend` 链路（无真机）；生产向量路正常时的长 query 命中率（本地 BM25 降级）。
+- **F3 处置**：不修（检索质量范畴，非 B-110 代码缺陷），登记观察。
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

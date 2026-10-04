@@ -1,6 +1,7 @@
 package com.yansheng.aiknowledgebase.service.impl;
 
 import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.FileStatus;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
@@ -24,6 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.List;
@@ -316,6 +318,22 @@ entity.setStatus(FileStatus.PROCESSING.name());
         vo.setFileName(file.getFileName());
         vo.setFileType(file.getFileType());
 
+        // 笔记(createNote 创建):fileUrl=null 无 OSS 对象、正文只存在 chunk 表,fileType 以 text/markdown 开头;
+        // 需在按后缀判 .md 之前处理,否则 content=null 会让前端误报"暂不支持在线预览"。
+        String fileType = file.getFileType();
+        String fileUrl = file.getFileUrl();
+        if (fileType != null && fileType.startsWith("text/markdown")
+                && (fileUrl == null || fileUrl.isBlank())) {
+            List<ChunkEntity> chunks = chunkMapper.selectByFileId(file.getId());
+            String noteContent = (chunks == null || chunks.isEmpty())
+                    ? ""
+                    : chunks.stream()
+                            .sorted(Comparator.comparingInt(ChunkEntity::getChunkIndex))
+                            .map(ChunkEntity::getContent)
+                            .collect(Collectors.joining("\n"));
+            vo.setContent(noteContent);
+            return vo;
+        }
         String name = file.getFileName() == null ? "" : file.getFileName().toLowerCase();
         if (!name.endsWith(".md")) {
             // pdf/docx 不返回内容:二进制预览不在 MVP 范围(前端渲染降级提示)

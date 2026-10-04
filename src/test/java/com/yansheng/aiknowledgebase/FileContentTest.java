@@ -1,21 +1,26 @@
 package com.yansheng.aiknowledgebase;
 
+import com.yansheng.aiknowledgebase.entity.ChunkEntity;
 import com.yansheng.aiknowledgebase.entity.FileEntity;
 import com.yansheng.aiknowledgebase.entity.KnowledgeEntity;
 import com.yansheng.aiknowledgebase.entity.UserEntity;
 import com.yansheng.aiknowledgebase.exception.BusinessException;
+import com.yansheng.aiknowledgebase.mapper.ChunkMapper;
 import com.yansheng.aiknowledgebase.mapper.FileMapper;
 import com.yansheng.aiknowledgebase.mapper.KnowledgeMapper;
 import com.yansheng.aiknowledgebase.service.OssService;
 import com.yansheng.aiknowledgebase.service.impl.FileServiceImpl;
 import com.yansheng.aiknowledgebase.utils.UserContext;
 import com.yansheng.aiknowledgebase.vo.FileContentVO;
+import java.util.Arrays;
+import java.util.Collections;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +36,7 @@ class FileContentTest {
     private FileMapper fileMapper;
     private KnowledgeMapper knowledgeMapper;
     private OssService ossService;
+    private ChunkMapper chunkMapper;
     private FileServiceImpl fileService;
 
     @BeforeEach
@@ -38,8 +44,9 @@ class FileContentTest {
         fileMapper = mock(FileMapper.class);
         knowledgeMapper = mock(KnowledgeMapper.class);
         ossService = mock(OssService.class);
+        chunkMapper = mock(ChunkMapper.class);
         fileService = new FileServiceImpl(
-                null, ossService, knowledgeMapper, fileMapper, null, null, null, null);
+                null, ossService, knowledgeMapper, fileMapper, chunkMapper, null, null, null);
 
         UserEntity user = new UserEntity();
         user.setId(1L);
@@ -137,5 +144,63 @@ class FileContentTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> fileService.getFileContent(100L));
         assertTrue(ex.getMessage().contains("原文读取失败"));
+    }
+
+    /** 构造一个切片(chunkIndex + content) */
+    private ChunkEntity chunk(int index, String content) {
+        ChunkEntity c = new ChunkEntity();
+        c.setChunkIndex(index);
+        c.setContent(content);
+        return c;
+    }
+
+    @Test
+    void testNote_noOss_readsChunksOrdered() {
+        FileEntity note = file(300L, "我的笔记");
+        note.setFileUrl(null);
+        note.setFileType("text/markdown;source=manual");
+        when(fileMapper.selectById(300L)).thenReturn(note);
+        when(knowledgeMapper.selectById(10L)).thenReturn(knowledge("ys"));
+        // 故意乱序返回,验证按 chunkIndex 升序拼接
+        when(chunkMapper.selectByFileId(300L))
+                .thenReturn(Arrays.asList(chunk(2, "第三段"), chunk(0, "第一段"), chunk(1, "第二段")));
+
+        FileContentVO vo = fileService.getFileContent(300L);
+
+        assertEquals("第一段\n第二段\n第三段", vo.getContent());
+        Mockito.verifyNoInteractions(ossService);
+    }
+
+    @Test
+    void testUploadedMd_withOssUrl_stillReadsOss() {
+        // 浏览器上传的 .md:contentType 可能恰为 text/markdown,但有 OSS url → 仍走 OSS,不读 chunk
+        FileEntity uploaded = file(400L, "上传.md");
+        uploaded.setFileType("text/markdown");
+        when(fileMapper.selectById(400L)).thenReturn(uploaded);
+        when(knowledgeMapper.selectById(10L)).thenReturn(knowledge("ys"));
+        when(ossService.getContent("https://bucket.oss.example.com/uuid_上传.md"))
+                .thenReturn("# 上传正文");
+
+        FileContentVO vo = fileService.getFileContent(400L);
+
+        assertEquals("# 上传正文", vo.getContent());
+        Mockito.verifyNoInteractions(chunkMapper);
+    }
+
+    @Test
+    void testNote_noChunks_returnsEmptyStringNotNull() {
+        // 契约:笔记无切片时返回空串而非 null,前端据此区分"正文为空"与"格式不支持预览"
+        FileEntity note = file(300L, "空笔记");
+        note.setFileUrl(null);
+        note.setFileType("text/markdown;source=manual");
+        when(fileMapper.selectById(300L)).thenReturn(note);
+        when(knowledgeMapper.selectById(10L)).thenReturn(knowledge("ys"));
+        when(chunkMapper.selectByFileId(300L)).thenReturn(Collections.emptyList());
+
+        FileContentVO vo = fileService.getFileContent(300L);
+
+        assertEquals("", vo.getContent());
+        assertNotNull(vo.getContent());
+        Mockito.verifyNoInteractions(ossService);
     }
 }

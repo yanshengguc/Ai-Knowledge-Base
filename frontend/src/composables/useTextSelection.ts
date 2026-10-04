@@ -25,6 +25,16 @@ export function useTextSelection(options: TextSelectionOptions) {
     text.value = ''
   }
 
+  /**
+   * 隐藏浮层并清空当前选区:点击浮层按钮后调用。
+   * 仅 hide 不够——该次点击自身的 mouseup 会在下一个宏任务触发 evaluate,
+   * 此时选区仍在,浮层会被重新置为可见;清空选区让 evaluate 走 hide 分支。
+   */
+  function clearSelection() {
+    hide()
+    window.getSelection()?.removeAllRanges()
+  }
+
   function evaluate() {
     const sel = window.getSelection()
     if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
@@ -79,5 +89,5 @@ export function useTextSelection(options: TextSelectionOptions) {
     window.removeEventListener('scroll', hide, true)
   })
 
-  return { visible, x, top, bottom, text, hide, evaluate }
+  return { visible, x, top, bottom, text, hide, clearSelection, evaluate }
 }

@@ -87,7 +87,7 @@ const {
   top: selTop,
   bottom: selBottom,
   text: selText,
-  hide: hideSelection,
+  clearSelection,
 } = useTextSelection({
   isWithin: (node) => {
     const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement
@@ -96,7 +96,7 @@ const {
 })
 
 function onLocate(text: string) {
-  hideSelection()
+  clearSelection()
   void locatePanelRef.value?.locate(text)
 }
 

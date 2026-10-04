@@ -155,7 +155,7 @@
 ### F4 修复与验证留痕（2026-10-04 · B-110 · 方案 a）
 
 > 触发：PO 2026-10-04 指令「按方案 a 修复 F4 并验证」→ 四档分离：Dev 实现 → 独立评审 → 独立验证，同一时刻仅一可写者。
-> 状态：**已修复 · 待提交 / 待部署**（部署后补「部署上线留痕」）。
+> 状态：**已修复 · 已提交 / 已推送并部署上线**（2026-10-04）。
 
 - **F4（线上缺陷·定位高亮失效）**：线上 `POST /api/retrieval/locate` 返回的切片 `content` 把换行存成**字面量两字符** `\`+`n`（实测 `has_LITERAL_backslash_n=True, has_real_NL=False`），而 `/api/file/{id}/content` 的**文件正文是真实换行**（`has_real_NL=True`）。`FilePreview.vue` 的归一化匹配中 `SKIP_CHARS` 含真实 `\n` 但**不含反斜杠与字母 n** ⇒ needle 残留 `\`+`n`、DOM 归一化后不含 ⇒ `indexOf` 恒为 -1 ⇒ 落降级横幅（`.fp-locate-banner`）、无高亮（线上笔记与 OSS md 两类命中均 `marks=0`）。
 - **方案 a（PO 认可）**：前端归一化层把「字面量转义序列」视同空白——一处改动、零迁移、**不回填存量 chunk**。
@@ -166,6 +166,14 @@
 - **订正口径**：此前「真实用户视角走查」记录的本地「高亮通过」属**数据形态侥幸**（本地 seed 切片为真实换行、与线上不一致），**不代表线上可用**；本次以「构造线上数据形态」的 A/B 重新承重。线上复核须**先部署 F4 版**后再跑。
 - **门禁 / 构建**：前端 `npm run build`（vue-tsc + vite）**exit 0**（独立复跑确认）；后端未涉及（零后端改动）。本地数据已逐字节还原、检索缓存 key 已删、后端 56382 已停。
 - **未验证（如实标注）**：线上登录态真实浏览器复核（**须先部署 F4 版**）；移动端 `touchend` 链路。
+- **部署上线留痕（2026-10-04 · PO 指令「提交并部署」）**：
+  - **提交 / 推送**：`e943817`（fix 1 文件：`FilePreview.vue`，+16 行）→ `e661140`（docs 3 文件：`sprint.md`/`backlog.md`/`HANDOFF.md`）；push `99f827d..e661140`（origin/main 0/0，本地无未提交改动）。
+  - **产物（双端 SHA256 核对一致）**：后端 jar SHA256 `67AF289C3A3F456EBF5FBA775E757D8A3280229195494D12D101A14DDB50AEB7`（118,562,057 B）；前端 `index.html` SHA256 `611112168073E372FDB1948056E129B200AA785935215C5AE852A490270327C0`，新增/更新 chunk `FilePreview-B4AKKtGX.js`。
+  - **回滚点**：`/opt/aikb/app.jar.bak-20261004-pre-f4`（旧 jar `1760f895…b89086`，即 F1/F2 版）+ `/var/www/aikb.bak-20261004-pre-f4`（旧前端）。后端 `mv -f` 原子替换、前端先移旧目录再移入。
+  - **部署与验证**：`systemctl restart aikb` → active（`ActiveEnterTimestamp=Sun 2026-10-04 23:43:01 CST`，`Started … in 12.539 seconds`）；health `{"status":"UP"}`；启动窗口 `ERROR|Exception|初始化失败` 计数 **0**；外网首页 **200**、远端 `index.html` SHA256 与本地逐位一致、`FilePreview-B4AKKtGX.js` **200**、匿名 `POST /api/retrieval/locate` **401**；`verify_deploy` **3/3 PASS**。
+  - **清理**：服务器 `rm -f /tmp/aikb-dist-f4.tar.gz /tmp/aikb-app-f4.jar`、`rm -rf /var/www/aikb.old-20261004-f4`（`/tmp` 无 `aikb` 残留）；本地暂存 `%TEMP%\aikb-f4-deploy` 已删；部署凭据仅以进程环境变量传入、**未落盘**、未写入文档；回滚点按惯例保留。
+  - **未验证（如实标注）**：**线上登录态真实浏览器 F4 复核**——生产注册关闭、无可用测试账号（与 F1/F2 同一口径）；本轮线上证据为「前端产物 SHA256 逐位一致 + 外网资源可达 + 匿名 401 + 契约 3/3」，F4 运行时行为证据仍来自本地全栈 + 真实浏览器 A/B。
+
 
 
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）

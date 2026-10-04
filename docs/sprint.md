@@ -149,8 +149,9 @@
 - **部署**：SFTP 上传 → 双端 SHA256 核对**一致**（jar `1760f895…b89086` / index `d19608d9…a590df`）→ 后端 `mv -f` 原子替换、前端先移旧目录（`aikb.old-20261004-b110fix`）再移入新目录 → `systemctl restart aikb` → **active**（`ActiveEnterTimestamp=2026-10-04 23:11:38 CST`）、监听 `*:8080`、health `{"status":"UP"}`。
 - **验证**：启动窗口（近 3 分钟）`ERROR|Exception|初始化失败` 计数 **0**；外网 `GET /` → **200** 且远端 `index.html` SHA256 与本地**逐位一致**；`/chat`、`/assets/FilePreview-RKg8mVr4.js`、`/assets/useTextSelection-CqS50JCr.js`、`/assets/index-B66M3Z-w.js` 全 **200**；匿名 `POST /api/retrieval/locate` → **401**；`verify_deploy` **3/3 PASS**（匿名拦截 / 注册关闭拦截 / 登录失败文案统一；另 5 项因生产注册关闭按既有口径 SKIP，本地回归已覆盖）。
 - **清理**：服务器 `/tmp/aikb-dist-b110fix.tar.gz`、`/var/www/aikb.old-20261004-b110fix` 已删（`/tmp` 无我方残留）；本地临时 tar 包与临时文件已删；凭据仅以进程环境变量传入（`DEPLOY_PASSWORD`），**未落盘**、无 `%TEMP%\aikb-deploy\` 残留；旧 jar/旧前端备份按惯例保留作回滚点。
-- **未验证（如实标注）**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）——沿用「未验证项」口径；本次 F1/F2 的运行时行为证据来自**本地全栈 + 真实浏览器**（见上方「修复留痕」）。
+- **未验证（如实标注）**：线上登录态真实浏览器端到端（生产注册关闭 ⇒ 无可用测试账号）——沿用「未验证项」口径；本次 F1/F2 的运行时行为证据来自**本地全栈 + 真实浏览器**（见上方「修复留痕」）。（**注：其中 F2 项已由下方「F2 线上真实浏览器复核」关闭**）
 - **F3**：不修（检索质量范畴），继续观察。
+- **F2 线上真实浏览器复核（2026-10-04 · 补做 · 通过）**：生产注册关闭，改用生产演示账号 `demo`/`demo123`（README 已公开该密码）在同一线上会话执行——`/chat` 在 AI 回答中选中「缓存击穿」→ 派发真实 `mouseup`（桌面分支）→ 选区浮层 `.selection-locate-btn` **DOM 数量=1 / 可见=1**（文案「在知识库定位」）→ 点击浮层按钮 → 等 **1000ms** 后 `floatBtnCount=**0**`、`floatBtnVisible=**0**`（浮层已从 DOM 移除）→ 定位结果面板 **4 行**正常出现（#0 穿透 / #1 击穿 / #2 雪崩 / #3 小结）。结论：`useTextSelection.clearSelection()` 修复生效，F2（定位后浮层残留）线上复核**通过**。**偏差（如实标注）**：桌面鼠标路径，非真机触摸。截图 `%TEMP%\trae\screenshots\F2-reverify-final-state.png`。**全程只读，未改任何生产数据**。
 
 ### F4 修复与验证留痕（2026-10-04 · B-110 · 方案 a）
 

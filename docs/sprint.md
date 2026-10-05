@@ -270,6 +270,48 @@ files **71**、chunks **1127**、token_usage **31**、悬空 **0**；对照清�
 - 管理员仍两人并存：`yuan`（白名单）+ `aikb_admin`（专用）；建议后续日常仅用 `aikb_admin`
 - `token_usage` 保留 31 行历史统计（真实使用轨迹，未删）
 
+---
+
+## 本轮迭代留痕（多 agent · 2026-10-05 · 移动端 tooltip 残留修复 + 预览/大纲抽屉半屏-全屏）
+
+> 收口 2026-10-05 | 状态：**已收口 · 已部署上线 · PO 真机实测通过**（纯前端变更，后端 jar 未动、与线上 HEAD 一致）
+> 触发：PO 真机反馈「查看原文 / 查看大纲点击后黑色小字气泡不消失」+「半屏/全屏是否应由用户决定」。
+
+### 需求（PO 2026-10-05 拍板）
+
+- ① 触屏设备点「查看原文」「查看大纲」等按钮后，黑色小字气泡（`el-tooltip`）残留、浮在已打开的抽屉内容之上 ⇒ 修掉。
+- ② 预览抽屉「半屏 / 全屏」由用户决定，**桌面也要能切**，且**全屏必须 100% 无缝隙**（原 `min(640px, 92vw)` 会留白边）；默认移动端=全屏、桌面=半屏，偏好持久化。
+
+### 实现（5 改 + 3 新，零夹带）
+
+- **根因**：触屏 `tap` 经 `focus` 触发 `el-tooltip`，触屏无 `mouseleave`/`blur` 路径 ⇒ 不自动隐藏；且 popper 挂 `body`、层级高于 `el-drawer` ⇒ 仅手机端暴露（桌面移开即消失）。
+- **决策**：无 hover 能力的触屏设备**不渲染** `el-tooltip`，按钮照常渲染（`aria-label` 已具备 ⇒ 可访问性不丢）。
+- 新增 `composables/useHasHover.ts`（`matchMedia('(hover: hover)')`，含 `change` 监听与卸载对称移除）、`components/Tip.vue`（触屏安全 tooltip 包装，纯文本用 `content`、富文本用 `#content` 插槽）、`composables/useDrawerSize.ts`（模块级单例，两抽屉共享；`localStorage` key `aikb.drawer.fullscreen`，`'1'/'0'`）。
+- `FileListPanel.vue` 4 处、`TokenUsageStrip.vue` 1 处 `el-tooltip` → `Tip`（`v-if/v-else` 兄弟分支保留）。
+- `FilePreview.vue` / `OutlinePanel.vue`：移除 `:title` 与固定 `size`，改 `:size="size"` + `#header` 插槽（标题 + 半屏/全屏按钮），全屏 `size='100%'`（无缝隙）、半屏沿用原 `min(640px,92vw)` / `min(900px,94vw)`；`useDrawerSize` 以 `(max-width: 768px)` 定默认值。
+- `locales/zh.ts`、`locales/en.ts`：`common` 新增 `fullscreen` / `halfscreen`（对称）。
+- **B-110 定位高亮逻辑（`normalizeChunk`/`buildDomIndex`/`highlightChunk`/`applyLocate`）与 `ElMessageBox` 零改动**；仅 `components.d.ts` 由构建自动重生成（+`Tip`）。
+
+### 评审 / 验证
+
+- 独立评审（独立 agent）：**有条件通过**（无 high/medium）——全仓仅 `Tip.vue` 保留 `el-tooltip`、无夹带、B-110 与 `ElMessageBox` 未动、i18n zh/en 对称、`size="100%"` 无缝隙；发现 2 低项并**已修**：① `Tip.vue` 无 `content` 且无 `#content` 时 hover 设备弹空气泡 ⇒ `v-if="hasHover && (content || $slots.content)"`；② 自定义 `#header` 覆盖后标题丢 `role="heading"/aria-level` ⇒ 两处标题 span 补 `role="heading" aria-level="2"`。
+- `npm run build`（含 `vue-tsc`）**exit 0**；改动均为本功能、`dist/` 未入库。
+
+### 部署上线留痕（2026-10-05 · 纯前端）
+
+- **提交 / 推送**：`76082c6`(fix, 10 文件, +246/-28) + 本 docs 留痕提交 → push（main）。
+- **回滚点**：`/var/www/aikb.bak-20261005-101320-pre-mobilefix`（旧 live，Oct 4 23:39）。
+- **部署**：本地 `dist` 打包 `dist-20261005-101320.tar.gz`（526,500 B）→ 上传 `/tmp` → 解压 `/var/www/aikb.stage-20261005-101320` → 原子替换为 `/var/www/aikb`；后端 jar 未动。⚠️ **教训**：远端 bash 变量（如 `$TS`）禁止在 PowerShell 双引号内以 `$` 书写，否则被本机提前展开；本轮曾因此一度移走线上目录，已用**字面量时间戳**恢复并完成部署。
+- **线上验证**：`http://120.55.76.141/` **HTTP 200**，引用新 asset `assets/index-D0Djqzph.js`（bundle 含 `半屏`/`全屏` 文案）；`/api/knowledge` 匿名 **401**（契约不变）；`(hover: hover)` 落 `assets/useTextSelection-*.js` 分包、`aikb.drawer.fullscreen` 落 `assets/FilePreview-*.js` 分包（确在包内）。
+- **清理**：远端 `/tmp/aikb-dist-20261005-101320.tar.gz` 已删、本地 `%TEMP%\aikb-deploy` 已删；凭据仅经环境变量、未落盘。
+- **回滚**：`rm -rf /var/www/aikb && cp -rp /var/www/aikb.bak-20261005-101320-pre-mobilefix /var/www/aikb`。
+- **PO 真机实测**：2026-10-05 **通过**——点「查看原文」「查看大纲」后小字气泡不再残留；抽屉半屏/全屏可切换、全屏无缝隙。
+
+### 未验证 / 后续
+
+- 真机原生长按选词（B-110 遗留项，与本轮无关）仍未覆盖。
+- 可选：下次部署顺手清理 `/var/www` 下历史备份目录（现存多个 `aikb.bak-*` / `aikb.old-live-*`）。
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

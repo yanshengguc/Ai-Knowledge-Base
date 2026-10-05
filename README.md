@@ -41,14 +41,14 @@
 
 | 指标 | 数值 | 说明 |
 |---|---|---|
-| 自动化测试 | 186/186 绿 | 默认回归 154 + integration 21（真实 Redis/向量库）+ e2e 11（真实 LLM 全链路），共 50 个测试文件 |
-| 安全攻防 | 24 项 0 漏洞 | 6 个真漏洞（含 2 个可拖库的 IDOR）修复后生产复测 |
+| 自动化测试 | 默认回归 293/293 绿 | 2026-10-05 夜巡实测（integration / e2e 分组按需另跑，e2e 真实调 LLM 产生少量费用） |
+| 安全攻防 | 24 项 0 漏洞 | 6 个真漏洞（含 2 个可拖库的 IDOR）修复后生产复测；2026-10-03 攻防演习 3 项新发现（MCP 堆栈泄露 / JWT 白名单 URI 归一化 / locate 资源放大）均已修复上线 |
 | 变异测试 | 5/5 全红 | 故意注入错误验证测试有效性，同时删掉 9 个零断言假测试 |
-| 前端加载 | 业务主包 1.27MB → 12.6KB | vendor 三分包（element-plus / vue 全家桶 / markdown 独立 chunk，改业务代码不再使 vendor 缓存失效） |
+| 前端加载 | 业务主包 1.27MB → 12.6KB | vendor 三分包 + element-plus 按需导入（chunk 1109KB → 30.6KB，gzip 7.1KB），改业务代码不再使 vendor 缓存失效 |
 | Agent 工具选择 | 15/15 | Eval Harness：该调/不该调用例全对 |
-| 检索质量 | recall@5 / MRR 达标（阈值 0.80/0.70，基线 1.0） | v3 数据集 18 查询 / 12 篇文档，真实管线注入非 mock |
+| 检索质量 | 无树基线 recall@5 0.833 / MRR 0.861（阈值 0.80/0.70，两次逐位一致） | v3 数据集 18 查询 / 12 篇文档，真实管线注入非 mock |
 | 批量向量化 | 100 chunks 约 30-100s → 5-10s | 批量 embed + 批量 insert，分批 20 + 失败回退逐条 |
-| 部署验收 | 9/9 PASS | scripts/verify_deploy.py，看 body 层 code 而非 HTTP 状态 |
+| 部署验收 | 3/3 PASS（注册关闭模式） | scripts/verify_deploy.py，看 body 层 code 而非 HTTP 状态 |
 
 ## 架构总览
 

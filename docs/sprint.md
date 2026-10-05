@@ -324,6 +324,34 @@ files **71**、chunks **1127**、token_usage **31**、悬空 **0**；对照清�
 - 真机原生长按选词（B-110 遗留项，与本轮无关）仍未覆盖。
 - 可选：下次部署顺手清理 `/var/www` 下历史备份目录（现存多个 `aikb.bak-*` / `aikb.old-live-*`）。
 
+## 生产风险应对留痕（2026-10-05 · DashVector 免费集群到期）
+
+> 结论：**PO 2026-10-05 拍板走「免费：到期后重申请」路径**（不付费、不自建）；已备份唯一不可重建数据 + 预写迁移脚本，10-11 到期后即可执行。**零代码改动、零部署**。
+
+### 背景与影响面
+- 集群：`aikb-free-2026`（华南1 深圳，endpoint `vrs-cn-moy4ydvtt0001k.dashvector.cn-shenzhen.aliyuncs.com`），**到期 2026-10-11 19:37:08**。
+- 影响（只读排查，零改动）：站点不崩——`VectorStoreServiceImpl.init()` / `LongTermMemoryServiceImpl.init()` 均 catch 降级启动；向量检索退化为 **BM25 单路**（`RetrievalServiceImpl` catch 后空结果 → 并入 BM25）；**长期记忆功能停用**（`recall` 返空、`remember` 丢弃）。
+- 数据现状：集合 `knowledge_chunk_vector` = **1127**（可由生产 MySQL `knowledge_chunk` 重建）；`long_term_memory` = **38**（**仅存于向量库、MySQL 无备份 ⇒ 唯一不可重建**）。
+
+### 已完成的排查与备份
+1. **长期记忆全量导出**：filter-only match query（`{"filter":"user_id >= 0","topk":1024}`，不带向量）拉全 **38/38** 条 → 备份 `C:\Users\yansheng\aikb-backups\long_term_memory-2026-10-05.json`（17,649 B；字段 `user_id` / `content` / `created_at`；覆盖 18 个 user_id）。
+2. **控制台核查（浏览器登录 PO 阿里云账号）**：仅此 1 个集群；变配页原文「免费试用实例…**到期或释放后可再次申请。实例到期后将立即释放，实例中的数据将会被全部删除且不可恢复**」；「存储型 / 性能型」**不可选**（提示“请选择其他规格类型”）⇒ **无法原地升级**。
+3. **付费价格留档**：Serverless **¥0.013/时**（约 ¥9/月）、存储型 S.small ¥0.25/时（约 ¥180/月）、性能型 P.small ¥0.375/时（约 ¥270/月）。
+4. **免费集群限额**：官方文档载「免费试用集群最多 2 个集合」——恰为本项目所需的 2 个（`knowledge_chunk_vector` / `long_term_memory`），**无缺口**。
+
+### 决策与执行清单（10-11 到期后）
+1. 【PO】控制台重申请免费试用集群 → 提供新 endpoint + API key；
+2. 【我】新集群建两集合（1024 维 / cosine / schema-free）；
+3. 【我】从生产 MySQL 读 `knowledge_chunk` + DashScope `text-embedding-v3`（`text_type=document`、1024 维）重嵌入 + `upsert` 逐条校验，回灌 **1127** 条（主键 = `chunk.id`，字段 `file_id` / `content`）；
+4. 【我】按备份重建 **38** 条记忆（重嵌入 + `upsert`，主键 / 字段与 `LongTermMemoryServiceImpl` 对齐）；
+5. 【我】改 `/etc/aikb/aikb.env`（`DASHVECTOR_ENDPOINT` / `DASHVECTOR_API_KEY`）+ 建回滚点 + 重启 `aikb`；
+6. 【我】验证（向量召回 + 长期记忆召回）。
+
+### 预写脚本与风险
+- 脚本：`scripts/dashvector-migrate.py`（endpoint / key 作参数；建集合 + 回灌 1127 chunk 向量 + 恢复 38 记忆；依赖 `requests` + `pymysql`；末尾以 `stats.total_doc_count` 复核）。
+- **风险**：免费重申请若额度售罄 / 规格变更 ⇒ 回退付费 Serverless（约 ¥9/月）。
+- **不可逆点**：旧集群到期即释放、数据全删不可恢复 ⇒ 备份 JSON 是长期记忆的唯一恢复来源，须先行落地到版本库外安全位置。
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

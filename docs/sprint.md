@@ -201,6 +201,55 @@
 
 **订正（2026-10-05 · 夜间巡检期间）**：曾据**过期项目记忆**口头汇报「B-120③ 安全响应头待授权暂缓、实测与 backlog 不符」——经查本文件「### B-120③ 安全响应头（Nginx 层）」（### B-120③ 安全响应头（Nginx 层））明确记载 **2026-10-03 已在 Nginx 层补齐 4 头**（`X-Frame-Options` / `X-Content-Type-Options` / `Content-Security-Policy` / `Strict-Transport-Security`）并外部实测 200，夜间实测 4 头齐全 ⇒ **一致、无缺口**。已在 `docs/reports/nightly-check-2026-10-05.md` 第 7.3 节以「【订正】」改正。另核准：**B-124**（`afcfb35`+`2734239`）、**B-125**（`27f1dc6`+`9cba8ad`+`f7ad7f4`）**均已入库**，本文件「B-124 树节点标题忠实度抽样体检」「B-125 长期记忆静默吞错观测性修复」两节的历史结论行中「待 PO 验收（未 commit / 未 push / 未部署）」字样属**历史状态**，已被上述收口提交覆盖，附件 B-124/B-125 条目**无悬空**。
 
+---
+
+## 生产运维变更留痕（2026-10-05 · 管理员治理 + 遗留账号清理）
+
+> 性质：**生产数据/配置受控变更**（非代码、非部署）；变更前已建回滚点，凭据仅经进程环境变量传入、未落盘。
+
+### 起因与定性（只读核查）
+
+PO 反馈「每个账号都可以看管理端」，疑越权。只读核查（`grep` + 3 条 `SELECT`）结论：**非越权**。
+
+- `/etc/aikb/aikb.env`：`ADMIN_USERNAMES=yuan`（白名单**仅 1 人**）
+- 库内 34 用户**全部 `role='user'`**；`SELECT ... WHERE role <> 'user'` 返回 **0 行** ⇒ 无第二个管理员
+- `yuan`（id=33）库内 role 亦为 `user` ⇒ 其管理员身份**纯来自白名单**
+- 判定式 = `白名单 ∪ role='admin'`，两来源均只含 `yuan` ⇒ **按构造除 `yuan` 外无其他账号可进管理端**
+- 反证实测：`demo` → `/api/user/me` `admin=false`，`/api/admin/overview`、`/api/admin/users` 均「权限不足」
+
+### 变更① 新建专用管理员 `aikb_admin`
+
+| 项 | 值 |
+| --- | --- |
+| id / role | 44 / `admin` |
+| 机制 | 数据库 `role='admin'`（**未改 `/etc/aikb/aikb.env`、未重启 `aikb`**） |
+| 口令 | 强随机 20 位，**不落文档**（已交 PO，要求首次登录后自行改密） |
+
+实测：登录成功 → `/api/user/me` `admin:true` → `/api/admin/overview` `code:200`
+（`userCount:11 / knowledge:15 / file:74 / chunk:1131`）；同批次 `demo` 仍 `admin:false` + 权限不足
+⇒ **最小权限未被放开**。
+
+### 变更② 清理 24 个遗留测试账号
+
+- 预检：id 1–32 中 **24 个名下 knowledge=0 且 file=0**（符合 App 自身护栏的删除前置校验），8 个有数据
+- 执行：`DELETE FROM user WHERE id IN (1,2,3,6,7,8,9,10,11,12,13,14,15,16,17,21,22,24,25,26,27,28,29,31)`
+  ⇒ `ROW_COUNT()=24`
+- 结果：用户总数 **34 → 11**（保留 4/5/18/19/20/23/30/32 共 8 个带数据账号 + `yuan` + `demo` + `aikb_admin`）
+- 命名特征：`deploy_a_*`/`deploy_b_*`/`dbg*`/`chk*`/`sec-*`/`tok_*`，为注册口开放期验证脚本所建
+
+### 回滚点
+
+- 服务器 `/root/aikb-rollback-20261005-admin/`：`aikb.env.bak`（配置快照，本轮未改 env）、
+  `user_full_before.sql`（变更前全表 34 行 / 5,697 B）、`user_deleted_24.sql`（被删 24 行定向导出，可直接回灌）
+- 撤销新管理员：`DELETE FROM user WHERE id=44`（或 `UPDATE user SET role='user' WHERE id=44`；`yuan` 白名单不受影响）
+
+### 未做 / 待决
+
+- 8 个带数据账号未清理（其中 20/23/30 各带 1 file，**可能含 DashVector 向量**，须走正规删除以触发向量清理，
+  避免孤儿向量导致主键复用 `Duplicate Key`）
+- `token_usage` 尚有 **2 行**指向已删用户（无外键、纯统计，无功能影响）
+- 管理员仍两人并存：`yuan`（白名单）+ `aikb_admin`（专用）；建议后续日常仅用 `aikb_admin`
+
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
 > 开于 2026-10-04 | 承接 Sprint 8（检索质量 eval 底座 + 无树基线 recall@5=0.833 / MRR=0.861）

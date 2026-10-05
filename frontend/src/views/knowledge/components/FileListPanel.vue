@@ -18,16 +18,12 @@
       </span>
       <div class="file-right">
         <!-- FAILED 时悬浮显示后端落库的失败原因(如:扫描件无文字层) -->
-        <el-tooltip
-          v-if="f.status === 'FAILED' && f.errorMsg"
-          :content="f.errorMsg"
-          placement="top"
-        >
+        <Tip v-if="f.status === 'FAILED' && f.errorMsg" :content="f.errorMsg">
           <el-tag size="small" type="danger" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
-        </el-tooltip>
+        </Tip>
         <el-tag v-else size="small" :type="fileTagType(f.status)" effect="light">{{ fileStatusLabel(f.status) }}</el-tag>
         <!-- B-114 大纲导航:仅 md 文件,独立入口,不改动原文预览按钮语义 -->
-        <el-tooltip v-if="isMarkdownFile(f)" :content="t('outline.entry')" placement="top">
+        <Tip v-if="isMarkdownFile(f)" :content="t('outline.entry')">
           <el-button
             class="outline-btn"
             size="small"
@@ -36,9 +32,9 @@
             :aria-label="t('outline.entry')"
             @click="outlineRef?.open({ id: f.id, fileName: f.fileName })"
           />
-        </el-tooltip>
+        </Tip>
         <!-- B-112 在线预览:md 直接看原文,pdf/docx 后端不返回内容由抽屉提示不支持 -->
-        <el-tooltip :content="t('filePreview.viewOriginal')" placement="top">
+        <Tip :content="t('filePreview.viewOriginal')">
           <el-button
             class="preview-btn"
             size="small"
@@ -47,9 +43,9 @@
             :aria-label="t('filePreview.viewOriginal')"
             @click="previewRef?.open({ id: f.id, fileName: f.fileName })"
           />
-        </el-tooltip>
+        </Tip>
         <!-- 处理中禁删:状态机未到终态,此时删会留下孤儿 chunk/向量 -->
-        <el-tooltip :content="f.status === 'PROCESSING' ? t('upload.deleteBlockedProcessing') : t('common.delete')" placement="top">
+        <Tip :content="f.status === 'PROCESSING' ? t('upload.deleteBlockedProcessing') : t('common.delete')">
           <el-button
             class="delete-btn"
             size="small"
@@ -59,7 +55,7 @@
             :disabled="f.status === 'PROCESSING'"
             @click="onDeleteFile(f)"
           />
-        </el-tooltip>
+        </Tip>
       </div>
     </div>
     </template>
@@ -77,6 +73,7 @@ import type { FileVO } from '@/types/api'
 import { useI18n } from 'vue-i18n'
 import FilePreview from './FilePreview.vue'
 import OutlinePanel from './OutlinePanel.vue'
+import Tip from '@/components/Tip.vue'
 
 // 文件列表:展示 + 预览 + 删除。列表数据由父级持有(上传完成/笔记创建后父级刷新传入)
 defineProps<{ files: FileVO[]; loadError?: boolean }>()

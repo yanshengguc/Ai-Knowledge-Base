@@ -118,6 +118,8 @@ export default {
     retry: '重试',
     send: '发送',
     clear: '清空',
+    fullscreen: '全屏',
+    halfscreen: '半屏',
   },
   knowledge: {
     title: '知识库',

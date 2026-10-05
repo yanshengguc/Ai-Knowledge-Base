@@ -1,11 +1,28 @@
 <template>
   <div class="outline-panel">
-    <el-drawer
-      v-model="visible"
-      :title="fileName || t('outline.title')"
-      size="min(900px, 94vw)"
-      :destroy-on-close="true"
-    >
+    <el-drawer v-model="visible" :size="size" :destroy-on-close="true">
+      <template #header="{ titleId, titleClass }">
+        <div class="op-header">
+          <span
+            :id="titleId"
+            :class="titleClass"
+            class="op-header-title"
+            role="heading"
+            aria-level="2"
+          >
+            {{ fileName || t('outline.title') }}
+          </span>
+          <el-button
+            class="op-size-toggle"
+            size="small"
+            text
+            :icon="fullscreen ? Fold : FullScreen"
+            @click="toggle"
+          >
+            {{ fullscreen ? t('common.halfscreen') : t('common.fullscreen') }}
+          </el-button>
+        </div>
+      </template>
       <div v-if="treeLoading" class="op-state">
         <el-icon class="is-loading"><Loading /></el-icon>
         <span>{{ t('outline.loading') }}</span>
@@ -138,10 +155,11 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Loading, Refresh } from '@element-plus/icons-vue'
+import { Fold, FullScreen, Loading, Refresh } from '@element-plus/icons-vue'
 import { getOutlineNodeDetail, getOutlineTree, rebuildOutline } from '@/api/outline'
 import type { OutlineNodeDetailVO, OutlineNodeVO } from '@/api/outline'
 import FilePreview from './FilePreview.vue'
+import { useDrawerSize } from '@/composables/useDrawerSize'
 
 /**
  * B-114 文档大纲面板:左侧标题树导航 + 右侧节点详情与 source_chunks 溯源。
@@ -149,6 +167,9 @@ import FilePreview from './FilePreview.vue'
  * 空态语义:treeFailed / detailFailed 为"请求失败";无标题 / 无切片为"真实空",两者分开渲染。
  */
 const { t } = useI18n()
+
+// 半屏/全屏由用户决定:桌面默认半屏、移动端默认全屏,偏好持久化、与原文预览共享
+const { fullscreen, size, toggle } = useDrawerSize('min(900px, 94vw)')
 
 interface OutlineTreeNode extends OutlineNodeVO {
   label: string
@@ -317,6 +338,25 @@ defineExpose({ open })
 
 <style scoped lang="scss">
 @use '@/styles/tokens.scss' as *;
+
+.op-header {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  min-width: 0;
+  width: 100%;
+}
+
+.op-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.op-size-toggle {
+  flex-shrink: 0;
+}
 
 .op-state {
   display: flex;

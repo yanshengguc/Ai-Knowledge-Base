@@ -118,6 +118,8 @@ export default {
     retry: 'Retry',
     send: 'Send',
     clear: 'Clear',
+    fullscreen: 'Fullscreen',
+    halfscreen: 'Half screen',
   },
   knowledge: {
     title: 'Knowledge',

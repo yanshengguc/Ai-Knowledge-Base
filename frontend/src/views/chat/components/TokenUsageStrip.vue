@@ -1,6 +1,6 @@
 <template>
   <div class="token-strip" v-if="summary">
-    <el-tooltip placement="top" :show-after="300">
+    <Tip :show-after="300">
       <template #content>
         <div class="tip">
           <div>{{ t('tokenUsage.tipChat') }}：{{ fmtTokens(chat.monthTokens) }} · ¥{{ fmtCost(chat.monthCost) }}</div>
@@ -14,7 +14,7 @@
         <span class="sep" />
         <span class="seg">{{ t('tokenUsage.monthCost') }} <b>¥{{ fmtCost(monthCostAll) }}</b></span>
       </span>
-    </el-tooltip>
+    </Tip>
   </div>
 </template>
 
@@ -24,6 +24,7 @@ import { useI18n } from 'vue-i18n'
 import { DataLine } from '@element-plus/icons-vue'
 import { getTokenUsageSummary, type TokenUsageSummary } from '@/api/modules/tokenUsage'
 import { useChatStore } from '@/stores/chat'
+import Tip from '@/components/Tip.vue'
 
 const { t } = useI18n()
 const chatStore = useChatStore()

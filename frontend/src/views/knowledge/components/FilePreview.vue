@@ -1,10 +1,27 @@
 <template>
-  <el-drawer
-    v-model="visible"
-    :title="fileName || t('filePreview.title')"
-    size="min(640px, 92vw)"
-    :destroy-on-close="true"
-  >
+  <el-drawer v-model="visible" :size="size" :destroy-on-close="true">
+    <template #header="{ titleId, titleClass }">
+      <div class="fp-header">
+        <span
+          :id="titleId"
+          :class="titleClass"
+          class="fp-header-title"
+          role="heading"
+          aria-level="2"
+        >
+          {{ fileName || t('filePreview.title') }}
+        </span>
+        <el-button
+          class="fp-size-toggle"
+          size="small"
+          text
+          :icon="fullscreen ? Fold : FullScreen"
+          @click="toggle"
+        >
+          {{ fullscreen ? t('common.halfscreen') : t('common.fullscreen') }}
+        </el-button>
+      </div>
+    </template>
     <!-- B-110 定位失败降级:抽屉顶部展示命中片段(模板插值渲染,不走 v-html) -->
     <div v-if="locateBanner" class="fp-locate-banner">
       <div class="fp-locate-notice">
@@ -38,10 +55,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Loading, WarningFilled } from '@element-plus/icons-vue'
+import { Fold, FullScreen, Loading, WarningFilled } from '@element-plus/icons-vue'
 import { getFileContent } from '@/api/modules/knowledge'
 import { renderMarkdown } from '@/utils/markdown'
 import { splitByQuery, truncate } from '@/utils/highlight'
+import { useDrawerSize } from '@/composables/useDrawerSize'
 
 /** B-110 可选定位入参:命中片段原文 + 选中查询词(不传则行为与既有完全一致) */
 export interface FilePreviewLocate {
@@ -60,6 +78,9 @@ export interface FilePreviewOpenOptions {
  * 用法:const preview = ref(); preview.value.open({ id, fileName })
  */
 const { t } = useI18n()
+
+// 半屏/全屏由用户决定:桌面默认半屏、移动端默认全屏,偏好持久化、与大纲面板共享
+const { fullscreen, size, toggle } = useDrawerSize('min(640px, 92vw)')
 
 const visible = ref(false)
 const loading = ref(false)
@@ -261,6 +282,25 @@ defineExpose({ open, retry })
 
 <style scoped lang="scss">
 @use '@/styles/tokens.scss' as *;
+
+.fp-header {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  min-width: 0;
+  width: 100%;
+}
+
+.fp-header-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-size-toggle {
+  flex-shrink: 0;
+}
 
 .fp-state {
   display: flex;

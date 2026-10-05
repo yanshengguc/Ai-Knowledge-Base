@@ -243,12 +243,32 @@ PO 反馈「每个账号都可以看管理端」，疑越权。只读核查（`g
   `user_full_before.sql`（变更前全表 34 行 / 5,697 B）、`user_deleted_24.sql`（被删 24 行定向导出，可直接回灌）
 - 撤销新管理员：`DELETE FROM user WHERE id=44`（或 `UPDATE user SET role='user' WHERE id=44`；`yuan` 白名单不受影响）
 
-### 未做 / 待决
+### 变更③ 续办：剩余 8 个带数据账号 + 悬空统计（2026-10-05 · 第二轮）
 
-- 8 个带数据账号未清理（其中 20/23/30 各带 1 file，**可能含 DashVector 向量**，须走正规删除以触发向量清理，
-  避免孤儿向量导致主键复用 `Duplicate Key`）
-- `token_usage` 尚有 **2 行**指向已删用户（无外键、纯统计，无功能影响）
+> 走 **App 正规链路**（**非 DB 硬删**），以确保向量被同步清理。
+
+顺序：管理员重置口令 → 该账号登录 → 删 file（触发向量清理）→ 删 knowledge → 管理员删用户；全部 `code:200`。
+
+- 删除 **9 条 knowledge**、**3 个 file**、**8 个用户**
+- **向量清理日志实证**（`journalctl -u aikb`）：`fileId=1 累计删除=1` / `fileId=2 累计删除=2` /
+  `fileId=3 累计删除=1`，**失败=0** ⇒ 4 个 chunk 对应向量全部清除，**无孤儿**
+- 口令重置仅作用于将被删除的账号，随账号一并消失，无残留
+- 悬空统计：`DELETE FROM token_usage WHERE user_id NOT IN (SELECT id FROM user)` ⇒ **`ROW_COUNT()=7`**
+  （首轮 24 账号 2 行 + 本轮 8 账号 5 行），现 **`ORPHAN_TOKENS=0`**
+
+**最终状态（实测）**：用户 **3**（`yuan`(user) / `demo`(user) / `aikb_admin`(**admin**)）、knowledge **6**、
+files **71**、chunks **1127**、token_usage **31**、悬空 **0**；对照清理前（11 / 15 / 74 / 1131）逐项吻合。
+
+**回滚点增补**（同目录）：`knowledge_8users.sql`、`knowledge_file_8users.sql`、`knowledge_chunk_3files.sql`、
+`user_8users.sql`。⚠️ 边界如实标注：**DB 行可回灌，但被删的向量与 OSS 对象不可逆**（走 App 删除已一并清除），
+均为测试数据。
+
+### 未做 / 待决（更新）
+
+- ~~8 个带数据账号未清理~~ → **已办结**，见「变更③」
+- ~~`token_usage` 悬空统计~~ → **已清零**（`ORPHAN_TOKENS=0`）
 - 管理员仍两人并存：`yuan`（白名单）+ `aikb_admin`（专用）；建议后续日常仅用 `aikb_admin`
+- `token_usage` 保留 31 行历史统计（真实使用轨迹，未删）
 
 # Sprint 9 · 目标：B-114 Phase2 —— 标题树挂载混合检索（路由加权）
 
